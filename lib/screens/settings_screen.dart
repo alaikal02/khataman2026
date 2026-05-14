@@ -375,6 +375,9 @@ class SettingsScreen extends StatelessWidget {
                   // Hapus data user dari tabel users (cascade akan hapus semua)
                   await supabase.from('users').delete().eq('id_user', userId);
                   await supabase.auth.signOut();
+                  if (context.mounted) {
+                    Navigator.of(context).popUntil((route) => route.isFirst);
+                  }
                 }
               } catch (e) {
                 if (context.mounted) {

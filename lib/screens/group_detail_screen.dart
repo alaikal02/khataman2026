@@ -233,6 +233,65 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
   }
 
   // ─────────────────────────────────────────────────────────
+  // Hapus Grup
+  // ─────────────────────────────────────────────────────────
+  Future<void> _confirmDeleteGroup() async {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        title: Text('Hapus Grup?', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
+        content: Text(
+          'Grup ini dan semua progres di dalamnya akan dihapus secara permanen. Tindakan ini tidak dapat dibatalkan.',
+          style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Batal'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _deleteGroup();
+            },
+            style: TextButton.styleFrom(foregroundColor: Colors.redAccent),
+            child: Text('Ya, Hapus'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _deleteGroup() async {
+    setState(() => _isLoading = true);
+    try {
+      // Hapus grup dari tabel groups.
+      // Jika error foreign key muncul, pastikan Supabase memiliki 'ON DELETE CASCADE'
+      await _supabase.from('groups').delete().eq('id_group', widget.groupId);
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Grup berhasil dihapus'), backgroundColor: AppTheme.primaryGreen),
+        );
+        Navigator.pop(context); // Kembali ke halaman utama grup
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        showDialog(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: Text('Gagal Menghapus Grup'),
+            content: Text('Terjadi kesalahan saat menghapus grup:\n\n$e\n\n(Pastikan pengaturan database mengizinkan hapus cascade)'),
+            actions: [TextButton(onPressed: () => Navigator.pop(context), child: Text('Tutup'))],
+          )
+        );
+      }
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────
   // Widget Shimmer tanpa package eksternal
   // ─────────────────────────────────────────────────────────
   Widget _buildShimmerBox({double width = double.infinity, double height = 16, double radius = 8}) {
@@ -344,6 +403,12 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
               ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Kode Grup disalin: ${_group!['kode_gk_unik']}')));
             },
           ),
+          if (_group != null && currentUserId == _group!['creator_id'])
+            IconButton(
+              icon: Icon(Icons.delete_outline_rounded, color: Colors.redAccent),
+              tooltip: 'Hapus Grup',
+              onPressed: _confirmDeleteGroup,
+            ),
         ],
       ),
       body: _isLoading

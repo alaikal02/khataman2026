@@ -121,7 +121,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           TextButton(
             onPressed: () {
-              Navigator.pop(context);
+              Navigator.pop(context); // Tutup dialog
+              Navigator.of(context).popUntil((route) => route.isFirst); // Kembali ke root
               auth.signOut();
             },
             style: TextButton.styleFrom(foregroundColor: Colors.redAccent),

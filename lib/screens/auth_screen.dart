@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter/foundation.dart'; // Import kIsWeb
 import '../theme/app_theme.dart';
 
 class AuthScreen extends StatefulWidget {
@@ -40,9 +41,18 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
   Future<void> _signInWithGoogle() async {
     setState(() => _isLoading = true);
     try {
+      // Untuk Web, redirect harus ke URL (biasanya localhost saat development)
+      // Untuk Mobile, redirect menggunakan custom scheme
+      final String redirectTo = kIsWeb 
+          ? Uri.base.origin 
+          : 'com.example.khataman://login-callback';
+
       await Supabase.instance.client.auth.signInWithOAuth(
         OAuthProvider.google,
-        redirectTo: 'com.example.khataman://login-callback',
+        redirectTo: redirectTo,
+        queryParams: {
+          'prompt': 'select_account',
+        },
       );
     } catch (e) {
       if (mounted) {
