@@ -69,14 +69,21 @@ jobs:
       - name: Build APK
         run: flutter build apk --release
 
-      # 7. Upload file APK agar bisa di-download di GitHub
+      # 7. Rename APK (Flutter outputs app-release.apk; upload/release need versioned name)
+      - name: Rename APK with version
+        run: |
+          cp "build/app/outputs/flutter-apk/app-release.apk" \
+             "build/app/outputs/flutter-apk/${{ steps.version.outputs.apk_name }}"
+
+      # 8. Upload artifact
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.version.outputs.apk_name }}
           path: build/app/outputs/flutter-apk/${{ steps.version.outputs.apk_name }}
+          if-no-files-found: error
 
-      # 10. Publish ke GitHub Releases (tab Releases di repo)
+      # 9. Publish ke GitHub Releases
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -89,4 +96,5 @@ jobs:
 
             Bump `version` in `pubspec.yaml` before each release (e.g. `1.0.1+2`).
           files: build/app/outputs/flutter-apk/${{ steps.version.outputs.apk_name }}
+          fail_on_unmatched_files: true
           generate_release_notes: true
