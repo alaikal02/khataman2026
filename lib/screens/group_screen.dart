@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'group_detail_screen.dart';
 import '../theme/app_theme.dart';
+import '../services/notification_service.dart';
 import 'dart:math';
 
 class GroupScreen extends StatefulWidget {
@@ -310,6 +311,39 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
         'user_id': _supabase.auth.currentUser?.id,
         'approval_status': status,
       });
+
+      // Kirim notifikasi ke pembuat/admin grup
+      try {
+        final group = _allGroups.firstWhere((g) => g['id_group'].toString() == groupId);
+        final creatorId = group['creator_id'] as String?;
+        final senderName = _supabase.auth.currentUser?.userMetadata?['full_name'] as String? ??
+            _supabase.auth.currentUser?.email?.split('@')[0] ??
+            'Seseorang';
+
+        if (creatorId != null && creatorId != _supabase.auth.currentUser?.id) {
+          if (isPrivate) {
+            await NotificationService.send(
+              userId: creatorId,
+              type: 'JOIN_REQUEST',
+              title: 'Permintaan Bergabung',
+              body: '$senderName meminta bergabung ke grup "$groupName"',
+              groupId: groupId,
+              senderId: _supabase.auth.currentUser?.id,
+            );
+          } else {
+            await NotificationService.send(
+              userId: creatorId,
+              type: 'MEMBER_JOINED',
+              title: 'Anggota Baru Bergabung',
+              body: '$senderName telah bergabung ke grup "$groupName"',
+              groupId: groupId,
+              senderId: _supabase.auth.currentUser?.id,
+            );
+          }
+        }
+      } catch (notifErr) {
+        print('Error sending join notification: $notifErr');
+      }
 
       await _fetchData();
 

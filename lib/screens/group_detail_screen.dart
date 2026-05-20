@@ -3,31 +3,34 @@ import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../components/slot_card.dart';
 import '../theme/app_theme.dart';
+import '../services/notification_service.dart';
 
 class GroupDetailScreen extends StatefulWidget {
   final String groupId;
+  final String? groupName;
 
-  const GroupDetailScreen({Key? key, required this.groupId}) : super(key: key);
+  const GroupDetailScreen({Key? key, required this.groupId, this.groupName}) : super(key: key);
 
   @override
   State<GroupDetailScreen> createState() => _GroupDetailScreenState();
 }
 
 class _GroupDetailScreenState extends State<GroupDetailScreen>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   final _supabase = Supabase.instance.client;
   Map<String, dynamic>? _group;
   Map<String, dynamic>? _putaran;
   List<dynamic> _slots = [];
   List<dynamic> _members = [];
   RealtimeChannel? _subscription;
-  bool _isLoading = true; // ← State loading yang sebelumnya tidak ada
+  bool _isLoading = true;
   int _pendingCount = 0;
   late AnimationController _shimmerController;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _shimmerController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1200),
@@ -38,36 +41,84 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
 
   @override
   void dispose() {
-    _subscription?.unsubscribe();
+    WidgetsBinding.instance.removeObserver(this);
+    if (_subscription != null) {
+      try {
+        _supabase.removeChannel(_subscription!);
+      } catch (e) {
+        debugPrint('🔄 [Realtime Group] Error removing channel on dispose: $e');
+      }
+    }
     _shimmerController.dispose();
     super.dispose();
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      debugPrint('🔄 [App Lifecycle] App resumed in Group Detail. Refreshing data and subscription...');
+      _fetchData(silent: true);
+      _setupRealtime();
+    }
+  }
+
   void _setupRealtime() {
-    // Gunakan nama channel unik per grup agar tidak konflik antar halaman
     final channelName = 'group_detail_${widget.groupId}';
-    _subscription = _supabase.channel(channelName).onPostgresChanges(
-      event: PostgresChangeEvent.all,
-      schema: 'public',
-      table: 'slot_khataman',
-      callback: (payload) {
-        if (mounted) _fetchData(silent: true);
-      },
-    ).onPostgresChanges(
-      event: PostgresChangeEvent.all,
-      schema: 'public',
-      table: 'putaran_siklus',
-      callback: (payload) {
-        if (mounted) _fetchData(silent: true);
-      },
-    ).onPostgresChanges(
-      event: PostgresChangeEvent.all,
-      schema: 'public',
-      table: 'group_members',
-      callback: (payload) {
-        if (mounted) _fetchData(silent: true);
-      },
-    ).subscribe();
+    debugPrint('🔄 [Realtime Group] Menghubungkan ke channel: $channelName...');
+
+    // Bersihkan subscription lama jika ada
+    if (_subscription != null) {
+      try {
+        _supabase.removeChannel(_subscription!);
+      } catch (e) {
+        debugPrint('🔄 [Realtime Group] Error removing old channel: $e');
+      }
+    }
+
+    _subscription = _supabase.channel(channelName)
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'slot_khataman',
+          callback: (payload) {
+            debugPrint('🔄 [Realtime Group] Slot khataman changed. Refreshing...');
+            if (mounted) _fetchData(silent: true);
+          },
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'putaran_siklus',
+          callback: (payload) {
+            debugPrint('🔄 [Realtime Group] Putaran siklus changed. Refreshing...');
+            if (mounted) _fetchData(silent: true);
+          },
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'group_members',
+          callback: (payload) {
+            debugPrint('🔄 [Realtime Group] Group members changed. Refreshing...');
+            if (mounted) _fetchData(silent: true);
+          },
+        );
+
+    _subscription?.subscribe((status, [error]) {
+      debugPrint('🔄 [Realtime Group] Status: $status' + (error != null ? ', Error: $error' : ''));
+      
+      // Re-koneksi otomatis jika terjadi error atau timeout
+      if (status == RealtimeSubscribeStatus.channelError || 
+          status == RealtimeSubscribeStatus.closed ||
+          status == RealtimeSubscribeStatus.timedOut) {
+        debugPrint('🔄 [Realtime Group] Terputus. Menghubungkan kembali dalam 3 detik...');
+        Future.delayed(const Duration(seconds: 3), () {
+          if (mounted) {
+            _setupRealtime();
+          }
+        });
+      }
+    });
   }
 
   Future<void> _fetchData({bool silent = false}) async {
@@ -93,6 +144,19 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
             _putaran!['status_aktif_selesai'] == 'AKTIF' &&
             pData['status_aktif_selesai'] == 'SELESAI') {
           _showCelebration();
+
+          // Kirim notifikasi khataman selesai ke semua anggota grup
+          try {
+            final gName = widget.groupName ?? groupData['nama_grup'] ?? 'Grup';
+            await NotificationService.sendToGroup(
+              groupId: widget.groupId,
+              type: 'KHATAMAN_COMPLETE',
+              title: '🎉 Khataman Selesai! Alhamdulillah!',
+              body: 'Alhamdulillah, khataman di grup "$gName" telah selesai (30/30 Juz). Semoga berkah!',
+            );
+          } catch (notifErr) {
+            debugPrint('Error sending khataman complete notification: $notifErr');
+          }
         }
         // Join dengan tabel users untuk langsung dapat username
         sData = await _supabase
@@ -112,11 +176,19 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
         pCount = (pendingRes as List).length;
       }
 
+      final membersData = await _supabase
+          .from('group_members')
+          .select('*, users(username, avatar_url)')
+          .eq('group_id', widget.groupId)
+          .eq('approval_status', 'APPROVED');
+      final membersList = List<dynamic>.from(membersData);
+
       if (mounted) {
         setState(() {
           _group = groupData;
           _putaran = pData;
           _slots = sData;
+          _members = membersList;
           _pendingCount = pCount;
           _isLoading = false;
         });
@@ -198,6 +270,30 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
 
   Future<void> _claimSlot(int slotId) async {
     try {
+      if (_group?['limit_juz'] == true) {
+        final approvedMembersCount = _members.where((m) => m['approval_status'] == 'APPROVED').length;
+        final memberCount = approvedMembersCount == 0 ? 1 : approvedMembersCount;
+        final maxSlots = (30 / memberCount).ceil();
+
+        final myUserId = _supabase.auth.currentUser?.id;
+        final myClaimsCount = _slots.where((s) => s['user_id'] == myUserId).length;
+
+        if (myClaimsCount >= maxSlots) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  '⚠️ Batas pengambilan juz terpenuhi!\nMaksimal $maxSlots juz per anggota.',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                backgroundColor: Colors.orange,
+              ),
+            );
+          }
+          return;
+        }
+      }
+
       // Update HANYA jika user_id masih NULL (slot belum diambil orang lain)
       final result = await _supabase
           .from('slot_khataman')
@@ -321,6 +417,21 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                                             .update({'approval_status': 'APPROVED'})
                                             .eq('user_id', member['user_id'])
                                             .eq('group_id', widget.groupId);
+
+                                        // Kirim notifikasi ke anggota yang disetujui
+                                        try {
+                                          final gName = widget.groupName ?? _group?['nama_grup'] ?? 'Grup';
+                                          await NotificationService.send(
+                                            userId: member['user_id'] as String,
+                                            type: 'JOIN_APPROVED',
+                                            title: 'Permintaan Bergabung Disetujui',
+                                            body: 'Selamat! Permintaan Anda bergabung ke grup "$gName" telah disetujui.',
+                                            groupId: widget.groupId,
+                                          );
+                                        } catch (notifErr) {
+                                          print('Error sending approved notification: $notifErr');
+                                        }
+
                                         setStateDialog(() => member['approval_status'] = 'APPROVED');
                                         _fetchData(silent: true);
                                       },
@@ -585,12 +696,12 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
           // ← Shimmer ditampilkan selama loading, bukan empty state
           ? _buildShimmerList()
           : _putaran == null
-              ? _buildNoPutaran()
+              ? _buildNoPutaran(currentUserId)
               : _buildSlotList(currentUserId),
     );
   }
 
-  Widget _buildNoPutaran() {
+  Widget _buildNoPutaran(String? currentUserId) {
     final code = _group?['kode_gk_unik'] ?? '-';
     return ListView(
       padding: EdgeInsets.fromLTRB(24, 24, 24, 24 + MediaQuery.of(context).padding.bottom),
@@ -643,7 +754,9 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
             title: Text(name, style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontWeight: FontWeight.w500)),
           );
         }).toList(),
-        SizedBox(height: 24),
+        const SizedBox(height: 24),
+        _buildLimitToggleCard(currentUserId == _group?['creator_id']),
+        const SizedBox(height: 24),
         // Divider
         Divider(color: Theme.of(context).dividerColor),
         SizedBox(height: 24),
@@ -683,6 +796,115 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildLimitToggleCard(bool isAdmin) {
+    final isLimited = _group?['limit_juz'] == true;
+    final approvedMembersCount = _members.where((m) => m['approval_status'] == 'APPROVED').length;
+    final memberCount = approvedMembersCount == 0 ? 1 : approvedMembersCount;
+    final maxSlots = (30 / memberCount).ceil();
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Theme.of(context).dividerColor),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      Icons.gavel_rounded,
+                      size: 18,
+                      color: isLimited ? AppTheme.accentGold : Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Batasi Pengambilan Juz',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  isLimited
+                      ? 'Dibatasi: Maks $maxSlots Juz per anggota ($memberCount anggota)'
+                      : 'Bebas: Anggota dapat mengambil Juz tanpa batas',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (isAdmin)
+            Switch(
+              value: isLimited,
+              activeColor: AppTheme.primaryGreen,
+              onChanged: (value) async {
+                try {
+                  await _supabase
+                      .from('groups')
+                      .update({'limit_juz': value})
+                      .eq('id_group', widget.groupId);
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          value
+                              ? '🔒 Batasan pengambilan Juz diaktifkan!'
+                              : '🔓 Batasan pengambilan Juz dinonaktifkan!',
+                        ),
+                        backgroundColor: AppTheme.primaryGreen,
+                      ),
+                    );
+                  }
+                  _fetchData(silent: true);
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Gagal mengubah batasan: $e'),
+                        backgroundColor: Colors.redAccent,
+                      ),
+                    );
+                  }
+                }
+              },
+            )
+          else
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: isLimited
+                    ? AppTheme.accentGold.withOpacity(0.15)
+                    : Theme.of(context).colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                isLimited ? 'Aktif' : 'Nonaktif',
+                style: TextStyle(
+                  color: isLimited ? AppTheme.accentGold : Theme.of(context).colorScheme.onSurfaceVariant,
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 
@@ -735,6 +957,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
             ],
           ),
         ),
+        _buildLimitToggleCard(currentUserId == _group?['creator_id']),
         Expanded(
           child: RefreshIndicator(
             color: AppTheme.primaryGreen,
@@ -755,6 +978,8 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                     memberName: memberName,
                     isOwned: slot['user_id'] == currentUserId,
                     onRelease: _releaseSlot,
+                    groupId: widget.groupId,
+                    groupName: _group?['nama_grup'],
                     onProgressUpdated: () {
                       if (mounted) setState(() {});
                     },

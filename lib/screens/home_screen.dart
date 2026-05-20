@@ -1,14 +1,113 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../providers/auth_provider.dart';
 import '../theme/app_theme.dart';
+import '../services/notification_service.dart';
 import 'group_screen.dart';
 import 'mandiri_screen.dart';
 import 'profile_screen.dart';
 import 'settings_screen.dart';
+import 'notification_screen.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
+  int _unreadNotificationsCount = 0;
+  RealtimeChannel? _notificationChannel;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _fetchUnreadCount();
+    _subscribeToNotifications();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      debugPrint('🔔 [App Lifecycle] App resumed (foreground). Refreshing notifications...');
+      _fetchUnreadCount();
+      _subscribeToNotifications();
+    }
+  }
+
+  Future<void> _fetchUnreadCount() async {
+    final count = await NotificationService.getUnreadCount();
+    if (mounted) {
+      setState(() {
+        _unreadNotificationsCount = count;
+      });
+    }
+  }
+
+  void _subscribeToNotifications() {
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId == null) return;
+
+    debugPrint('🔔 [Realtime] Menghubungkan ke channel notifications...');
+
+    // Hapus channel lama terlebih dahulu jika ada untuk menghindari duplikasi listener
+    if (_notificationChannel != null) {
+      try {
+        Supabase.instance.client.removeChannel(_notificationChannel!);
+      } catch (e) {
+        debugPrint('🔔 [Realtime] Error removing old channel: $e');
+      }
+    }
+
+    _notificationChannel = Supabase.instance.client
+        .channel('public:notifications')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'notifications',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'user_id',
+            value: userId,
+          ),
+          callback: (payload) {
+            debugPrint('🔔 [Realtime] Event diterima: ${payload.eventType} untuk user $userId. Memperbarui count...');
+            _fetchUnreadCount();
+          },
+        );
+    
+    _notificationChannel?.subscribe((status, [error]) {
+      debugPrint('🔔 [Realtime] Status channel notifications: $status' + (error != null ? ', Error: $error' : ''));
+      
+      // Jika koneksi terputus, error, atau timeout di Android/mobile, coba hubungkan kembali setelah delay kecil
+      if (status == RealtimeSubscribeStatus.channelError || 
+          status == RealtimeSubscribeStatus.closed ||
+          status == RealtimeSubscribeStatus.timedOut) {
+        debugPrint('🔔 [Realtime] Saluran terputus/error. Mencoba re-koneksi otomatis dalam 3 detik...');
+        Future.delayed(const Duration(seconds: 3), () {
+          if (mounted) {
+            _subscribeToNotifications();
+          }
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    if (_notificationChannel != null) {
+      try {
+        Supabase.instance.client.removeChannel(_notificationChannel!);
+      } catch (e) {
+        debugPrint('🔔 [Realtime] Error removing channel in dispose: $e');
+      }
+    }
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -25,17 +124,17 @@ class HomeScreen extends StatelessWidget {
         child: SafeArea(
           child: SingleChildScrollView(
             child: Padding(
-              padding: EdgeInsets.symmetric(horizontal: 20),
+              padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  SizedBox(height: 20),
+                  const SizedBox(height: 20),
                   // Header
                   _buildHeader(context, displayName, avatarUrl, authProvider),
-                  SizedBox(height: 32),
+                  const SizedBox(height: 32),
                   // Greeting Card
                   _buildGreetingCard(context, displayName),
-                  SizedBox(height: 32),
+                  const SizedBox(height: 32),
                   // Section Title
                   Text(
                     'Mulai Sekarang',
@@ -45,37 +144,37 @@ class HomeScreen extends StatelessWidget {
                       color: Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
-                  SizedBox(height: 16),
+                  const SizedBox(height: 16),
                   // Feature Cards
                   _buildFeatureCard(
                     context,
                     icon: Icons.person_rounded,
                     title: 'Khataman Mandiri',
                     subtitle: 'Lacak progres membaca Quran Anda sendiri.\nPantau setiap Juz yang sudah Anda selesaikan.',
-                    gradient: LinearGradient(
+                    gradient: const LinearGradient(
                       colors: [Color(0xFF2ECC71), Color(0xFF1A8A4A)],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
                     onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const MandiriScreen())),
                   ),
-                  SizedBox(height: 14),
+                  const SizedBox(height: 14),
                   _buildFeatureCard(
                     context,
                     icon: Icons.group_rounded,
                     title: 'Khataman Grup',
                     subtitle: 'Buat atau gabung grup khataman bersama.\nDistribusikan 30 Juz secara dinamis ke anggota.',
-                    gradient: LinearGradient(
+                    gradient: const LinearGradient(
                       colors: [Color(0xFF6C63FF), Color(0xFF3F3D8B)],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
                     onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const GroupScreen())),
                   ),
-                  SizedBox(height: 32),
+                  const SizedBox(height: 32),
                   // Stats Row
                   _buildStatsRow(context),
-                  SizedBox(height: 32),
+                  const SizedBox(height: 32),
                 ],
               ),
             ),
@@ -104,12 +203,55 @@ class HomeScreen extends StatelessWidget {
         ),
         Row(
           children: [
+            // Bell Icon for Notifications
+            Stack(
+              alignment: Alignment.center,
+              children: [
+                IconButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const NotificationScreen()),
+                    ).then((_) => _fetchUnreadCount());
+                  },
+                  icon: Icon(Icons.notifications_rounded, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                  tooltip: 'Notifikasi',
+                ),
+                if (_unreadNotificationsCount > 0)
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: Container(
+                      padding: const EdgeInsets.all(2),
+                      decoration: BoxDecoration(
+                        color: Colors.red,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Theme.of(context).scaffoldBackgroundColor, width: 1.5),
+                      ),
+                      constraints: const BoxConstraints(
+                        minWidth: 16,
+                        minHeight: 16,
+                      ),
+                      child: Text(
+                        '$_unreadNotificationsCount',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(width: 4),
             IconButton(
               onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen())),
               icon: Icon(Icons.settings_rounded, color: Theme.of(context).colorScheme.onSurfaceVariant),
               tooltip: 'Pengaturan',
             ),
-            SizedBox(width: 4),
+            const SizedBox(width: 4),
             GestureDetector(
               onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileScreen())),
               child: Stack(

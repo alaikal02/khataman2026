@@ -1,0 +1,664 @@
+import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../services/notification_service.dart';
+import '../theme/app_theme.dart';
+import 'group_detail_screen.dart';
+
+class NotificationScreen extends StatefulWidget {
+  const NotificationScreen({Key? key}) : super(key: key);
+
+  @override
+  State<NotificationScreen> createState() => _NotificationScreenState();
+}
+
+class _NotificationScreenState extends State<NotificationScreen> {
+  bool _isLoading = true;
+  List<Map<String, dynamic>> _notifications = [];
+  Map<String, String> _memberStatuses = {}; // key: "${groupId}_${senderId}" -> approval_status
+  final Set<String> _processingNotifIds = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _loadNotifications();
+  }
+
+  Future<void> _loadNotifications() async {
+    setState(() => _isLoading = true);
+    final list = await NotificationService.getAll();
+    
+    // Batch fetch status group members untuk JOIN_REQUEST
+    final Map<String, String> statuses = {};
+    try {
+      final joinRequests = list.where((n) {
+        return n['type'] == 'JOIN_REQUEST' && 
+               n['group_id'] != null && 
+               n['sender_id'] != null;
+      }).toList();
+
+      if (joinRequests.isNotEmpty) {
+        final List<String> groupIds = joinRequests.map((n) => n['group_id'] as String).toSet().toList();
+        final List<String> senderIds = joinRequests.map((n) => n['sender_id'] as String).toSet().toList();
+
+        final memberStatuses = await Supabase.instance.client
+            .from('group_members')
+            .select('group_id, user_id, approval_status')
+            .inFilter('group_id', groupIds)
+            .inFilter('user_id', senderIds);
+
+        for (final m in memberStatuses) {
+          final gid = m['group_id'] as String;
+          final uid = m['user_id'] as String;
+          final status = m['approval_status'] as String? ?? 'PENDING';
+          statuses['${gid}_${uid}'] = status;
+        }
+      }
+    } catch (e) {
+      debugPrint('Error batch-fetching member statuses: $e');
+    }
+
+    if (mounted) {
+      setState(() {
+        _notifications = list;
+        _memberStatuses = statuses;
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _approveJoinRequest(Map<String, dynamic> notif) async {
+    final notifId = notif['id'] as String;
+    final groupId = notif['group_id'] as String?;
+    final senderId = notif['sender_id'] as String?;
+    
+    if (groupId == null || senderId == null) return;
+    
+    setState(() {
+      _processingNotifIds.add(notifId);
+    });
+
+    try {
+      final client = Supabase.instance.client;
+      
+      // Update status keanggotaan
+      await client
+          .from('group_members')
+          .update({'approval_status': 'APPROVED'})
+          .eq('user_id', senderId)
+          .eq('group_id', groupId);
+
+      // Kirim notifikasi ke pemohon
+      try {
+        String groupName = 'Grup';
+        if (notif['groups'] != null && notif['groups']['nama_grup'] != null) {
+          groupName = notif['groups']['nama_grup'] as String;
+        }
+        await NotificationService.send(
+          userId: senderId,
+          type: 'JOIN_APPROVED',
+          title: 'Permintaan Bergabung Disetujui',
+          body: 'Selamat! Permintaan Anda bergabung ke grup "$groupName" telah disetujui.',
+          groupId: groupId,
+        );
+      } catch (notifErr) {
+        debugPrint('Error sending approved notification: $notifErr');
+      }
+
+      // Tandai notifikasi pembuat/admin sebagai telah dibaca
+      await NotificationService.markAsRead(notifId);
+
+      // Update state lokal
+      if (mounted) {
+        setState(() {
+          _memberStatuses['${groupId}_${senderId}'] = 'APPROVED';
+          // Mark notification as read locally
+          final idx = _notifications.indexWhere((element) => element['id'] == notifId);
+          if (idx != -1) {
+            _notifications[idx]['is_read'] = true;
+          }
+          _processingNotifIds.remove(notifId);
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Permintaan bergabung berhasil disetujui'),
+            backgroundColor: AppTheme.primaryGreen,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _processingNotifIds.remove(notifId);
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal menyetujui permintaan: $e'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _rejectJoinRequest(Map<String, dynamic> notif) async {
+    final notifId = notif['id'] as String;
+    final groupId = notif['group_id'] as String?;
+    final senderId = notif['sender_id'] as String?;
+    
+    if (groupId == null || senderId == null) return;
+
+    // Tampilkan dialog konfirmasi sebelum menolak untuk menghindari salah pencet
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Tolak Permintaan?'),
+        content: const Text('Apakah Anda yakin ingin menolak permintaan bergabung ini?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Batal', style: TextStyle(color: AppTheme.textSecondary)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+            child: const Text('Tolak'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+    
+    setState(() {
+      _processingNotifIds.add(notifId);
+    });
+
+    try {
+      final client = Supabase.instance.client;
+      
+      // Hapus data keanggotaan
+      await client
+          .from('group_members')
+          .delete()
+          .eq('user_id', senderId)
+          .eq('group_id', groupId);
+
+      // Tandai notifikasi sebagai telah dibaca
+      await NotificationService.markAsRead(notifId);
+
+      // Update state lokal
+      if (mounted) {
+        setState(() {
+          _memberStatuses.remove('${groupId}_${senderId}'); // status menjadi null (artinya ditolak/dihapus)
+          // Mark notification as read locally
+          final idx = _notifications.indexWhere((element) => element['id'] == notifId);
+          if (idx != -1) {
+            _notifications[idx]['is_read'] = true;
+          }
+          _processingNotifIds.remove(notifId);
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Permintaan bergabung berhasil ditolak'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _processingNotifIds.remove(notifId);
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal menolak permintaan: $e'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _markAllAsRead() async {
+    // Show quick loading indicator
+    setState(() => _isLoading = true);
+    await NotificationService.markAllAsRead();
+    await _loadNotifications();
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Semua notifikasi telah ditandai dibaca')),
+    );
+  }
+
+  Future<void> _handleNotificationTap(Map<String, dynamic> notif) async {
+    final notifId = notif['id'] as String;
+    final isRead = notif['is_read'] as bool? ?? false;
+    final groupId = notif['group_id'] as String?;
+
+    if (!isRead) {
+      await NotificationService.markAsRead(notifId);
+      // Update local state quietly
+      if (mounted) {
+        setState(() {
+          final idx = _notifications.indexWhere((element) => element['id'] == notifId);
+          if (idx != -1) {
+            _notifications[idx]['is_read'] = true;
+          }
+        });
+      }
+    }
+
+    if (groupId != null && mounted) {
+      // Find the group name
+      String groupName = 'Detail Grup';
+      if (notif['groups'] != null && notif['groups']['nama_grup'] != null) {
+        groupName = notif['groups']['nama_grup'] as String;
+      }
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => GroupDetailScreen(
+            groupId: groupId,
+            groupName: groupName,
+          ),
+        ),
+      ).then((_) => _loadNotifications()); // Reload on back to reflect changes
+    }
+  }
+
+  IconData _getIconForType(String type) {
+    switch (type) {
+      case 'MEMBER_JOINED':
+        return Icons.person_add_rounded;
+      case 'JOIN_REQUEST':
+        return Icons.group_add_rounded;
+      case 'JOIN_APPROVED':
+        return Icons.check_circle_rounded;
+      case 'JUZ_COMPLETED':
+        return Icons.menu_book_rounded;
+      case 'KHATAMAN_COMPLETE':
+        return Icons.emoji_events_rounded;
+      default:
+        return Icons.notifications_rounded;
+    }
+  }
+
+  Color _getColorForType(String type) {
+    switch (type) {
+      case 'MEMBER_JOINED':
+        return AppTheme.primaryGreen;
+      case 'JOIN_REQUEST':
+        return AppTheme.accentGold;
+      case 'JOIN_APPROVED':
+        return AppTheme.accentTeal;
+      case 'JUZ_COMPLETED':
+        return AppTheme.accentGold;
+      case 'KHATAMAN_COMPLETE':
+        return Colors.orangeAccent;
+      default:
+        return AppTheme.textSecondary;
+    }
+  }
+
+  String _formatTime(String? dateStr) {
+    if (dateStr == null) return '';
+    try {
+      final dateTime = DateTime.parse(dateStr).toLocal();
+      final difference = DateTime.now().difference(dateTime);
+
+      if (difference.inSeconds < 60) {
+        return 'Baru saja';
+      } else if (difference.inMinutes < 60) {
+        return '${difference.inMinutes} menit yang lalu';
+      } else if (difference.inHours < 24) {
+        return '${difference.inHours} jam yang lalu';
+      } else if (difference.inDays < 7) {
+        return '${difference.inDays} hari yang lalu';
+      } else {
+        return '${dateTime.day}/${dateTime.month}/${dateTime.year}';
+      }
+    } catch (e) {
+      return '';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final unreadCount = _notifications.where((n) => !(n['is_read'] as bool? ?? false)).length;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Notifikasi'),
+        actions: [
+          if (unreadCount > 0)
+            IconButton(
+              icon: const Icon(Icons.done_all_rounded),
+              tooltip: 'Tandai semua dibaca',
+              onPressed: _markAllAsRead,
+            ),
+        ],
+      ),
+      body: Container(
+        decoration: BoxDecoration(gradient: AppTheme.bgGradient),
+        child: RefreshIndicator(
+          onRefresh: _loadNotifications,
+          color: AppTheme.primaryGreen,
+          backgroundColor: AppTheme.bgCard,
+          child: _buildBody(),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActionButtons(Map<String, dynamic> notif, String notifId, String groupId, String senderId, String? approvalStatus) {
+    final isProcessing = _processingNotifIds.contains(notifId);
+
+    if (isProcessing) {
+      return const Padding(
+        padding: EdgeInsets.only(top: 12),
+        child: SizedBox(
+          height: 24,
+          width: 24,
+          child: CircularProgressIndicator(
+            strokeWidth: 2.0,
+            color: AppTheme.primaryGreen,
+          ),
+        ),
+      );
+    }
+
+    if (approvalStatus == 'APPROVED') {
+      return Padding(
+        padding: const EdgeInsets.only(top: 12),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: AppTheme.primaryGreen.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: AppTheme.primaryGreen.withOpacity(0.3)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: const [
+                  Icon(Icons.check_circle_rounded, color: AppTheme.primaryGreen, size: 14),
+                  SizedBox(width: 6),
+                  Text(
+                    'Permintaan disetujui',
+                    style: TextStyle(
+                      color: AppTheme.primaryGreen,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (approvalStatus == null) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 12),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.redAccent.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.redAccent.withOpacity(0.3)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: const [
+                  Icon(Icons.cancel_rounded, color: Colors.redAccent, size: 14),
+                  SizedBox(width: 6),
+                  Text(
+                    'Permintaan ditolak',
+                    style: TextStyle(
+                      color: Colors.redAccent,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Row(
+        children: [
+          SizedBox(
+            height: 32,
+            child: ElevatedButton.icon(
+              onPressed: () => _approveJoinRequest(notif),
+              icon: const Icon(Icons.check_rounded, size: 14, color: Colors.white),
+              label: const Text('Setujui', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.primaryGreen,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                elevation: 0,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          SizedBox(
+            height: 32,
+            child: OutlinedButton.icon(
+              onPressed: () => _rejectJoinRequest(notif),
+              icon: const Icon(Icons.close_rounded, size: 14, color: Colors.redAccent),
+              label: const Text('Tolak', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.redAccent)),
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: Colors.redAccent, width: 1.2),
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBody() {
+    if (_isLoading) {
+      return const Center(
+        child: CircularProgressIndicator(color: AppTheme.primaryGreen),
+      );
+    }
+
+    if (_notifications.isEmpty) {
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: [
+          SizedBox(height: MediaQuery.of(context).size.height * 0.25),
+          Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: AppTheme.bgCard,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: AppTheme.primaryGreen.withOpacity(0.2)),
+                  ),
+                  child: Icon(
+                    Icons.notifications_none_rounded,
+                    size: 64,
+                    color: AppTheme.textSecondary.withOpacity(0.5),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                const Text(
+                  'Belum Ada Notifikasi',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Aktivitas grup Anda akan muncul di sini.',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: AppTheme.textSecondary,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
+
+    return ListView.builder(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      itemCount: _notifications.length,
+      itemBuilder: (context, index) {
+        final notif = _notifications[index];
+        final isRead = notif['is_read'] as bool? ?? false;
+        final type = notif['type'] as String? ?? 'GENERAL';
+        final title = notif['title'] as String? ?? '';
+        final body = notif['body'] as String? ?? '';
+        final timeStr = _formatTime(notif['created_at'] as String?);
+        final notifId = notif['id'] as String;
+        final groupId = notif['group_id'] as String?;
+        final senderId = notif['sender_id'] as String?;
+
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: InkWell(
+            onTap: () => _handleNotificationTap(notif),
+            borderRadius: BorderRadius.circular(16),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 300),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: isRead ? AppTheme.bgCard : AppTheme.bgCardLight.withOpacity(0.7),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: isRead 
+                      ? Colors.transparent 
+                      : AppTheme.primaryGreen.withOpacity(0.4),
+                  width: 1.5,
+                ),
+                boxShadow: isRead 
+                    ? [] 
+                    : [
+                        BoxShadow(
+                          color: AppTheme.primaryGreen.withOpacity(0.08),
+                          blurRadius: 10,
+                          spreadRadius: 1,
+                        ),
+                      ],
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Indicator / Icon
+                  Stack(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: _getColorForType(type).withOpacity(0.12),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          _getIconForType(type),
+                          color: _getColorForType(type),
+                          size: 24,
+                        ),
+                      ),
+                      if (!isRead)
+                        Positioned(
+                          top: 2,
+                          right: 2,
+                          child: Container(
+                            width: 10,
+                            height: 10,
+                            decoration: const BoxDecoration(
+                              color: AppTheme.primaryGreen,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(width: 16),
+                  // Texts
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Text(
+                                title,
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: isRead ? FontWeight.w600 : FontWeight.bold,
+                                  color: AppTheme.textPrimary,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              timeStr,
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: AppTheme.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          body,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: isRead ? AppTheme.textSecondary : AppTheme.textPrimary.withOpacity(0.9),
+                            height: 1.4,
+                          ),
+                        ),
+                        if (type == 'JOIN_REQUEST' && groupId != null && senderId != null)
+                          GestureDetector(
+                            onTap: () {}, // Mencegah tap card terpicu saat menekan tombol aksi
+                            child: _buildActionButtons(
+                              notif,
+                              notifId,
+                              groupId,
+                              senderId,
+                              _memberStatuses['${groupId}_${senderId}'],
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}

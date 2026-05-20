@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:quran/quran.dart' as quran;
 import '../theme/app_theme.dart';
+import '../services/notification_service.dart';
 
 class SlotCard extends StatefulWidget {
   final Map<String, dynamic> slot;
@@ -9,6 +10,8 @@ class SlotCard extends StatefulWidget {
   final Function(int) onRelease;
   final VoidCallback? onProgressUpdated; // ← Callback baru
   final String? memberName;
+  final String? groupId;
+  final String? groupName;
 
   const SlotCard({
     Key? key,
@@ -17,6 +20,8 @@ class SlotCard extends StatefulWidget {
     required this.onRelease,
     this.onProgressUpdated,
     this.memberName,
+    this.groupId,
+    this.groupName,
   }) : super(key: key);
 
   @override
@@ -137,6 +142,26 @@ class _SlotCardState extends State<SlotCard> with SingleTickerProviderStateMixin
         'status_checklist': isComplete,
       }).eq('id_slot', widget.slot['id_slot']);
 
+      // Kirim notifikasi jika Juz selesai
+      if (isComplete && widget.groupId != null) {
+        try {
+          final senderName = _supabase.auth.currentUser?.userMetadata?['full_name'] as String? ??
+              _supabase.auth.currentUser?.email?.split('@')[0] ??
+              'Seseorang';
+          final gName = widget.groupName ?? 'Grup';
+
+          await NotificationService.sendToGroup(
+            groupId: widget.groupId!,
+            type: 'JUZ_COMPLETED',
+            title: 'Juz Selesai Dibaca',
+            body: '$senderName telah menyelesaikan Juz ${widget.slot['nomor_juz']} di grup "$gName"',
+            excludeUserId: _supabase.auth.currentUser?.id,
+          );
+        } catch (notifErr) {
+          print('Error sending juz completed notification: $notifErr');
+        }
+      }
+
       if (mounted) {
         // Memperbarui state lokal agar UI langsung berubah tanpa harus muat ulang halaman
         setState(() {
@@ -230,6 +255,26 @@ class _SlotCardState extends State<SlotCard> with SingleTickerProviderStateMixin
         'ayat_terakhir_input': absoluteIndex,
         'status_checklist': isFinished,
       }).eq('id_slot', widget.slot['id_slot']);
+
+      // Kirim notifikasi jika Juz selesai
+      if (isFinished && widget.groupId != null) {
+        try {
+          final senderName = _supabase.auth.currentUser?.userMetadata?['full_name'] as String? ??
+              _supabase.auth.currentUser?.email?.split('@')[0] ??
+              'Seseorang';
+          final gName = widget.groupName ?? 'Grup';
+
+          await NotificationService.sendToGroup(
+            groupId: widget.groupId!,
+            type: 'JUZ_COMPLETED',
+            title: 'Juz Selesai Dibaca',
+            body: '$senderName telah menyelesaikan Juz ${widget.slot['nomor_juz']} di grup "$gName"',
+            excludeUserId: _supabase.auth.currentUser?.id,
+          );
+        } catch (notifErr) {
+          print('Error sending juz completed notification: $notifErr');
+        }
+      }
 
       if (mounted) {
         setState(() {
