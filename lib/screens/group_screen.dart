@@ -18,8 +18,11 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
   final _searchController = TextEditingController();
   List<Map<String, dynamic>> _allGroups = [];
   Set<String> _myGroupIds = {};
+  // Map groupId -> approval_status ('APPROVED','PENDING','REJECTED')
+  Map<String, String> _myMemberStatus = {};
   bool _isLoading = true;
   bool _showCreateForm = false;
+  String _groupVisibility = 'PUBLIC'; // untuk form buat grup
   late TabController _tabController;
 
   @override
@@ -43,16 +46,16 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
     if (userId == null) return;
 
     try {
-      // Ambil SEMUA grup
+      // Ambil SEMUA grup beserta kolom visibility
       final allGroupsData = await _supabase
           .from('groups')
-          .select('id_group, nama_grup, kode_gk_unik, creator_id, created_at')
+          .select('id_group, nama_grup, kode_gk_unik, creator_id, created_at, visibility')
           .order('created_at', ascending: false);
 
-      // Ambil grup yang sudah diikuti user ini
+      // Ambil status keanggotaan user ini (group_id + approval_status)
       final myGroupsData = await _supabase
           .from('group_members')
-          .select('group_id')
+          .select('group_id, approval_status')
           .eq('user_id', userId);
 
       setState(() {
@@ -60,6 +63,10 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
         _myGroupIds = Set<String>.from(
           myGroupsData.map((item) => item['group_id'].toString()),
         );
+        _myMemberStatus = {
+          for (final item in myGroupsData)
+            item['group_id'].toString(): (item['approval_status'] ?? 'APPROVED') as String
+        };
         _isLoading = false;
       });
     } catch (e) {
@@ -82,16 +89,22 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
         'nama_grup': namaGrup,
         'kode_gk_unik': uniqueCode,
         'creator_id': _supabase.auth.currentUser?.id,
+        'visibility': _groupVisibility,
       }).select().single();
 
+      // Creator selalu langsung APPROVED
       await _supabase.from('group_members').insert({
         'group_id': data['id_group'],
         'user_id': _supabase.auth.currentUser?.id,
+        'approval_status': 'APPROVED',
       });
 
       _namaGrupController.clear();
-      setState(() => _showCreateForm = false);
-      _showSnackbar('Grup "${namaGrup}" berhasil dibuat! Kode: $uniqueCode');
+      setState(() {
+        _showCreateForm = false;
+        _groupVisibility = 'PUBLIC';
+      });
+      _showSnackbar('Grup "$namaGrup" berhasil dibuat! Kode: $uniqueCode');
       await _fetchData();
 
       if (mounted) {
@@ -287,20 +300,28 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
     });
   }
 
-  Future<void> _joinGroup(String groupId, String groupName) async {
+  Future<void> _joinGroup(String groupId, String groupName, String visibility) async {
+    final isPrivate = visibility == 'PRIVATE';
+    final status = isPrivate ? 'PENDING' : 'APPROVED';
+
     try {
       await _supabase.from('group_members').insert({
         'group_id': groupId,
         'user_id': _supabase.auth.currentUser?.id,
+        'approval_status': status,
       });
 
-      _showSnackbar('Berhasil bergabung dengan "$groupName"!');
       await _fetchData();
 
-      if (mounted) {
-        Navigator.push(context, MaterialPageRoute(
-          builder: (_) => GroupDetailScreen(groupId: groupId),
-        ));
+      if (isPrivate) {
+        _showSnackbar('Permintaan bergabung terkirim! Tunggu persetujuan Admin.');
+      } else {
+        _showSnackbar('Berhasil bergabung dengan "$groupName"!');
+        if (mounted) {
+          Navigator.push(context, MaterialPageRoute(
+            builder: (_) => GroupDetailScreen(groupId: groupId),
+          ));
+        }
       }
     } catch (e) {
       _showSnackbar('Gagal bergabung: sudah terdaftar atau terjadi error', isError: true);
@@ -402,6 +423,85 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
             style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
             decoration: const InputDecoration(hintText: 'Nama grup (misal: Khataman Keluarga)'),
           ),
+          SizedBox(height: 12),
+          // Toggle Public / Private
+          Row(
+            children: [
+              Expanded(
+                child: GestureDetector(
+                  onTap: () => setState(() => _groupVisibility = 'PUBLIC'),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    padding: EdgeInsets.symmetric(vertical: 10),
+                    decoration: BoxDecoration(
+                      color: _groupVisibility == 'PUBLIC'
+                          ? AppTheme.primaryGreen
+                          : Theme.of(context).colorScheme.surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.lock_open_rounded,
+                            size: 16,
+                            color: _groupVisibility == 'PUBLIC'
+                                ? Colors.white
+                                : Theme.of(context).colorScheme.onSurfaceVariant),
+                        SizedBox(width: 6),
+                        Text('Publik',
+                            style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                color: _groupVisibility == 'PUBLIC'
+                                    ? Colors.white
+                                    : Theme.of(context).colorScheme.onSurfaceVariant)),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              SizedBox(width: 10),
+              Expanded(
+                child: GestureDetector(
+                  onTap: () => setState(() => _groupVisibility = 'PRIVATE'),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    padding: EdgeInsets.symmetric(vertical: 10),
+                    decoration: BoxDecoration(
+                      color: _groupVisibility == 'PRIVATE'
+                          ? AppTheme.accentGold
+                          : Theme.of(context).colorScheme.surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.lock_rounded,
+                            size: 16,
+                            color: _groupVisibility == 'PRIVATE'
+                                ? Colors.white
+                                : Theme.of(context).colorScheme.onSurfaceVariant),
+                        SizedBox(width: 6),
+                        Text('Privat',
+                            style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                color: _groupVisibility == 'PRIVATE'
+                                    ? Colors.white
+                                    : Theme.of(context).colorScheme.onSurfaceVariant)),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (_groupVisibility == 'PRIVATE')
+            Padding(
+              padding: EdgeInsets.only(top: 6),
+              child: Text(
+                '🔒 Anggota harus mendapat persetujuan Admin sebelum bisa masuk.',
+                style: TextStyle(fontSize: 11, color: AppTheme.accentGold),
+              ),
+            ),
           SizedBox(height: 10),
           SizedBox(
             width: double.infinity,
@@ -480,8 +580,16 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
   }
 
   Widget _buildGroupCard(Map<String, dynamic> group, {required bool isJoined, required bool isCreator}) {
+    final groupId = group['id_group'].toString();
+    final visibility = (group['visibility'] ?? 'PUBLIC') as String;
+    final isPrivate = visibility == 'PRIVATE';
+    final memberStatus = _myMemberStatus[groupId];
+    final isPending = memberStatus == 'PENDING';
+    final isApproved = memberStatus == 'APPROVED';
+    final canOpen = isJoined && isApproved;
+
     return GestureDetector(
-      onTap: isJoined
+      onTap: canOpen
           ? () async {
               await Navigator.push(context, MaterialPageRoute(
                   builder: (_) => GroupDetailScreen(groupId: group['id_group'])));
@@ -495,9 +603,11 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
           color: Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isJoined
-                ? AppTheme.primaryGreen.withOpacity(0.3)
-                : Theme.of(context).dividerColor,
+            color: isPending
+                ? AppTheme.accentGold.withOpacity(0.4)
+                : isApproved
+                    ? AppTheme.primaryGreen.withOpacity(0.3)
+                    : Theme.of(context).dividerColor,
           ),
         ),
         child: Row(
@@ -508,14 +618,20 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
               height: 52,
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  colors: isJoined
+                  colors: canOpen
                       ? [const Color(0xFF2ECC71), const Color(0xFF1A8A4A)]
-                      : [const Color(0xFF6C63FF), const Color(0xFF3F3D8B)],
+                      : isPending
+                          ? [const Color(0xFFB8860B), const Color(0xFF8B6508)]
+                          : [const Color(0xFF6C63FF), const Color(0xFF3F3D8B)],
                 ),
                 borderRadius: BorderRadius.circular(14),
               ),
               child: Icon(
-                isJoined ? Icons.group_rounded : Icons.group_add_rounded,
+                canOpen
+                    ? Icons.group_rounded
+                    : isPending
+                        ? Icons.hourglass_top_rounded
+                        : Icons.group_add_rounded,
                 color: Colors.white,
                 size: 26,
               ),
@@ -526,11 +642,22 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    group['nama_grup'] ?? 'Grup',
-                    style: TextStyle(
-                      fontSize: 16, fontWeight: FontWeight.w600, color: Theme.of(context).colorScheme.onSurface,
-                    ),
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          group['nama_grup'] ?? 'Grup',
+                          style: TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.w600, color: Theme.of(context).colorScheme.onSurface,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (isPrivate) ...[
+                        SizedBox(width: 6),
+                        Icon(Icons.lock_rounded, size: 13, color: AppTheme.accentGold),
+                      ],
+                    ],
                   ),
                   SizedBox(height: 4),
                   Row(
@@ -557,8 +684,9 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
                 ],
               ),
             ),
+            SizedBox(width: 8),
             // Action Button
-            if (isJoined)
+            if (canOpen)
               Container(
                 padding: EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                 decoration: BoxDecoration(
@@ -567,9 +695,19 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
                 ),
                 child: Text('Buka', style: TextStyle(color: AppTheme.primaryGreen, fontWeight: FontWeight.w600, fontSize: 13)),
               )
+            else if (isPending)
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                decoration: BoxDecoration(
+                  color: AppTheme.accentGold.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppTheme.accentGold.withOpacity(0.4)),
+                ),
+                child: Text('Menunggu...', style: TextStyle(color: AppTheme.accentGold, fontWeight: FontWeight.w600, fontSize: 12)),
+              )
             else
               GestureDetector(
-                onTap: () => _joinGroup(group['id_group'], group['nama_grup'] ?? 'Grup'),
+                onTap: () => _joinGroup(group['id_group'], group['nama_grup'] ?? 'Grup', visibility),
                 child: Container(
                   padding: EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                   decoration: BoxDecoration(

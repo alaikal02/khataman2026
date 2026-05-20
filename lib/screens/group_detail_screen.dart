@@ -22,6 +22,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
   List<dynamic> _members = [];
   RealtimeChannel? _subscription;
   bool _isLoading = true; // ← State loading yang sebelumnya tidak ada
+  int _pendingCount = 0;
   late AnimationController _shimmerController;
 
   @override
@@ -101,11 +102,22 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
             .order('nomor_juz', ascending: true);
       }
 
+      int pCount = 0;
+      if (groupData != null && groupData['creator_id'] == _supabase.auth.currentUser?.id) {
+        final pendingRes = await _supabase
+            .from('group_members')
+            .select('user_id')
+            .eq('group_id', widget.groupId)
+            .eq('approval_status', 'PENDING');
+        pCount = (pendingRes as List).length;
+      }
+
       if (mounted) {
         setState(() {
           _group = groupData;
           _putaran = pData;
           _slots = sData;
+          _pendingCount = pCount;
           _isLoading = false;
         });
       }
@@ -145,10 +157,12 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
       }).select().single();
 
       if (isAutoAssign) {
+        // Hanya anggota dengan status APPROVED yang bisa ikut siklus
         final members = await _supabase
             .from('group_members')
             .select('user_id')
-            .eq('group_id', widget.groupId);
+            .eq('group_id', widget.groupId)
+            .eq('approval_status', 'APPROVED');
         if (members.isNotEmpty) {
           List<Map<String, dynamic>> slotsToInsert = [];
           for (int i = 1; i <= 30; i++) {
@@ -230,6 +244,143 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
       'status_checklist': false
     }).eq('id_slot', slotId);
     _fetchData(silent: true);
+  }
+
+  // ─────────────────────────────────────────────────────────
+  // Kelola Anggota (Persetujuan & Hapus Anggota)
+  // ─────────────────────────────────────────────────────────
+  void _showManageMembersDialog() async {
+    try {
+      final membersData = await _supabase
+          .from('group_members')
+          .select('user_id, approval_status, users(username, email, avatar_url)')
+          .eq('group_id', widget.groupId)
+          .neq('user_id', _supabase.auth.currentUser!.id) // Sembunyikan admin dari list
+          .order('approval_status', ascending: false); // PENDING di atas, APPROVED di bawah
+
+      if (!mounted) return;
+
+      final membersList = List<Map<String, dynamic>>.from(membersData);
+
+      await showDialog(
+        context: context,
+        builder: (ctx) => StatefulBuilder(
+          builder: (ctx, setStateDialog) => AlertDialog(
+            backgroundColor: Theme.of(context).colorScheme.surface,
+            title: Text('Kelola Anggota', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: membersList.isEmpty
+                  ? Padding(
+                      padding: EdgeInsets.symmetric(vertical: 16),
+                      child: Text('Belum ada anggota lain di grup ini.',
+                          style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                    )
+                  : ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: membersList.length,
+                      itemBuilder: (_, i) {
+                        final member = membersList[i];
+                        final user = member['users'] as Map<String, dynamic>? ?? {};
+                        final avatarUrl = user['avatar_url'] as String?;
+                        final isPending = member['approval_status'] == 'PENDING';
+
+                        return ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: Stack(
+                            alignment: Alignment.bottomRight,
+                            children: [
+                              CircleAvatar(
+                                backgroundImage: avatarUrl != null ? NetworkImage(avatarUrl) : null,
+                                child: avatarUrl == null ? Icon(Icons.person) : null,
+                              ),
+                              if (isPending)
+                                Container(
+                                  decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface, shape: BoxShape.circle),
+                                  child: Icon(Icons.hourglass_top_rounded, size: 14, color: AppTheme.accentGold),
+                                ),
+                            ],
+                          ),
+                          title: Text(user['username'] ?? 'User',
+                              style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontSize: 14)),
+                          subtitle: Text(
+                              isPending ? 'Menunggu Persetujuan' : (user['email'] ?? 'Anggota Aktif'),
+                              style: TextStyle(
+                                  color: isPending ? AppTheme.accentGold : Theme.of(context).colorScheme.onSurfaceVariant,
+                                  fontSize: 11)),
+                          trailing: isPending
+                              ? Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    IconButton(
+                                      icon: Icon(Icons.check_circle_outline_rounded, color: AppTheme.primaryGreen),
+                                      tooltip: 'Terima',
+                                      onPressed: () async {
+                                        await _supabase
+                                            .from('group_members')
+                                            .update({'approval_status': 'APPROVED'})
+                                            .eq('user_id', member['user_id'])
+                                            .eq('group_id', widget.groupId);
+                                        setStateDialog(() => member['approval_status'] = 'APPROVED');
+                                        _fetchData(silent: true);
+                                      },
+                                    ),
+                                    IconButton(
+                                      icon: Icon(Icons.cancel_outlined, color: Colors.redAccent),
+                                      tooltip: 'Tolak',
+                                      onPressed: () async {
+                                        await _supabase
+                                            .from('group_members')
+                                            .delete()
+                                            .eq('user_id', member['user_id'])
+                                            .eq('group_id', widget.groupId);
+                                        setStateDialog(() => membersList.removeAt(i));
+                                        _fetchData(silent: true);
+                                      },
+                                    ),
+                                  ],
+                                )
+                              : IconButton(
+                                  icon: Icon(Icons.person_remove_rounded, color: Colors.redAccent.withOpacity(0.7)),
+                                  tooltip: 'Keluarkan Anggota',
+                                  onPressed: () async {
+                                    // Keluarkan anggota
+                                    await _supabase
+                                        .from('group_members')
+                                        .delete()
+                                        .eq('user_id', member['user_id'])
+                                        .eq('group_id', widget.groupId);
+                                    
+                                    // Bersihkan slot yang sedang dia pegang jika ada
+                                    await _supabase
+                                        .from('slot_khataman')
+                                        .update({'user_id': null, 'ayat_terakhir_input': 0, 'status_checklist': false})
+                                        .eq('user_id', member['user_id']);
+
+                                    setStateDialog(() => membersList.removeAt(i));
+                                    _fetchData(silent: true);
+                                  },
+                                ),
+                        );
+                      },
+                    ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: Text('Tutup', style: TextStyle(color: AppTheme.primaryGreen)),
+              ),
+            ],
+          ),
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal memuat anggota: $e'), backgroundColor: Colors.redAccent),
+        );
+      }
+    }
   }
 
   // ─────────────────────────────────────────────────────────
@@ -410,6 +561,18 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
               ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Kode Grup disalin: ${_group!['kode_gk_unik']}')));
             },
           ),
+          // Tombol Kelola Anggota (hanya untuk Admin)
+          if (_group != null && currentUserId == _group!['creator_id'])
+            IconButton(
+              icon: Badge(
+                isLabelVisible: _pendingCount > 0,
+                label: Text('$_pendingCount'),
+                backgroundColor: Colors.redAccent,
+                child: Icon(Icons.manage_accounts_rounded, color: AppTheme.accentGold),
+              ),
+              tooltip: 'Kelola Anggota',
+              onPressed: _showManageMembersDialog,
+            ),
           if (_group != null && currentUserId == _group!['creator_id'])
             IconButton(
               icon: Icon(Icons.delete_outline_rounded, color: Colors.redAccent),
