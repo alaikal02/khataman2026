@@ -102,6 +102,15 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
             debugPrint('🔄 [Realtime Group] Group members changed. Refreshing...');
             if (mounted) _fetchData(silent: true);
           },
+        )
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'groups',
+          callback: (payload) {
+            debugPrint('🔄 [Realtime Group] Group metadata changed. Refreshing...');
+            if (mounted) _fetchData(silent: true);
+          },
         );
 
     _subscription?.subscribe((status, [error]) {
@@ -855,11 +864,22 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
               value: isLimited,
               activeColor: AppTheme.primaryGreen,
               onChanged: (value) async {
+                setState(() {
+                  if (_group != null) {
+                    _group!['limit_juz'] = value;
+                  }
+                });
                 try {
-                  await _supabase
+                  final result = await _supabase
                       .from('groups')
                       .update({'limit_juz': value})
-                      .eq('id_group', widget.groupId);
+                      .eq('id_group', widget.groupId)
+                      .select();
+                  
+                  if (result.isEmpty) {
+                    throw Exception('Izin update ditolak (RLS). Pastikan Anda adalah pembuat grup di database.');
+                  }
+
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
@@ -874,6 +894,11 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                   }
                   _fetchData(silent: true);
                 } catch (e) {
+                  setState(() {
+                    if (_group != null) {
+                      _group!['limit_juz'] = !value;
+                    }
+                  });
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
