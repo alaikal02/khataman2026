@@ -31,15 +31,23 @@ jobs:
         with:
           channel: 'stable'
 
-      # 4. Ambil semua library/dependencies pubspec.yaml
+      # 4. Buat .env dari GitHub Secrets (file ini di-gitignore, tidak ikut checkout)
+      - name: Create .env for release build
+        run: |
+          cat > .env << EOF
+          SUPABASE_URL=${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
+          EOF
+
+      # 5. Ambil semua library/dependencies pubspec.yaml
       - name: Install dependencies
         run: flutter pub get
 
-      # 5. Build APK Mode Release
+      # 6. Build APK Mode Release
       - name: Build APK
         run: flutter build apk --release
 
-      # 6. Upload file APK agar bisa di-download di GitHub
+      # 7. Upload file APK agar bisa di-download di GitHub
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
