@@ -5,10 +5,13 @@ on:
     branches:
       - main # Ubah ke 'master' jika branch utama Anda bernama master
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
-    
+
     # Menambahkan environment variable untuk memaksa penggunaan Node 24
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
@@ -18,20 +21,39 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2. Install Java (Gunakan versi 17 sesuai perbaikan kita sebelumnya)
+      # 2. Baca versi dari pubspec.yaml (sumber kebenaran: version: x.y.z+build)
+      - name: Read app version
+        id: version
+        run: |
+          VERSION_LINE=$(grep '^version:' pubspec.yaml | sed 's/version: *//')
+          VERSION_NAME="${VERSION_LINE%%+*}"
+          BUILD_NUMBER="${VERSION_LINE#*+}"
+          if [ "$BUILD_NUMBER" = "$VERSION_LINE" ]; then
+            BUILD_NUMBER="0"
+          fi
+          APK_NAME="khataman-quran-${VERSION_NAME}-build${BUILD_NUMBER}.apk"
+          TAG_NAME="v${VERSION_NAME}-build${BUILD_NUMBER}"
+
+          echo "version_name=${VERSION_NAME}" >> "$GITHUB_OUTPUT"
+          echo "build_number=${BUILD_NUMBER}" >> "$GITHUB_OUTPUT"
+          echo "full_version=${VERSION_NAME}+${BUILD_NUMBER}" >> "$GITHUB_OUTPUT"
+          echo "apk_name=${APK_NAME}" >> "$GITHUB_OUTPUT"
+          echo "tag_name=${TAG_NAME}" >> "$GITHUB_OUTPUT"
+
+      # 3. Install Java (Gunakan versi 17 sesuai perbaikan kita sebelumnya)
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '17'
 
-      # 3. Install Flutter
+      # 4. Install Flutter
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
 
-      # 4. Buat .env dari GitHub Secrets (file ini di-gitignore, tidak ikut checkout)
+      # 5. Buat .env dari GitHub Secrets (file ini di-gitignore, tidak ikut checkout)
       - name: Create .env for release build
         run: |
           cat > .env << EOF
@@ -39,17 +61,38 @@ jobs:
           SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
           EOF
 
-      # 5. Ambil semua library/dependencies pubspec.yaml
+      # 6. Ambil semua library/dependencies pubspec.yaml
       - name: Install dependencies
         run: flutter pub get
 
-      # 6. Build APK Mode Release
+      # 7. Build APK Mode Release
       - name: Build APK
         run: flutter build apk --release
 
-      # 7. Upload file APK agar bisa di-download di GitHub
+      # 8. Rename APK dengan suffix versi
+      - name: Rename APK with version
+        run: |
+          cp "build/app/outputs/flutter-apk/app-release.apk" \
+             "build/app/outputs/flutter-apk/${{ steps.version.outputs.apk_name }}"
+
+      # 9. Upload artifact (cadangan di Actions, nama file berisi versi)
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: app-release-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
+          name: ${{ steps.version.outputs.apk_name }}
+          path: build/app/outputs/flutter-apk/${{ steps.version.outputs.apk_name }}
+
+      # 10. Publish ke GitHub Releases (tab Releases di repo)
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag_name }}
+          name: Khataman Quran ${{ steps.version.outputs.full_version }}
+          body: |
+            Android release APK for version **${{ steps.version.outputs.full_version }}**.
+
+            **Download:** `${{ steps.version.outputs.apk_name }}`
+
+            Bump `version` in `pubspec.yaml` before each release (e.g. `1.0.1+2`).
+          files: build/app/outputs/flutter-apk/${{ steps.version.outputs.apk_name }}
+          generate_release_notes: true
