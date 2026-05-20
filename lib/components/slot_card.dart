@@ -194,6 +194,72 @@ class _SlotCardState extends State<SlotCard> with SingleTickerProviderStateMixin
     }
   }
 
+  Future<void> _confirmMarkFinished() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        title: Text('Selesaikan Juz?', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
+        content: Text(
+          'Apakah Anda yakin telah membaca seluruh isi Juz ${widget.slot['nomor_juz']} ini? Progres akan otomatis menjadi 100%.',
+          style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text('Belum'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: AppTheme.primaryGreen),
+            child: Text('Ya, Selesai'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      _markAsFinished(true);
+    }
+  }
+
+  Future<void> _markAsFinished(bool isFinished) async {
+    try {
+      final absoluteIndex = isFinished ? _totalAyat : 0;
+      await _supabase.from('slot_khataman').update({
+        'ayat_terakhir_input': absoluteIndex,
+        'status_checklist': isFinished,
+      }).eq('id_slot', widget.slot['id_slot']);
+
+      if (mounted) {
+        setState(() {
+          widget.slot['ayat_terakhir_input'] = absoluteIndex;
+          widget.slot['status_checklist'] = isFinished;
+          
+          if (isFinished) {
+            _expanded = false;
+            _expandController.reverse();
+          } else {
+            _initQuranData(); // Reset input fields if reverting
+          }
+        });
+
+        widget.onProgressUpdated?.call();
+
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(isFinished ? '✅ Juz ${widget.slot['nomor_juz']} ditandai selesai!' : 'Status selesai dibatalkan.'),
+          backgroundColor: isFinished ? AppTheme.primaryGreen : Theme.of(context).colorScheme.surfaceContainerHighest,
+        ));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal memperbarui status'), backgroundColor: Colors.redAccent),
+        );
+      }
+    }
+  }
+
   int _calculateProgress() {
     if (_totalAyat == 0) return 0;
     final last = widget.slot['ayat_terakhir_input'] as int? ?? 0;
@@ -476,6 +542,19 @@ class _SlotCardState extends State<SlotCard> with SingleTickerProviderStateMixin
                         ),
                       ],
                     ),
+                    SizedBox(height: 12),
+                    ElevatedButton.icon(
+                      onPressed: _confirmMarkFinished,
+                      icon: Icon(Icons.check_circle_rounded),
+                      label: Text('Saya Sudah Membaca 1 Juz Penuh'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.primaryGreen.withOpacity(0.15),
+                        foregroundColor: AppTheme.primaryGreen,
+                        elevation: 0,
+                        minimumSize: Size(double.infinity, 48),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
                   ] else if (!widget.isOwned) ...[
                     SizedBox(height: 12),
                     Text(
@@ -492,6 +571,18 @@ class _SlotCardState extends State<SlotCard> with SingleTickerProviderStateMixin
                     SizedBox(height: 12),
                     Text('✅ Juz ini sudah Anda selesaikan. Alhamdulillah!',
                       style: TextStyle(color: AppTheme.primaryGreen, fontSize: 13)),
+                    SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      onPressed: () => _markAsFinished(false),
+                      icon: Icon(Icons.undo_rounded, size: 18),
+                      label: Text('Batalkan Status Selesai'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Theme.of(context).colorScheme.onSurfaceVariant,
+                        side: BorderSide(color: Theme.of(context).dividerColor),
+                        minimumSize: Size(double.infinity, 42),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                    ),
                   ],
                 ],
               ),
