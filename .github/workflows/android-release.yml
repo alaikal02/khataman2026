@@ -61,21 +61,15 @@ jobs:
           SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
           EOF
 
-      # 6. Ambil semua library/dependencies pubspec.yaml
+      # 5. Ambil semua library/dependencies pubspec.yaml
       - name: Install dependencies
         run: flutter pub get
 
-      # 7. Build APK Mode Release
+      # 6. Build APK Mode Release
       - name: Build APK
         run: flutter build apk --release
 
-      # 8. Rename APK dengan suffix versi
-      - name: Rename APK with version
-        run: |
-          cp "build/app/outputs/flutter-apk/app-release.apk" \
-             "build/app/outputs/flutter-apk/${{ steps.version.outputs.apk_name }}"
-
-      # 9. Upload artifact (cadangan di Actions, nama file berisi versi)
+      # 7. Upload file APK agar bisa di-download di GitHub
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
