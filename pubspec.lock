@@ -552,6 +552,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.2.0"
+  quran:
+    dependency: "direct main"
+    description:
+      name: quran
+      sha256: "76dc98eb950e2e5a400e555e8f12fec31c32eaff8bcec4a56e486b300ae9005b"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.2.4"
   realtime_client:
     dependency: transitive
     description:

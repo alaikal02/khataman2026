@@ -479,8 +479,11 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
   Widget _buildGroupCard(Map<String, dynamic> group, {required bool isJoined, required bool isCreator}) {
     return GestureDetector(
       onTap: isJoined
-          ? () => Navigator.push(context, MaterialPageRoute(
-              builder: (_) => GroupDetailScreen(groupId: group['id_group'])))
+          ? () async {
+              await Navigator.push(context, MaterialPageRoute(
+                  builder: (_) => GroupDetailScreen(groupId: group['id_group'])));
+              if (mounted) _fetchData();
+            }
           : null,
       child: Container(
         margin: EdgeInsets.only(bottom: 12),

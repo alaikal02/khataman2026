@@ -266,15 +266,22 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
   Future<void> _deleteGroup() async {
     setState(() => _isLoading = true);
     try {
-      // Hapus grup dari tabel groups.
-      // Jika error foreign key muncul, pastikan Supabase memiliki 'ON DELETE CASCADE'
-      await _supabase.from('groups').delete().eq('id_group', widget.groupId);
+      // Hapus grup dari tabel groups dan kembalikan data yang dihapus
+      final deletedData = await _supabase
+          .from('groups')
+          .delete()
+          .eq('id_group', widget.groupId)
+          .select();
+      
+      if (deletedData.isEmpty) {
+        throw Exception('Grup gagal dihapus. Anda mungkin tidak memiliki izin (RLS) di database.');
+      }
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Grup berhasil dihapus'), backgroundColor: AppTheme.primaryGreen),
         );
-        Navigator.pop(context); // Kembali ke halaman utama grup
+        Navigator.pop(context, true); // Kirim 'true' sebagai tanda berhasil dihapus
       }
     } catch (e) {
       if (mounted) {
@@ -283,7 +290,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
           context: context,
           builder: (_) => AlertDialog(
             title: Text('Gagal Menghapus Grup'),
-            content: Text('Terjadi kesalahan saat menghapus grup:\n\n$e\n\n(Pastikan pengaturan database mengizinkan hapus cascade)'),
+            content: Text('Terjadi kesalahan saat menghapus grup:\n\n$e\n\n(Jika ini masalah izin, tambahkan policy DELETE di tabel groups pada dashboard Supabase)'),
             actions: [TextButton(onPressed: () => Navigator.pop(context), child: Text('Tutup'))],
           )
         );
@@ -585,6 +592,9 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                     memberName: memberName,
                     isOwned: slot['user_id'] == currentUserId,
                     onRelease: _releaseSlot,
+                    onProgressUpdated: () {
+                      if (mounted) setState(() {});
+                    },
                 );
               } else {
                 return Container(

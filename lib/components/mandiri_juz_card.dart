@@ -1,35 +1,31 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:quran/quran.dart' as quran;
 import '../theme/app_theme.dart';
 
-class SlotCard extends StatefulWidget {
-  final Map<String, dynamic> slot;
-  final bool isOwned;
-  final Function(int) onRelease;
-  final VoidCallback? onProgressUpdated; // ← Callback baru
-  final String? memberName;
+class MandiriJuzCard extends StatefulWidget {
+  final int juzNumber;
+  final int lastAyat;
+  final bool isComplete;
+  final Function(int absoluteIndex, int totalAyat) onSave;
 
-  const SlotCard({
+  const MandiriJuzCard({
     Key? key,
-    required this.slot,
-    required this.isOwned,
-    required this.onRelease,
-    this.onProgressUpdated,
-    this.memberName,
+    required this.juzNumber,
+    required this.lastAyat,
+    required this.isComplete,
+    required this.onSave,
   }) : super(key: key);
 
   @override
-  State<SlotCard> createState() => _SlotCardState();
+  State<MandiriJuzCard> createState() => _MandiriJuzCardState();
 }
 
-class _SlotCardState extends State<SlotCard> with SingleTickerProviderStateMixin {
+class _MandiriJuzCardState extends State<MandiriJuzCard> with SingleTickerProviderStateMixin {
   bool _expanded = false;
   late TextEditingController _ayatController;
-  final _supabase = Supabase.instance.client;
   late AnimationController _expandController;
   late Animation<double> _expandAnimation;
-  
+
   int _totalAyat = 0;
   Map<int, List<int>> _surahsInJuz = {};
   int? _selectedSurah;
@@ -49,17 +45,24 @@ class _SlotCardState extends State<SlotCard> with SingleTickerProviderStateMixin
     _initQuranData();
   }
 
+  @override
+  void didUpdateWidget(covariant MandiriJuzCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Jika data dari parent berubah, kita re-inisialisasi
+    if (oldWidget.lastAyat != widget.lastAyat || oldWidget.isComplete != widget.isComplete) {
+      _initQuranData();
+    }
+  }
+
   void _initQuranData() {
-    final juzNumber = widget.slot['nomor_juz'] as int;
-    _surahsInJuz = quran.getSurahAndVersesFromJuz(juzNumber);
+    _surahsInJuz = quran.getSurahAndVersesFromJuz(widget.juzNumber);
     
     _totalAyat = 0;
     _surahsInJuz.forEach((surah, bounds) {
       _totalAyat += (bounds[1] - bounds[0] + 1);
     });
 
-    // Tentukan Surat dan Ayat yang dipilih berdasarkan index absolut
-    int absoluteIndex = widget.slot['ayat_terakhir_input'] as int? ?? 0;
+    int absoluteIndex = widget.lastAyat;
     
     if (absoluteIndex == 0) {
       _selectedSurah = _surahsInJuz.keys.first;
@@ -94,7 +97,16 @@ class _SlotCardState extends State<SlotCard> with SingleTickerProviderStateMixin
     super.dispose();
   }
 
-  Future<void> _saveProgress() async {
+  void _toggleExpand() {
+    setState(() => _expanded = !_expanded);
+    if (_expanded) {
+      _expandController.forward();
+    } else {
+      _expandController.reverse();
+    }
+  }
+
+  void _handleSave() {
     final inputAyah = int.tryParse(_ayatController.text);
     if (inputAyah == null || inputAyah < 0 || _selectedSurah == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -114,7 +126,6 @@ class _SlotCardState extends State<SlotCard> with SingleTickerProviderStateMixin
       return;
     }
 
-    // Hitung index absolut
     int absoluteIndex = 0;
     for (var entry in _surahsInJuz.entries) {
       int surah = entry.key;
@@ -129,97 +140,24 @@ class _SlotCardState extends State<SlotCard> with SingleTickerProviderStateMixin
       }
     }
 
-    final isComplete = absoluteIndex == _totalAyat;
-
-    try {
-      await _supabase.from('slot_khataman').update({
-        'ayat_terakhir_input': absoluteIndex,
-        'status_checklist': isComplete,
-      }).eq('id_slot', widget.slot['id_slot']);
-
-      if (mounted) {
-        // Memperbarui state lokal agar UI langsung berubah tanpa harus muat ulang halaman
-        setState(() {
-          widget.slot['ayat_terakhir_input'] = absoluteIndex;
-          widget.slot['status_checklist'] = isComplete;
-          
-          if (isComplete) {
-            _expanded = false;
-            _expandController.reverse();
-          }
-        });
-
-        // Beritahu parent (GroupDetailScreen) untuk merender ulang persentase total
-        widget.onProgressUpdated?.call();
-
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(isComplete ? '✅ Juz ${widget.slot['nomor_juz']} selesai! Alhamdulillah!' : 'Progres disimpan'),
-          backgroundColor: isComplete ? AppTheme.primaryGreen : Theme.of(context).colorScheme.surfaceContainerHighest,
-        ));
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Gagal menyimpan progres'), backgroundColor: Colors.redAccent),
-        );
-      }
-    }
-  }
-
-  Future<void> _confirmRelease() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: Theme.of(context).colorScheme.surface,
-        title: Text('Lepas Juz?', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
-        content: Text(
-          'Progres Juz ${widget.slot['nomor_juz']} Anda akan direset dan slot ini akan tersedia untuk anggota lain.',
-          style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, height: 1.5),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text('Batal'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.redAccent),
-            child: Text('Ya, Lepas Juz'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed == true) {
-      widget.onRelease(widget.slot['id_slot']);
-    }
-  }
-
-  int _calculateProgress() {
-    if (_totalAyat == 0) return 0;
-    final last = widget.slot['ayat_terakhir_input'] as int? ?? 0;
-    final p = ((last / _totalAyat) * 100).round();
-    return p > 100 ? 100 : p;
-  }
-
-  void _toggleExpand() {
-    setState(() => _expanded = !_expanded);
-    if (_expanded) {
-      _expandController.forward();
-    } else {
+    // Panggil callback parent (di mana db akan diupdate)
+    widget.onSave(absoluteIndex, _totalAyat);
+    
+    if (absoluteIndex == _totalAyat) {
+      setState(() => _expanded = false);
       _expandController.reverse();
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final isComplete = widget.slot['status_checklist'] == true;
-    final progress = isComplete ? 100 : _calculateProgress();
-    final juzNumber = widget.slot['nomor_juz'] as int;
-    final lastAyat = widget.slot['ayat_terakhir_input'] as int? ?? 0;
+    final isComplete = widget.isComplete;
+    final percentage = _totalAyat == 0 ? 0 : ((widget.lastAyat / _totalAyat) * 100).round();
+    final pClamp = percentage > 100 ? 100 : percentage;
 
     String lastPositionString = 'Belum dibaca';
-    if (lastAyat > 0 && _surahsInJuz.isNotEmpty) {
-      int tempAbsolute = lastAyat;
+    if (widget.lastAyat > 0 && _surahsInJuz.isNotEmpty) {
+      int tempAbsolute = widget.lastAyat;
       for (var entry in _surahsInJuz.entries) {
         int surah = entry.key;
         int start = entry.value[0];
@@ -236,6 +174,9 @@ class _SlotCardState extends State<SlotCard> with SingleTickerProviderStateMixin
       }
     }
 
+    // Nama surat awal untuk UI
+    String surahAwal = _surahsInJuz.isNotEmpty ? quran.getSurahName(_surahsInJuz.keys.first) : '';
+
     return Container(
       margin: EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
@@ -244,97 +185,62 @@ class _SlotCardState extends State<SlotCard> with SingleTickerProviderStateMixin
         border: Border.all(
           color: isComplete
               ? AppTheme.primaryGreen.withOpacity(0.5)
-              : widget.isOwned
-                  ? AppTheme.accentTeal.withOpacity(0.4)
-                  : Theme.of(context).dividerColor,
-          width: widget.isOwned && !isComplete ? 1.5 : 1,
+              : Theme.of(context).dividerColor,
         ),
       ),
       child: Column(
         children: [
-          // ── Header (always visible) ──────────────────────────
+          // Collapsed Header
           InkWell(
             borderRadius: BorderRadius.circular(16),
             onTap: _toggleExpand,
             child: Padding(
-              padding: EdgeInsets.all(14),
+              padding: EdgeInsets.all(16),
               child: Row(
                 children: [
-                  // Badge Juz
+                  // Juz Number Badge
                   Container(
-                    width: 46,
-                    height: 46,
+                    width: 44,
+                    height: 44,
                     decoration: BoxDecoration(
-                      gradient: isComplete
-                          ? AppTheme.primaryGradient
-                          : widget.isOwned
-                              ? LinearGradient(colors: [Color(0xFF006064), Color(0xFF00838F)])
-                              : null,
-                      color: (!isComplete && !widget.isOwned) ? Theme.of(context).colorScheme.surfaceContainerHighest : null,
+                      color: isComplete
+                          ? AppTheme.primaryGreen.withOpacity(0.2)
+                          : Theme.of(context).colorScheme.surfaceContainerHighest,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Center(
                       child: isComplete
-                          ? Icon(Icons.check_rounded, color: Colors.white, size: 22)
+                          ? Icon(Icons.check_rounded, color: AppTheme.primaryGreen, size: 22)
                           : Text(
-                              '$juzNumber',
+                              '${widget.juzNumber}',
                               style: TextStyle(
-                                fontSize: 17,
+                                fontSize: 16,
                                 fontWeight: FontWeight.bold,
-                                color: widget.isOwned ? Colors.white : Theme.of(context).colorScheme.onSurface,
+                                color: isComplete ? AppTheme.primaryGreen : Theme.of(context).colorScheme.onSurface,
                               ),
                             ),
                     ),
                   ),
-                  SizedBox(width: 12),
-                  // Info
+                  SizedBox(width: 14),
+                  // Juz Info
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
-                          children: [
-                            Text(
-                              'Juz $juzNumber',
-                              style: TextStyle(
-                                fontSize: 15, fontWeight: FontWeight.w700, color: Theme.of(context).colorScheme.onSurface,
-                              ),
-                            ),
-                            if (isComplete) ...[
-                              SizedBox(width: 6),
-                              Container(
-                                padding: EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: AppTheme.primaryGreen.withOpacity(0.15),
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Text('Selesai', style: TextStyle(color: AppTheme.primaryGreen, fontSize: 10, fontWeight: FontWeight.w600)),
-                              ),
-                            ],
-                            if (widget.isOwned && !isComplete) ...[
-                              SizedBox(width: 6),
-                              Container(
-                                padding: EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: AppTheme.accentTeal.withOpacity(0.15),
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Text('Milik Anda', style: TextStyle(color: AppTheme.accentTeal, fontSize: 10, fontWeight: FontWeight.w600)),
-                              ),
-                            ],
-                          ],
+                        Text(
+                          'Juz ${widget.juzNumber}',
+                          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Theme.of(context).colorScheme.onSurface),
                         ),
                         SizedBox(height: 4),
                         Text(
-                          widget.memberName != null ? '@${widget.memberName}' : '',
+                          surahAwal,
                           style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
                         ),
                         SizedBox(height: 8),
-                        // Progress Bar
                         ClipRRect(
                           borderRadius: BorderRadius.circular(4),
                           child: LinearProgressIndicator(
-                            value: progress / 100,
+                            value: isComplete ? 1.0 : (widget.lastAyat / _totalAyat),
                             minHeight: 5,
                             backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
                             valueColor: AlwaysStoppedAnimation<Color>(
@@ -345,13 +251,13 @@ class _SlotCardState extends State<SlotCard> with SingleTickerProviderStateMixin
                       ],
                     ),
                   ),
-                  SizedBox(width: 10),
+                  SizedBox(width: 12),
                   // Percentage + Arrow
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       Text(
-                        '$progress%',
+                        isComplete ? '100%' : '$pClamp%',
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 15,
@@ -370,18 +276,17 @@ class _SlotCardState extends State<SlotCard> with SingleTickerProviderStateMixin
               ),
             ),
           ),
-
-          // ── Expanded Content ─────────────────────────────────
+          // Expanded Content
           SizeTransition(
             sizeFactor: _expandAnimation,
             child: Container(
-              padding: EdgeInsets.fromLTRB(14, 0, 14, 14),
+              padding: EdgeInsets.fromLTRB(16, 0, 16, 16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Divider(color: Theme.of(context).dividerColor, height: 1),
                   SizedBox(height: 14),
-                  // Metadata info
+                  
                   Container(
                     padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     decoration: BoxDecoration(
@@ -401,7 +306,8 @@ class _SlotCardState extends State<SlotCard> with SingleTickerProviderStateMixin
                       ],
                     ),
                   ),
-                  if (widget.isOwned && !isComplete) ...[
+                  
+                  if (!isComplete) ...[
                     SizedBox(height: 14),
                     Text(
                       'Posisi terakhir: $lastPositionString',
@@ -452,40 +358,16 @@ class _SlotCardState extends State<SlotCard> with SingleTickerProviderStateMixin
                       enabled: _selectedSurah != null,
                     ),
                     SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: ElevatedButton(
-                            onPressed: _saveProgress,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppTheme.primaryGreen,
-                              padding: EdgeInsets.symmetric(vertical: 13),
-                            ),
-                            child: Text('Simpan Progres', style: TextStyle(fontWeight: FontWeight.w600)),
-                          ),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: _handleSave,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppTheme.primaryGreen,
+                          padding: EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
-                        SizedBox(width: 8),
-                        OutlinedButton(
-                          onPressed: _confirmRelease,
-                          style: OutlinedButton.styleFrom(
-                            side: BorderSide(color: Colors.redAccent),
-                            padding: EdgeInsets.symmetric(vertical: 13, horizontal: 14),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          ),
-                          child: Text('Lepas', style: TextStyle(color: Colors.redAccent)),
-                        ),
-                      ],
-                    ),
-                  ] else if (!widget.isOwned) ...[
-                    SizedBox(height: 12),
-                    Text(
-                      isComplete
-                          ? '✅ Juz ini telah selesai dibaca oleh @${widget.memberName ?? '...'}. Alhamdulillah!'
-                          : '📖 Juz ini sedang dibaca oleh @${widget.memberName ?? '...'}.',
-                      style: TextStyle(
-                        color: isComplete ? AppTheme.primaryGreen : Theme.of(context).colorScheme.onSurfaceVariant,
-                        fontSize: 13,
-                        height: 1.4,
+                        child: Text('Simpan Progres', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
                       ),
                     ),
                   ] else ...[
