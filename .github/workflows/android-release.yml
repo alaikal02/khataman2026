@@ -8,6 +8,10 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    
+    # Menambahkan environment variable untuk memaksa penggunaan Node 24
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 
     steps:
       # 1. Ambil kode dari repository GitHub
