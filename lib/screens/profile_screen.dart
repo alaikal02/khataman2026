@@ -154,7 +154,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       body: _isLoading
           ? Center(child: CircularProgressIndicator(color: AppTheme.primaryGreen))
           : SingleChildScrollView(
-              padding: EdgeInsets.all(20),
+              padding: EdgeInsets.fromLTRB(20, 20, 20, 20 + MediaQuery.of(context).padding.bottom),
               child: Column(
                 children: [
                   SizedBox(height: 12),

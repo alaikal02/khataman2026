@@ -194,13 +194,15 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
                                   },
                                 ),
                         ),
-                        Container(
-                          padding: EdgeInsets.all(20),
-                          decoration: BoxDecoration(
-                            color: Theme.of(context).colorScheme.surface,
-                            boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, -2))],
-                          ),
-                          child: Row(
+                        SafeArea(
+                          top: false,
+                          child: Container(
+                            padding: EdgeInsets.all(20),
+                            decoration: BoxDecoration(
+                              color: Theme.of(context).colorScheme.surface,
+                              boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, -2))],
+                            ),
+                            child: Row(
                             children: [
                               Expanded(
                                 child: OutlinedButton(
@@ -265,6 +267,7 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
                                 ),
                               ),
                             ],
+                          ),
                           ),
                         ),
                       ],
@@ -442,7 +445,7 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
             child: _filteredAllGroups.isEmpty
                 ? _buildEmptyState('Tidak ada grup ditemukan')
                 : ListView.builder(
-                    padding: EdgeInsets.fromLTRB(16, 4, 16, 100),
+                    padding: EdgeInsets.fromLTRB(16, 4, 16, 80 + MediaQuery.of(context).padding.bottom),
                     itemCount: _filteredAllGroups.length,
                     itemBuilder: (context, index) {
                       final group = _filteredAllGroups[index];
@@ -465,7 +468,7 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
       child: _myGroups.isEmpty
           ? _buildEmptyState('Anda belum bergabung ke grup manapun.\nCari grup di tab "Semua Grup" dan klik Gabung!')
           : ListView.builder(
-              padding: EdgeInsets.fromLTRB(16, 12, 16, 100),
+              padding: EdgeInsets.fromLTRB(16, 12, 16, 80 + MediaQuery.of(context).padding.bottom),
               itemCount: _myGroups.length,
               itemBuilder: (context, index) {
                 final group = _myGroups[index];

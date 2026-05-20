@@ -184,7 +184,7 @@ class _MandiriScreenState extends State<MandiriScreen> {
                 // Juz List
                 Expanded(
                   child: ListView.builder(
-                    padding: EdgeInsets.fromLTRB(16, 8, 16, 24),
+                    padding: EdgeInsets.fromLTRB(16, 8, 16, 24 + MediaQuery.of(context).padding.bottom),
                     itemCount: 30,
                     itemBuilder: (context, index) {
                       final juzNumber = index + 1;

@@ -430,7 +430,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
   Widget _buildNoPutaran() {
     final code = _group?['kode_gk_unik'] ?? '-';
     return ListView(
-      padding: EdgeInsets.all(24),
+      padding: EdgeInsets.fromLTRB(24, 24, 24, 24 + MediaQuery.of(context).padding.bottom),
       children: [
         // Kode Group Container
         Container(
@@ -579,7 +579,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
             onRefresh: () => _fetchData(silent: true),
             child: ListView.builder(
               physics: const AlwaysScrollableScrollPhysics(),
-              padding: EdgeInsets.fromLTRB(16, 4, 16, 24),
+              padding: EdgeInsets.fromLTRB(16, 4, 16, 24 + MediaQuery.of(context).padding.bottom),
               itemCount: _slots.length,
               itemBuilder: (context, index) {
                 final slot = _slots[index];
