@@ -3,57 +3,71 @@ name: Build Android APK
 on:
   push:
     branches:
-      - main # Ubah ke 'master' jika branch utama Anda bernama master
+      - main
 
 permissions:
   contents: write
+
+concurrency:
+  group: android-release-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
-    # Menambahkan environment variable untuk memaksa penggunaan Node 24
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 
     steps:
-      # 1. Ambil kode dari repository GitHub
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
 
-      # 2. Baca versi dari pubspec.yaml (sumber kebenaran: version: x.y.z+build)
-      - name: Read app version
+      # SemVer dari conventional commits (feat → minor, fix → patch, BREAKING CHANGE → major)
+      # https://github.com/marketplace/actions/git-automatic-semantic-versioning
+      - name: Calculate semantic version
+        id: semver
+        uses: bitshifted/git-auto-semver@v2
+        with:
+          main_branch: main
+          initial_version: '1.0.0'
+          create_tag: true
+          tag_prefix: v
+
+      - name: Sync pubspec.yaml and prepare release metadata
         id: version
         run: |
-          VERSION_LINE=$(grep '^version:' pubspec.yaml | sed 's/version: *//')
-          VERSION_NAME="${VERSION_LINE%%+*}"
-          BUILD_NUMBER="${VERSION_LINE#*+}"
-          if [ "$BUILD_NUMBER" = "$VERSION_LINE" ]; then
-            BUILD_NUMBER="0"
-          fi
+          VERSION_NAME="${{ steps.semver.outputs.version-string }}"
+          BUILD_NUMBER="${{ github.run_number }}"
+          FULL_VERSION="${VERSION_NAME}+${BUILD_NUMBER}"
+
+          sed -i "s/^version: .*/version: ${FULL_VERSION}/" pubspec.yaml
+
           APK_NAME="khataman-quran-${VERSION_NAME}-build${BUILD_NUMBER}.apk"
-          TAG_NAME="v${VERSION_NAME}-build${BUILD_NUMBER}"
+          TAG_NAME="v${VERSION_NAME}"
 
           echo "version_name=${VERSION_NAME}" >> "$GITHUB_OUTPUT"
           echo "build_number=${BUILD_NUMBER}" >> "$GITHUB_OUTPUT"
-          echo "full_version=${VERSION_NAME}+${BUILD_NUMBER}" >> "$GITHUB_OUTPUT"
+          echo "full_version=${FULL_VERSION}" >> "$GITHUB_OUTPUT"
           echo "apk_name=${APK_NAME}" >> "$GITHUB_OUTPUT"
           echo "tag_name=${TAG_NAME}" >> "$GITHUB_OUTPUT"
 
-      # 3. Install Java (Gunakan versi 17 sesuai perbaikan kita sebelumnya)
+          echo "Release version: ${FULL_VERSION} (tag ${TAG_NAME})"
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '17'
 
-      # 4. Install Flutter
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
 
-      # 5. Buat .env dari GitHub Secrets (file ini di-gitignore, tidak ikut checkout)
       - name: Create .env for release build
         run: |
           cat > .env << EOF
@@ -61,21 +75,25 @@ jobs:
           SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
           EOF
 
-      # 5. Ambil semua library/dependencies pubspec.yaml
       - name: Install dependencies
         run: flutter pub get
 
-      # 6. Build APK Mode Release
       - name: Build APK
         run: flutter build apk --release
 
-      # 7. Rename APK (Flutter outputs app-release.apk; upload/release need versioned name)
       - name: Rename APK with version
         run: |
           cp "build/app/outputs/flutter-apk/app-release.apk" \
              "build/app/outputs/flutter-apk/${{ steps.version.outputs.apk_name }}"
 
-      # 8. Upload artifact
+      - name: Commit synced pubspec.yaml
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add pubspec.yaml
+          git diff --staged --quiet || git commit -m "chore(release): sync version to ${{ steps.version.outputs.full_version }} [skip ci]"
+          git push origin HEAD:main
+
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
@@ -83,7 +101,6 @@ jobs:
           path: build/app/outputs/flutter-apk/${{ steps.version.outputs.apk_name }}
           if-no-files-found: error
 
-      # 9. Publish ke GitHub Releases
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -94,7 +111,7 @@ jobs:
 
             **Download:** `${{ steps.version.outputs.apk_name }}`
 
-            Bump `version` in `pubspec.yaml` before each release (e.g. `1.0.1+2`).
+            Version bumped via [Git Automatic Semantic Versioning](https://github.com/marketplace/actions/git-automatic-semantic-versioning) from conventional commits on `main`.
           files: build/app/outputs/flutter-apk/${{ steps.version.outputs.apk_name }}
           fail_on_unmatched_files: true
           generate_release_notes: true
