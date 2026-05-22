@@ -126,6 +126,89 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
     }
   }
 
+  void _setFormProgressFromAbsoluteIndex(int absoluteIndex) {
+    if (absoluteIndex <= 0) {
+      setState(() {
+        _selectedSurah = _surahsInJuz.keys.first;
+        _ayatController.text = '';
+      });
+      return;
+    }
+
+    if (absoluteIndex >= _totalAyat) {
+      setState(() {
+        _selectedSurah = _surahsInJuz.keys.last;
+        _ayatController.text = _surahsInJuz[_selectedSurah]![1].toString();
+      });
+      return;
+    }
+
+    int tempAbsolute = absoluteIndex;
+    int? foundSurah;
+    int foundAyat = 0;
+
+    for (var entry in _surahsInJuz.entries) {
+      int surah = entry.key;
+      int start = entry.value[0];
+      int end = entry.value[1];
+      int ayahsInThisSurah = end - start + 1;
+      
+      if (tempAbsolute <= ayahsInThisSurah) {
+        foundSurah = surah;
+        foundAyat = start + tempAbsolute - 1;
+        break;
+      } else {
+        tempAbsolute -= ayahsInThisSurah;
+      }
+    }
+
+    setState(() {
+      _selectedSurah = foundSurah ?? _surahsInJuz.keys.last;
+      _ayatController.text = foundAyat > 0 
+          ? foundAyat.toString() 
+          : _surahsInJuz[_selectedSurah]![1].toString();
+    });
+  }
+
+  Widget _buildTargetChip(String label, double fraction) {
+    final targetIndex = (fraction * _totalAyat).round();
+    final isActive = _localLastAyat == targetIndex;
+
+    return ActionChip(
+      onPressed: () {
+        _setFormProgressFromAbsoluteIndex(targetIndex);
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Target diatur ke $label (Total $targetIndex ayat)'),
+            duration: const Duration(seconds: 2),
+            backgroundColor: AppTheme.accentTeal,
+          ),
+        );
+      },
+      elevation: 0,
+      pressElevation: 2,
+      backgroundColor: isActive 
+          ? AppTheme.primaryGreen.withOpacity(0.15) 
+          : Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.5),
+      side: BorderSide(
+        color: isActive 
+            ? AppTheme.primaryGreen.withOpacity(0.5) 
+            : Theme.of(context).dividerColor.withOpacity(0.3),
+        width: isActive ? 1.2 : 0.8,
+      ),
+      label: Text(
+        label,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: isActive ? FontWeight.bold : FontWeight.w500,
+          color: isActive ? AppTheme.primaryGreen : Theme.of(context).colorScheme.onSurface,
+        ),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
+    );
+  }
+
   @override
   void dispose() {
     _ayatController.dispose();
@@ -591,7 +674,36 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
                       'Posisi terakhir: $lastPositionString',
                       style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 13),
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Target Membaca Cepat:',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      physics: const BouncingScrollPhysics(),
+                      child: Row(
+                        children: [
+                          _buildTargetChip('1/10 Juz (2 Hlm)', 1 / 10),
+                          const SizedBox(width: 6),
+                          _buildTargetChip('1/8 Juz (2.5 Hlm)', 1 / 8),
+                          const SizedBox(width: 6),
+                          _buildTargetChip('1/4 Juz (5 Hlm)', 1 / 4),
+                          const SizedBox(width: 6),
+                          _buildTargetChip('1/2 Juz (10 Hlm)', 1 / 2),
+                          const SizedBox(width: 6),
+                          _buildTargetChip('3/4 Juz (15 Hlm)', 3 / 4),
+                          const SizedBox(width: 6),
+                          _buildTargetChip('1 Juz Penuh (20 Hlm)', 1.0),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 14),
                     // Dropdown Surat
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12),

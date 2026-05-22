@@ -17,7 +17,7 @@ class SettingsProvider extends ChangeNotifier {
   int _reminderHour = 20;
   int _reminderMinute = 0;
   bool _groupNotifEnabled = true;
-  int _dailyTargetJuz = 1;
+  double _dailyTargetJuz = 1.0;
 
   ThemeMode get themeMode => _themeMode;
   double get fontSize => _fontSize;
@@ -25,7 +25,21 @@ class SettingsProvider extends ChangeNotifier {
   int get reminderHour => _reminderHour;
   int get reminderMinute => _reminderMinute;
   bool get groupNotifEnabled => _groupNotifEnabled;
-  int get dailyTargetJuz => _dailyTargetJuz;
+  double get dailyTargetJuz => _dailyTargetJuz;
+
+  String get dailyTargetJuzLabel {
+    if (_dailyTargetJuz == 0.1) return '1/10 Juz (2 Halaman)';
+    if (_dailyTargetJuz == 0.125) return '1/8 Juz (2.5 Halaman)';
+    if (_dailyTargetJuz == 0.25) return '1/4 Juz (5 Halaman)';
+    if (_dailyTargetJuz == 0.5) return '1/2 Juz (10 Halaman)';
+    if (_dailyTargetJuz == 0.75) return '3/4 Juz (15 Halaman)';
+    if (_dailyTargetJuz == 1.0) return '1 Juz (20 Halaman)';
+    if (_dailyTargetJuz == 2.0) return '2 Juz (40 Halaman)';
+    if (_dailyTargetJuz == 3.0) return '3 Juz (60 Halaman)';
+    if (_dailyTargetJuz == 4.0) return '4 Juz (80 Halaman)';
+    if (_dailyTargetJuz == 5.0) return '5 Juz (100 Halaman)';
+    return '${_dailyTargetJuz.toStringAsFixed(_dailyTargetJuz % 1 == 0 ? 0 : 2)} Juz';
+  }
 
   String get fontSizeLabel {
     if (_fontSize <= 0.85) return 'Kecil';
@@ -58,7 +72,14 @@ class SettingsProvider extends ChangeNotifier {
     _reminderHour = prefs.getInt(_keyReminderHour) ?? 20;
     _reminderMinute = prefs.getInt(_keyReminderMinute) ?? 0;
     _groupNotifEnabled = prefs.getBool(_keyGroupNotif) ?? true;
-    _dailyTargetJuz = prefs.getInt(_keyDailyTarget) ?? 1;
+    final rawTarget = prefs.get(_keyDailyTarget);
+    if (rawTarget is double) {
+      _dailyTargetJuz = rawTarget;
+    } else if (rawTarget is int) {
+      _dailyTargetJuz = rawTarget.toDouble();
+    } else {
+      _dailyTargetJuz = 1.0;
+    }
     notifyListeners();
   }
 
@@ -105,11 +126,11 @@ class SettingsProvider extends ChangeNotifier {
     await prefs.setBool(_keyGroupNotif, enabled);
   }
 
-  Future<void> setDailyTarget(int juz) async {
+  Future<void> setDailyTarget(double juz) async {
     _dailyTargetJuz = juz;
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(_keyDailyTarget, juz);
+    await prefs.setDouble(_keyDailyTarget, juz);
   }
 
   Future<void> _scheduleReminder() async {

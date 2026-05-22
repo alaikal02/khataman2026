@@ -150,32 +150,46 @@ class SettingsScreen extends StatelessWidget {
               iconColor: const Color(0xFF4CAF50),
               title: 'Target Harian',
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(56, 0, 16, 12),
+                padding: const EdgeInsets.fromLTRB(56, 0, 16, 16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '${settings.dailyTargetJuz} Juz per hari',
+                      'Membaca ${settings.dailyTargetJuzLabel} Juz per hari',
                       style: const TextStyle(color: AppTheme.primaryGreen, fontWeight: FontWeight.w600),
                     ),
-                    const SizedBox(height: 4),
-                    Slider(
-                      value: settings.dailyTargetJuz.toDouble(),
-                      min: 1,
-                      max: 5,
-                      divisions: 4,
-                      activeColor: AppTheme.primaryGreen,
-                      inactiveColor: Theme.of(context).colorScheme.surfaceContainerHighest,
-                      label: '${settings.dailyTargetJuz} Juz',
-                      onChanged: (val) => settings.setDailyTarget(val.round()),
-                    ),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text('1 Juz', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 11)),
-                        Text('3 Juz', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 11)),
-                        Text('5 Juz', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 11)),
-                      ],
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Theme.of(context).dividerColor),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<double>(
+                          value: settings.dailyTargetJuz,
+                          isExpanded: true,
+                          icon: const Icon(Icons.keyboard_arrow_down_rounded, color: AppTheme.primaryGreen),
+                          dropdownColor: Theme.of(context).colorScheme.surface,
+                          items: const [
+                            DropdownMenuItem(value: 0.1, child: Text('1/10 Juz (2 Halaman) per hari')),
+                            DropdownMenuItem(value: 0.125, child: Text('1/8 Juz (2.5 Halaman) per hari')),
+                            DropdownMenuItem(value: 0.25, child: Text('1/4 Juz (5 Halaman) per hari')),
+                            DropdownMenuItem(value: 0.5, child: Text('1/2 Juz (10 Halaman) per hari')),
+                            DropdownMenuItem(value: 0.75, child: Text('3/4 Juz (15 Halaman) per hari')),
+                            DropdownMenuItem(value: 1.0, child: Text('1 Juz (20 Halaman) per hari')),
+                            DropdownMenuItem(value: 2.0, child: Text('2 Juz (40 Halaman) per hari')),
+                            DropdownMenuItem(value: 3.0, child: Text('3 Juz (60 Halaman) per hari')),
+                            DropdownMenuItem(value: 4.0, child: Text('4 Juz (80 Halaman) per hari')),
+                            DropdownMenuItem(value: 5.0, child: Text('5 Juz (100 Halaman) per hari')),
+                          ],
+                          onChanged: (val) {
+                            if (val != null) {
+                              settings.setDailyTarget(val);
+                            }
+                          },
+                        ),
+                      ),
                     ),
                   ],
                 ),
