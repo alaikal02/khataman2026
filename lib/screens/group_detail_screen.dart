@@ -230,11 +230,56 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
 
   Future<void> _startNewPutaran(bool isAutoAssign) async {
     try {
-      final targetDate = DateTime.now().add(const Duration(days: 7));
+      final DateTimeRange? picked = await showDateRangePicker(
+        context: context,
+        firstDate: DateTime.now().subtract(const Duration(days: 1)),
+        lastDate: DateTime.now().add(const Duration(days: 365)),
+        initialDateRange: DateTimeRange(
+          start: DateTime.now(),
+          end: DateTime.now().add(const Duration(days: 7)),
+        ),
+        helpText: 'Pilih Periode Khataman',
+        cancelText: 'Batal',
+        confirmText: 'Pilih',
+        saveText: 'Simpan',
+        builder: (context, child) {
+          final isDark = Theme.of(context).brightness == Brightness.dark;
+          return Theme(
+            data: Theme.of(context).copyWith(
+              colorScheme: isDark
+                  ? const ColorScheme.dark(
+                      primary: AppTheme.primaryGreen,
+                      onPrimary: Colors.white,
+                      surface: AppTheme.bgCard,
+                      onSurface: AppTheme.textPrimary,
+                      secondary: AppTheme.accentGold,
+                    )
+                  : const ColorScheme.light(
+                      primary: AppTheme.primaryGreen,
+                      onPrimary: Colors.white,
+                      surface: Colors.white,
+                      onSurface: Color(0xFF1A1A2E),
+                      secondary: AppTheme.accentGold,
+                    ),
+              dialogBackgroundColor: isDark ? AppTheme.bgCard : Colors.white,
+            ),
+            child: child!,
+          );
+        },
+      );
+
+      if (picked == null) {
+        return; // Batalkan jika user membatalkan
+      }
+
+      final startDate = DateTime(picked.start.year, picked.start.month, picked.start.day, 0, 0, 0);
+      final endDate = DateTime(picked.end.year, picked.end.month, picked.end.day, 23, 59, 59);
+
       final newPutaran = await _supabase.from('putaran_siklus').insert({
         'group_id': widget.groupId,
         'nomor_putaran': 1,
-        'target_deadline': targetDate.toIso8601String()
+        'start_date': startDate.toIso8601String(),
+        'target_deadline': endDate.toIso8601String()
       }).select().single();
 
       if (isAutoAssign) {
@@ -349,6 +394,65 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
       'status_checklist': false
     }).eq('id_slot', slotId);
     _fetchData(silent: true);
+  }
+
+  String _formatDateRange(String? startStr, String? endStr) {
+    if (startStr == null || endStr == null) return '';
+    try {
+      final start = DateTime.parse(startStr).toLocal();
+      final end = DateTime.parse(endStr).toLocal();
+      
+      final months = [
+        'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 
+        'Jul', 'Agt', 'Sep', 'Okt', 'Nov', 'Des'
+      ];
+      
+      final startDay = start.day;
+      final startMonth = months[start.month - 1];
+      final startYear = start.year;
+      
+      final endDay = end.day;
+      final endMonth = months[end.month - 1];
+      final endYear = end.year;
+      
+      if (startYear == endYear) {
+        if (startMonth == endMonth) {
+          if (startDay == endDay) {
+            return '$startDay $startMonth $startYear';
+          }
+          return '$startDay - $endDay $startMonth $startYear';
+        } else {
+          return '$startDay $startMonth - $endDay $endMonth $startYear';
+        }
+      } else {
+        return '$startDay $startMonth $startYear - $endDay $endMonth $endYear';
+      }
+    } catch (e) {
+      return '';
+    }
+  }
+
+  String _getRemainingTime(String? endStr) {
+    if (endStr == null) return '';
+    try {
+      final end = DateTime.parse(endStr).toLocal();
+      final now = DateTime.now();
+      final difference = end.difference(now);
+      
+      if (difference.isNegative) {
+        return 'Waktu habis';
+      } else if (difference.inDays > 0) {
+        return '${difference.inDays} hari tersisa';
+      } else if (difference.inHours > 0) {
+        return '${difference.inHours} jam tersisa';
+      } else if (difference.inMinutes > 0) {
+        return '${difference.inMinutes} menit tersisa';
+      } else {
+        return 'Beberapa detik tersisa';
+      }
+    } catch (e) {
+      return '';
+    }
   }
 
   // ─────────────────────────────────────────────────────────
@@ -935,6 +1039,9 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
 
   Widget _buildSlotList(String? currentUserId) {
     final completed = _slots.where((s) => s['status_checklist'] == true).length;
+    final dateRangeText = _formatDateRange(_putaran?['start_date'], _putaran?['target_deadline']);
+    final remainingText = _getRemainingTime(_putaran?['target_deadline']);
+
     return Column(
       children: [
         // Summary Card
@@ -954,24 +1061,59 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Putaran 1', style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                  Text(
+                    'Putaran ${_putaran?['nomor_putaran'] ?? 1}${dateRangeText.isNotEmpty ? ' • $dateRangeText' : ''}',
+                    style: const TextStyle(color: Colors.white70, fontSize: 12),
+                  ),
                   const SizedBox(height: 4),
                   Text(
                     '$completed / 30 Juz Selesai',
                     style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
                   ),
                   const SizedBox(height: 10),
-                  SizedBox(
-                    width: 200,
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(6),
-                      child: LinearProgressIndicator(
-                        value: completed / 30,
-                        minHeight: 8,
-                        backgroundColor: Colors.white.withOpacity(0.12),
-                        valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.primaryGreen),
+                  Row(
+                    children: [
+                      SizedBox(
+                        width: 150,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(6),
+                          child: LinearProgressIndicator(
+                            value: completed / 30,
+                            minHeight: 8,
+                            backgroundColor: Colors.white.withOpacity(0.12),
+                            valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.primaryGreen),
+                          ),
+                        ),
                       ),
-                    ),
+                      if (remainingText.isNotEmpty) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: remainingText == 'Waktu habis'
+                                ? Colors.redAccent.withOpacity(0.15)
+                                : AppTheme.accentGold.withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: remainingText == 'Waktu habis'
+                                  ? Colors.redAccent.withOpacity(0.4)
+                                  : AppTheme.accentGold.withOpacity(0.4),
+                              width: 0.8,
+                            ),
+                          ),
+                          child: Text(
+                            remainingText,
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: remainingText == 'Waktu habis'
+                                  ? Colors.redAccent
+                                  : AppTheme.accentGold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ],
               ),
