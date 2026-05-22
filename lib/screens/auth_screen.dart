@@ -71,7 +71,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
-        decoration: BoxDecoration(gradient: AppTheme.bgGradient),
+         decoration: BoxDecoration(gradient: Theme.of(context).brightness == Brightness.dark ? AppTheme.darkBgGradient : AppTheme.lightBgGradient),
         child: SafeArea(
           child: FadeTransition(
             opacity: _fadeAnimation,

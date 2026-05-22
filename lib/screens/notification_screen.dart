@@ -339,7 +339,11 @@ class _NotificationScreenState extends State<NotificationScreen> {
         ],
       ),
       body: Container(
-        decoration: BoxDecoration(gradient: AppTheme.bgGradient),
+        decoration: BoxDecoration(
+          gradient: Theme.of(context).brightness == Brightness.dark
+              ? AppTheme.darkBgGradient
+              : AppTheme.lightBgGradient,
+        ),
         child: RefreshIndicator(
           onRefresh: _loadNotifications,
           color: AppTheme.primaryGreen,

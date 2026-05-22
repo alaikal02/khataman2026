@@ -18,8 +18,16 @@ class AppTheme {
     end: Alignment.bottomRight,
   );
 
-  static const LinearGradient bgGradient = LinearGradient(
+  // Dark theme gradient (current bgGradient)
+  static const LinearGradient darkBgGradient = LinearGradient(
     colors: [Color(0xFF0D1117), Color(0xFF161B22)],
+    begin: Alignment.topCenter,
+    end: Alignment.bottomCenter,
+  );
+
+  // Light theme gradient
+  static const LinearGradient lightBgGradient = LinearGradient(
+    colors: [Color(0xFFF5F5F5), Color(0xFFEEEEEE)],
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
   );

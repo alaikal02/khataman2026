@@ -120,7 +120,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
     return Scaffold(
       body: Container(
-        decoration: BoxDecoration(gradient: AppTheme.bgGradient),
+         decoration: BoxDecoration(gradient: Theme.of(context).brightness == Brightness.dark ? AppTheme.darkBgGradient : AppTheme.lightBgGradient),
         child: SafeArea(
           child: SingleChildScrollView(
             child: Padding(
