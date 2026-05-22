@@ -954,13 +954,13 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Putaran ${1}', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12)),
-                  SizedBox(height: 4),
+                  Text('Putaran 1', style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                  const SizedBox(height: 4),
                   Text(
                     '$completed / 30 Juz Selesai',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSurface),
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
                   ),
-                  SizedBox(height: 10),
+                  const SizedBox(height: 10),
                   SizedBox(
                     width: 200,
                     child: ClipRRect(
@@ -968,7 +968,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                       child: LinearProgressIndicator(
                         value: completed / 30,
                         minHeight: 8,
-                        backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                        backgroundColor: Colors.white.withOpacity(0.12),
                         valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.primaryGreen),
                       ),
                     ),

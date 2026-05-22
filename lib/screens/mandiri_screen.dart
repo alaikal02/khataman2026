@@ -225,11 +225,11 @@ class _MandiriScreenState extends State<MandiriScreen> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Progres Khataman', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 13)),
-                  SizedBox(height: 4),
+                  const Text('Progres Khataman', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                  const SizedBox(height: 4),
                   Text(
                     '$completed / 30 Juz',
-                    style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSurface),
+                    style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.white),
                   ),
                 ],
               ),
@@ -243,19 +243,19 @@ class _MandiriScreenState extends State<MandiriScreen> {
                 child: Center(
                   child: Text(
                     '$totalPercent%',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppTheme.primaryGreen),
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppTheme.primaryGreen),
                   ),
                 ),
               ),
             ],
           ),
-          SizedBox(height: 14),
+          const SizedBox(height: 14),
           ClipRRect(
             borderRadius: BorderRadius.circular(8),
             child: LinearProgressIndicator(
               value: completed / 30,
               minHeight: 10,
-              backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+              backgroundColor: Colors.white.withOpacity(0.12),
               valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.primaryGreen),
             ),
           ),
