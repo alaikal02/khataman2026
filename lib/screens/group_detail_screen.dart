@@ -458,7 +458,9 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
   // Kelola Anggota (Persetujuan & Hapus Anggota)
   // ─────────────────────────────────────────────────────────
   void _showManageMembersDialog() async {
+    final searchController = TextEditingController();
     try {
+      // 1. Fetch current members
       final membersData = await _supabase
           .from('group_members')
           .select('user_id, approval_status, users(username, email, avatar_url)')
@@ -466,9 +468,25 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
           .neq('user_id', _supabase.auth.currentUser!.id) // Sembunyikan admin dari list
           .order('approval_status', ascending: false); // PENDING di atas, APPROVED di bawah
 
+      // 2. Fetch all other registered users in the database
+      final usersData = await _supabase
+          .from('users')
+          .select('id_user, username, email, avatar_url')
+          .neq('id_user', _supabase.auth.currentUser!.id);
+
       if (!mounted) return;
 
       final membersList = List<Map<String, dynamic>>.from(membersData);
+      
+      // Filter out users who are already in the group
+      final existingIds = membersList.map((m) => m['user_id'] as String).toSet();
+      existingIds.add(_supabase.auth.currentUser!.id);
+
+      final availableUsers = List<Map<String, dynamic>>.from(usersData)
+          .where((u) => !existingIds.contains(u['id_user']))
+          .toList();
+
+      List<Map<String, dynamic>> filteredAvailableUsers = List.from(availableUsers);
 
       await showDialog(
         context: context,
@@ -478,115 +496,262 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
             title: Text('Kelola Anggota', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
             content: SizedBox(
               width: double.maxFinite,
-              child: membersList.isEmpty
-                  ? Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      child: Text('Belum ada anggota lain di grup ini.',
-                          style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
-                    )
-                  : ListView.builder(
-                      shrinkWrap: true,
-                      itemCount: membersList.length,
-                      itemBuilder: (_, i) {
-                        final member = membersList[i];
-                        final user = member['users'] as Map<String, dynamic>? ?? {};
-                        final avatarUrl = user['avatar_url'] as String?;
-                        final isPending = member['approval_status'] == 'PENDING';
-
-                        return ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          leading: Stack(
-                            alignment: Alignment.bottomRight,
-                            children: [
-                              CircleAvatar(
-                                backgroundImage: avatarUrl != null ? NetworkImage(avatarUrl) : null,
-                                child: avatarUrl == null ? const Icon(Icons.person) : null,
-                              ),
-                              if (isPending)
-                                Container(
-                                  decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface, shape: BoxShape.circle),
-                                  child: const Icon(Icons.hourglass_top_rounded, size: 14, color: AppTheme.accentGold),
-                                ),
-                            ],
-                          ),
-                          title: Text(user['username'] ?? 'User',
-                              style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontSize: 14)),
-                          subtitle: Text(
-                              isPending ? 'Menunggu Persetujuan' : (user['email'] ?? 'Anggota Aktif'),
-                              style: TextStyle(
-                                  color: isPending ? AppTheme.accentGold : Theme.of(context).colorScheme.onSurfaceVariant,
-                                  fontSize: 11)),
-                          trailing: isPending
-                              ? Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    IconButton(
-                                      icon: const Icon(Icons.check_circle_outline_rounded, color: AppTheme.primaryGreen),
-                                      tooltip: 'Terima',
-                                      onPressed: () async {
-                                        await _supabase
-                                            .from('group_members')
-                                            .update({'approval_status': 'APPROVED'})
-                                            .eq('user_id', member['user_id'])
-                                            .eq('group_id', widget.groupId);
-
-                                        // Kirim notifikasi ke anggota yang disetujui
-                                        try {
-                                          final gName = widget.groupName ?? _group?['nama_grup'] ?? 'Grup';
-                                          await NotificationService.send(
-                                            userId: member['user_id'] as String,
-                                            type: 'JOIN_APPROVED',
-                                            title: 'Permintaan Bergabung Disetujui',
-                                            body: 'Selamat! Permintaan Anda bergabung ke grup "$gName" telah disetujui.',
-                                            groupId: widget.groupId,
-                                          );
-                                        } catch (notifErr) {
-                                          print('Error sending approved notification: $notifErr');
-                                        }
-
-                                        setStateDialog(() => member['approval_status'] = 'APPROVED');
-                                        _fetchData(silent: true);
-                                      },
-                                    ),
-                                    IconButton(
-                                      icon: const Icon(Icons.cancel_outlined, color: Colors.redAccent),
-                                      tooltip: 'Tolak',
-                                      onPressed: () async {
-                                        await _supabase
-                                            .from('group_members')
-                                            .delete()
-                                            .eq('user_id', member['user_id'])
-                                            .eq('group_id', widget.groupId);
-                                        setStateDialog(() => membersList.removeAt(i));
-                                        _fetchData(silent: true);
-                                      },
-                                    ),
-                                  ],
-                                )
-                              : IconButton(
-                                  icon: Icon(Icons.person_remove_rounded, color: Colors.redAccent.withOpacity(0.7)),
-                                  tooltip: 'Keluarkan Anggota',
-                                  onPressed: () async {
-                                    // Keluarkan anggota
-                                    await _supabase
-                                        .from('group_members')
-                                        .delete()
-                                        .eq('user_id', member['user_id'])
-                                        .eq('group_id', widget.groupId);
-                                    
-                                    // Bersihkan slot yang sedang dia pegang jika ada
-                                    await _supabase
-                                        .from('slot_khataman')
-                                        .update({'user_id': null, 'ayat_terakhir_input': 0, 'status_checklist': false})
-                                        .eq('user_id', member['user_id']);
-
-                                    setStateDialog(() => membersList.removeAt(i));
-                                    _fetchData(silent: true);
-                                  },
-                                ),
-                        );
-                      },
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Search Bar
+                  TextField(
+                    controller: searchController,
+                    style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+                    decoration: InputDecoration(
+                      hintText: 'Cari username untuk ditambahkan...',
+                      prefixIcon: const Icon(Icons.search_rounded, color: AppTheme.primaryGreen),
+                      suffixIcon: searchController.text.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear_rounded),
+                              onPressed: () {
+                                searchController.clear();
+                                setStateDialog(() {
+                                  filteredAvailableUsers = List.from(availableUsers);
+                                });
+                              },
+                            )
+                          : null,
                     ),
+                    onChanged: (val) {
+                      final query = val.trim().toLowerCase();
+                      setStateDialog(() {
+                        filteredAvailableUsers = availableUsers
+                            .where((u) => (u['username'] ?? '').toString().toLowerCase().contains(query))
+                            .toList();
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Pengguna Terdaftar (Rekomendasi)
+                  if (filteredAvailableUsers.isNotEmpty) ...[
+                    Text('Tambah Anggota Baru', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                    const SizedBox(height: 6),
+                    Container(
+                      constraints: const BoxConstraints(maxHeight: 140),
+                      child: ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: filteredAvailableUsers.length,
+                        itemBuilder: (subCtx, idx) {
+                          final u = filteredAvailableUsers[idx];
+                          final avatar = u['avatar_url'] as String?;
+                          return ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: CircleAvatar(
+                              backgroundImage: avatar != null ? NetworkImage(avatar) : null,
+                              child: avatar == null ? const Icon(Icons.person) : null,
+                            ),
+                            title: Text(u['username'] ?? 'User', style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontSize: 13)),
+                            subtitle: Text(u['email'] ?? '', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 10)),
+                            trailing: ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppTheme.primaryGreen,
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                minimumSize: Size.zero,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              ),
+                              onPressed: () async {
+                                try {
+                                  await _supabase.from('group_members').insert({
+                                    'group_id': widget.groupId,
+                                    'user_id': u['id_user'],
+                                    'approval_status': 'APPROVED',
+                                  });
+
+                                  // Kirim notifikasi ke anggota baru
+                                  try {
+                                    final gName = widget.groupName ?? _group?['nama_grup'] ?? 'Grup';
+                                    await NotificationService.send(
+                                      userId: u['id_user'] as String,
+                                      type: 'JOIN_APPROVED',
+                                      title: 'Ditambahkan ke Grup Khataman',
+                                      body: 'Anda telah ditambahkan ke grup "$gName" oleh admin.',
+                                      groupId: widget.groupId,
+                                    );
+                                  } catch (notifErr) {
+                                    print('Error sending added notification: $notifErr');
+                                  }
+
+                                  setStateDialog(() {
+                                    final addedUser = u;
+                                    membersList.insert(0, {
+                                      'user_id': addedUser['id_user'],
+                                      'approval_status': 'APPROVED',
+                                      'users': {
+                                        'username': addedUser['username'],
+                                        'avatar_url': addedUser['avatar_url'],
+                                        'email': 'Anggota Baru'
+                                      }
+                                    });
+                                    availableUsers.removeWhere((item) => item['id_user'] == addedUser['id_user']);
+                                    filteredAvailableUsers.removeWhere((item) => item['id_user'] == addedUser['id_user']);
+                                  });
+                                  _fetchData(silent: true);
+                                } catch (err) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('Gagal menambahkan: $err'), backgroundColor: Colors.redAccent),
+                                  );
+                                }
+                              },
+                              child: const Text('Tambah', style: TextStyle(fontSize: 11, color: Colors.white, fontWeight: FontWeight.bold)),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    const Divider(),
+                  ] else if (searchController.text.isNotEmpty) ...[
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Center(
+                        child: Text(
+                          'Pengguna tidak ditemukan atau sudah bergabung.',
+                          style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12),
+                        ),
+                      ),
+                    ),
+                    const Divider(),
+                  ],
+
+                  const SizedBox(height: 6),
+                  Text('Daftar Anggota Saat Ini', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                  const SizedBox(height: 6),
+                  
+                  // Members List
+                  Container(
+                    constraints: const BoxConstraints(maxHeight: 220),
+                    child: membersList.isEmpty
+                        ? Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 24),
+                            child: Center(
+                              child: Text('Belum ada anggota lain di grup ini.',
+                                  style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                            ),
+                          )
+                        : ListView.builder(
+                            shrinkWrap: true,
+                            itemCount: membersList.length,
+                            itemBuilder: (_, i) {
+                              final member = membersList[i];
+                              final user = member['users'] as Map<String, dynamic>? ?? {};
+                              final avatarUrl = user['avatar_url'] as String?;
+                              final isPending = member['approval_status'] == 'PENDING';
+
+                              return ListTile(
+                                contentPadding: EdgeInsets.zero,
+                                leading: Stack(
+                                  alignment: Alignment.bottomRight,
+                                  children: [
+                                    CircleAvatar(
+                                      backgroundImage: avatarUrl != null ? NetworkImage(avatarUrl) : null,
+                                      child: avatarUrl == null ? const Icon(Icons.person) : null,
+                                    ),
+                                    if (isPending)
+                                      Container(
+                                        decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface, shape: BoxShape.circle),
+                                        child: const Icon(Icons.hourglass_top_rounded, size: 14, color: AppTheme.accentGold),
+                                      ),
+                                  ],
+                                ),
+                                title: Text(user['username'] ?? 'User',
+                                    style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontSize: 14)),
+                                subtitle: Text(
+                                    isPending ? 'Menunggu Persetujuan' : (user['email'] ?? 'Anggota Aktif'),
+                                    style: TextStyle(
+                                        color: isPending ? AppTheme.accentGold : Theme.of(context).colorScheme.onSurfaceVariant,
+                                        fontSize: 11)),
+                                trailing: isPending
+                                    ? Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          IconButton(
+                                            icon: const Icon(Icons.check_circle_outline_rounded, color: AppTheme.primaryGreen),
+                                            tooltip: 'Terima',
+                                            onPressed: () async {
+                                              await _supabase
+                                                  .from('group_members')
+                                                  .update({'approval_status': 'APPROVED'})
+                                                  .eq('user_id', member['user_id'])
+                                                  .eq('group_id', widget.groupId);
+
+                                              // Kirim notifikasi ke anggota yang disetujui
+                                              try {
+                                                final gName = widget.groupName ?? _group?['nama_grup'] ?? 'Grup';
+                                                await NotificationService.send(
+                                                  userId: member['user_id'] as String,
+                                                  type: 'JOIN_APPROVED',
+                                                  title: 'Permintaan Bergabung Disetujui',
+                                                  body: 'Selamat! Permintaan Anda bergabung ke grup "$gName" telah disetujui.',
+                                                  groupId: widget.groupId,
+                                                );
+                                              } catch (notifErr) {
+                                                print('Error sending approved notification: $notifErr');
+                                              }
+
+                                              setStateDialog(() => member['approval_status'] = 'APPROVED');
+                                              _fetchData(silent: true);
+                                            },
+                                          ),
+                                          IconButton(
+                                            icon: const Icon(Icons.cancel_outlined, color: Colors.redAccent),
+                                            tooltip: 'Tolak',
+                                            onPressed: () async {
+                                              await _supabase
+                                                  .from('group_members')
+                                                  .delete()
+                                                  .eq('user_id', member['user_id'])
+                                                  .eq('group_id', widget.groupId);
+                                              setStateDialog(() => membersList.removeAt(i));
+                                              _fetchData(silent: true);
+                                            },
+                                          ),
+                                        ],
+                                      )
+                                    : IconButton(
+                                        icon: Icon(Icons.person_remove_rounded, color: Colors.redAccent.withOpacity(0.7)),
+                                        tooltip: 'Keluarkan Anggota',
+                                        onPressed: () async {
+                                          // Keluarkan anggota
+                                          await _supabase
+                                              .from('group_members')
+                                              .delete()
+                                              .eq('user_id', member['user_id'])
+                                              .eq('group_id', widget.groupId);
+                                          
+                                          // Bersihkan slot yang sedang dia pegang jika ada
+                                          await _supabase
+                                              .from('slot_khataman')
+                                              .update({'user_id': null, 'ayat_terakhir_input': 0, 'status_checklist': false})
+                                              .eq('user_id', member['user_id']);
+
+                                          setStateDialog(() {
+                                            membersList.removeAt(i);
+                                            // Kembalikan ke daftar sugesti
+                                            final returnedUser = {
+                                              'id_user': member['user_id'],
+                                              'username': user['username'],
+                                              'email': user['email'],
+                                              'avatar_url': user['avatar_url']
+                                            };
+                                            availableUsers.add(returnedUser);
+                                            filteredAvailableUsers.add(returnedUser);
+                                          });
+                                          _fetchData(silent: true);
+                                        },
+                                      ),
+                              );
+                            },
+                          ),
+                  ),
+                ],
+              ),
             ),
             actions: [
               TextButton(
@@ -597,10 +762,77 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
           ),
         ),
       );
+      searchController.dispose();
     } catch (e) {
+      searchController.dispose();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Gagal memuat anggota: $e'), backgroundColor: Colors.redAccent),
+        );
+      }
+    }
+  }
+
+  Future<void> _editDeadline() async {
+    if (_putaran == null) return;
+    try {
+      final currentDeadlineStr = _putaran!['target_deadline'] as String?;
+      final currentDeadline = currentDeadlineStr != null ? DateTime.parse(currentDeadlineStr) : DateTime.now();
+
+      final picked = await showDatePicker(
+        context: context,
+        initialDate: currentDeadline,
+        firstDate: _putaran!['start_date'] != null ? DateTime.parse(_putaran!['start_date']) : DateTime.now().subtract(const Duration(days: 30)),
+        lastDate: DateTime.now().add(const Duration(days: 365)),
+        helpText: 'Pilih Tanggal Tenggat Baru',
+        cancelText: 'Batal',
+        confirmText: 'Simpan',
+        builder: (context, child) {
+          final isDark = Theme.of(context).brightness == Brightness.dark;
+          return Theme(
+            data: Theme.of(context).copyWith(
+              colorScheme: isDark
+                  ? const ColorScheme.dark(
+                      primary: AppTheme.primaryGreen,
+                      onPrimary: Colors.white,
+                      surface: AppTheme.bgCard,
+                      onSurface: AppTheme.textPrimary,
+                      secondary: AppTheme.accentGold,
+                    )
+                  : const ColorScheme.light(
+                      primary: AppTheme.primaryGreen,
+                      onPrimary: Colors.white,
+                      surface: Colors.white,
+                      onSurface: Color(0xFF1A1A2E),
+                      secondary: AppTheme.accentGold,
+                    ),
+              dialogTheme: DialogThemeData(backgroundColor: isDark ? AppTheme.bgCard : Colors.white),
+            ),
+            child: child!,
+          );
+        },
+      );
+
+      if (picked == null) return;
+
+      final newDeadline = DateTime(picked.year, picked.month, picked.day, 23, 59, 59);
+
+      await _supabase
+          .from('putaran_siklus')
+          .update({'target_deadline': newDeadline.toIso8601String()})
+          .eq('id_putaran', _putaran!['id_putaran']);
+
+      _fetchData(silent: true);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('✅ Tenggat waktu berhasil diperbarui!'), backgroundColor: AppTheme.primaryGreen),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal memperbarui tenggat waktu: $e'), backgroundColor: Colors.redAccent),
         );
       }
     }
@@ -1040,6 +1272,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
     final completed = _slots.where((s) => s['status_checklist'] == true).length;
     final dateRangeText = _formatDateRange(_putaran?['start_date'], _putaran?['target_deadline']);
     final remainingText = _getRemainingTime(_putaran?['target_deadline']);
+    final isAdmin = currentUserId != null && currentUserId == _group?['creator_id'];
 
     return Column(
       children: [
@@ -1060,9 +1293,24 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'Putaran ${_putaran?['nomor_putaran'] ?? 1}${dateRangeText.isNotEmpty ? ' • $dateRangeText' : ''}',
-                    style: const TextStyle(color: Colors.white70, fontSize: 12),
+                  Row(
+                    children: [
+                      Text(
+                        'Putaran ${_putaran?['nomor_putaran'] ?? 1}${dateRangeText.isNotEmpty ? ' • $dateRangeText' : ''}',
+                        style: const TextStyle(color: Colors.white70, fontSize: 12),
+                      ),
+                      if (isAdmin && _putaran != null) ...[
+                        const SizedBox(width: 6),
+                        GestureDetector(
+                          onTap: _editDeadline,
+                          child: const Icon(
+                            Icons.edit_calendar_rounded,
+                            size: 14,
+                            color: Colors.white70,
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                   const SizedBox(height: 4),
                   Text(
