@@ -110,7 +110,7 @@ class _MandiriJuzCardState extends State<MandiriJuzCard> with SingleTickerProvid
     final inputAyah = int.tryParse(_ayatController.text);
     if (inputAyah == null || inputAyah < 0 || _selectedSurah == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Input ayat tidak valid'), backgroundColor: Colors.redAccent),
+        const SnackBar(content: Text('Input ayat tidak valid'), backgroundColor: Colors.redAccent),
       );
       return;
     }
@@ -178,7 +178,7 @@ class _MandiriJuzCardState extends State<MandiriJuzCard> with SingleTickerProvid
     String surahAwal = _surahsInJuz.isNotEmpty ? quran.getSurahName(_surahsInJuz.keys.first) : '';
 
     return Container(
-      margin: EdgeInsets.only(bottom: 10),
+      margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
@@ -195,7 +195,7 @@ class _MandiriJuzCardState extends State<MandiriJuzCard> with SingleTickerProvid
             borderRadius: BorderRadius.circular(16),
             onTap: _toggleExpand,
             child: Padding(
-              padding: EdgeInsets.all(16),
+              padding: const EdgeInsets.all(16),
               child: Row(
                 children: [
                   // Juz Number Badge
@@ -210,7 +210,7 @@ class _MandiriJuzCardState extends State<MandiriJuzCard> with SingleTickerProvid
                     ),
                     child: Center(
                       child: isComplete
-                          ? Icon(Icons.check_rounded, color: AppTheme.primaryGreen, size: 22)
+                          ? const Icon(Icons.check_rounded, color: AppTheme.primaryGreen, size: 22)
                           : Text(
                               '${widget.juzNumber}',
                               style: TextStyle(
@@ -221,7 +221,7 @@ class _MandiriJuzCardState extends State<MandiriJuzCard> with SingleTickerProvid
                             ),
                     ),
                   ),
-                  SizedBox(width: 14),
+                  const SizedBox(width: 14),
                   // Juz Info
                   Expanded(
                     child: Column(
@@ -231,12 +231,12 @@ class _MandiriJuzCardState extends State<MandiriJuzCard> with SingleTickerProvid
                           'Juz ${widget.juzNumber}',
                           style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Theme.of(context).colorScheme.onSurface),
                         ),
-                        SizedBox(height: 4),
+                        const SizedBox(height: 4),
                         Text(
                           surahAwal,
                           style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
                         ),
-                        SizedBox(height: 8),
+                        const SizedBox(height: 8),
                         ClipRRect(
                           borderRadius: BorderRadius.circular(4),
                           child: LinearProgressIndicator(
@@ -251,7 +251,7 @@ class _MandiriJuzCardState extends State<MandiriJuzCard> with SingleTickerProvid
                       ],
                     ),
                   ),
-                  SizedBox(width: 12),
+                  const SizedBox(width: 12),
                   // Percentage + Arrow
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
@@ -264,7 +264,7 @@ class _MandiriJuzCardState extends State<MandiriJuzCard> with SingleTickerProvid
                           color: isComplete ? AppTheme.primaryGreen : Theme.of(context).colorScheme.onSurface,
                         ),
                       ),
-                      SizedBox(height: 4),
+                      const SizedBox(height: 4),
                       AnimatedRotation(
                         turns: _expanded ? 0.5 : 0,
                         duration: const Duration(milliseconds: 250),
@@ -280,15 +280,15 @@ class _MandiriJuzCardState extends State<MandiriJuzCard> with SingleTickerProvid
           SizeTransition(
             sizeFactor: _expandAnimation,
             child: Container(
-              padding: EdgeInsets.fromLTRB(16, 0, 16, 16),
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Divider(color: Theme.of(context).dividerColor, height: 1),
-                  SizedBox(height: 14),
+                  const SizedBox(height: 14),
                   
                   Container(
-                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     decoration: BoxDecoration(
                       color: Theme.of(context).colorScheme.surfaceContainerHighest,
                       borderRadius: BorderRadius.circular(10),
@@ -296,7 +296,7 @@ class _MandiriJuzCardState extends State<MandiriJuzCard> with SingleTickerProvid
                     child: Row(
                       children: [
                         Icon(Icons.menu_book_rounded, size: 16, color: Theme.of(context).colorScheme.onSurfaceVariant),
-                        SizedBox(width: 8),
+                        const SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             'Juz ini berisi ${_surahsInJuz.length} Surat  •  Total: $_totalAyat ayat',
@@ -308,15 +308,15 @@ class _MandiriJuzCardState extends State<MandiriJuzCard> with SingleTickerProvid
                   ),
                   
                   if (!isComplete) ...[
-                    SizedBox(height: 14),
+                    const SizedBox(height: 14),
                     Text(
                       'Posisi terakhir: $lastPositionString',
                       style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 13),
                     ),
-                    SizedBox(height: 8),
+                    const SizedBox(height: 8),
                     // Dropdown Surat
                     Container(
-                      padding: EdgeInsets.symmetric(horizontal: 12),
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
                       decoration: BoxDecoration(
                         border: Border.all(color: Theme.of(context).dividerColor),
                         borderRadius: BorderRadius.circular(12),
@@ -325,7 +325,7 @@ class _MandiriJuzCardState extends State<MandiriJuzCard> with SingleTickerProvid
                         child: DropdownButton<int>(
                           value: _selectedSurah,
                           isExpanded: true,
-                          icon: Icon(Icons.keyboard_arrow_down_rounded, color: AppTheme.primaryGreen),
+                          icon: const Icon(Icons.keyboard_arrow_down_rounded, color: AppTheme.primaryGreen),
                           items: _surahsInJuz.entries.map((entry) {
                             final bounds = entry.value;
                             return DropdownMenuItem<int>(
@@ -345,7 +345,7 @@ class _MandiriJuzCardState extends State<MandiriJuzCard> with SingleTickerProvid
                         ),
                       ),
                     ),
-                    SizedBox(height: 10),
+                    const SizedBox(height: 10),
                     TextField(
                       controller: _ayatController,
                       keyboardType: TextInputType.number,
@@ -357,22 +357,22 @@ class _MandiriJuzCardState extends State<MandiriJuzCard> with SingleTickerProvid
                       ),
                       enabled: _selectedSurah != null,
                     ),
-                    SizedBox(height: 12),
+                    const SizedBox(height: 12),
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
                         onPressed: _handleSave,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppTheme.primaryGreen,
-                          padding: EdgeInsets.symmetric(vertical: 14),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
-                        child: Text('Simpan Progres', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                        child: const Text('Simpan Progres', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
                       ),
                     ),
                   ] else ...[
-                    SizedBox(height: 12),
-                    Text('✅ Juz ini sudah Anda selesaikan. Alhamdulillah!',
+                    const SizedBox(height: 12),
+                    const Text('✅ Juz ini sudah Anda selesaikan. Alhamdulillah!',
                       style: TextStyle(color: AppTheme.primaryGreen, fontSize: 13)),
                   ],
                 ],

@@ -103,7 +103,7 @@ class _SlotCardState extends State<SlotCard> with SingleTickerProviderStateMixin
     final inputAyah = int.tryParse(_ayatController.text);
     if (inputAyah == null || inputAyah < 0 || _selectedSurah == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Input ayat tidak valid'), backgroundColor: Colors.redAccent),
+        const SnackBar(content: Text('Input ayat tidak valid'), backgroundColor: Colors.redAccent),
       );
       return;
     }
@@ -185,7 +185,7 @@ class _SlotCardState extends State<SlotCard> with SingleTickerProviderStateMixin
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Gagal menyimpan progres'), backgroundColor: Colors.redAccent),
+          const SnackBar(content: Text('Gagal menyimpan progres'), backgroundColor: Colors.redAccent),
         );
       }
     }
@@ -204,12 +204,12 @@ class _SlotCardState extends State<SlotCard> with SingleTickerProviderStateMixin
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text('Batal'),
+            child: const Text('Batal'),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
             style: TextButton.styleFrom(foregroundColor: Colors.redAccent),
-            child: Text('Ya, Lepas Juz'),
+            child: const Text('Ya, Lepas Juz'),
           ),
         ],
       ),
@@ -232,12 +232,12 @@ class _SlotCardState extends State<SlotCard> with SingleTickerProviderStateMixin
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text('Belum'),
+            child: const Text('Belum'),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
             style: TextButton.styleFrom(foregroundColor: AppTheme.primaryGreen),
-            child: Text('Ya, Selesai'),
+            child: const Text('Ya, Selesai'),
           ),
         ],
       ),
@@ -299,7 +299,7 @@ class _SlotCardState extends State<SlotCard> with SingleTickerProviderStateMixin
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Gagal memperbarui status'), backgroundColor: Colors.redAccent),
+          const SnackBar(content: Text('Gagal memperbarui status'), backgroundColor: Colors.redAccent),
         );
       }
     }
@@ -348,7 +348,7 @@ class _SlotCardState extends State<SlotCard> with SingleTickerProviderStateMixin
     }
 
     return Container(
-      margin: EdgeInsets.only(bottom: 10),
+      margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
@@ -368,7 +368,7 @@ class _SlotCardState extends State<SlotCard> with SingleTickerProviderStateMixin
             borderRadius: BorderRadius.circular(16),
             onTap: _toggleExpand,
             child: Padding(
-              padding: EdgeInsets.all(14),
+              padding: const EdgeInsets.all(14),
               child: Row(
                 children: [
                   // Badge Juz
@@ -379,14 +379,14 @@ class _SlotCardState extends State<SlotCard> with SingleTickerProviderStateMixin
                       gradient: isComplete
                           ? AppTheme.primaryGradient
                           : widget.isOwned
-                              ? LinearGradient(colors: [Color(0xFF006064), Color(0xFF00838F)])
+                              ? const LinearGradient(colors: [Color(0xFF006064), Color(0xFF00838F)])
                               : null,
                       color: (!isComplete && !widget.isOwned) ? Theme.of(context).colorScheme.surfaceContainerHighest : null,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Center(
                       child: isComplete
-                          ? Icon(Icons.check_rounded, color: Colors.white, size: 22)
+                          ? const Icon(Icons.check_rounded, color: Colors.white, size: 22)
                           : Text(
                               '$juzNumber',
                               style: TextStyle(
@@ -397,7 +397,7 @@ class _SlotCardState extends State<SlotCard> with SingleTickerProviderStateMixin
                             ),
                     ),
                   ),
-                  SizedBox(width: 12),
+                  const SizedBox(width: 12),
                   // Info
                   Expanded(
                     child: Column(
@@ -412,35 +412,35 @@ class _SlotCardState extends State<SlotCard> with SingleTickerProviderStateMixin
                               ),
                             ),
                             if (isComplete) ...[
-                              SizedBox(width: 6),
+                              const SizedBox(width: 6),
                               Container(
-                                padding: EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                                 decoration: BoxDecoration(
                                   color: AppTheme.primaryGreen.withOpacity(0.15),
                                   borderRadius: BorderRadius.circular(6),
                                 ),
-                                child: Text('Selesai', style: TextStyle(color: AppTheme.primaryGreen, fontSize: 10, fontWeight: FontWeight.w600)),
+                                child: const Text('Selesai', style: TextStyle(color: AppTheme.primaryGreen, fontSize: 10, fontWeight: FontWeight.w600)),
                               ),
                             ],
                             if (widget.isOwned && !isComplete) ...[
-                              SizedBox(width: 6),
+                              const SizedBox(width: 6),
                               Container(
-                                padding: EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                                 decoration: BoxDecoration(
                                   color: AppTheme.accentTeal.withOpacity(0.15),
                                   borderRadius: BorderRadius.circular(6),
                                 ),
-                                child: Text('Milik Anda', style: TextStyle(color: AppTheme.accentTeal, fontSize: 10, fontWeight: FontWeight.w600)),
+                                child: const Text('Milik Anda', style: TextStyle(color: AppTheme.accentTeal, fontSize: 10, fontWeight: FontWeight.w600)),
                               ),
                             ],
                           ],
                         ),
-                        SizedBox(height: 4),
+                        const SizedBox(height: 4),
                         Text(
                           widget.memberName != null ? '@${widget.memberName}' : '',
                           style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
                         ),
-                        SizedBox(height: 8),
+                        const SizedBox(height: 8),
                         // Progress Bar
                         ClipRRect(
                           borderRadius: BorderRadius.circular(4),
@@ -456,7 +456,7 @@ class _SlotCardState extends State<SlotCard> with SingleTickerProviderStateMixin
                       ],
                     ),
                   ),
-                  SizedBox(width: 10),
+                  const SizedBox(width: 10),
                   // Percentage + Arrow
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
@@ -469,7 +469,7 @@ class _SlotCardState extends State<SlotCard> with SingleTickerProviderStateMixin
                           color: isComplete ? AppTheme.primaryGreen : Theme.of(context).colorScheme.onSurface,
                         ),
                       ),
-                      SizedBox(height: 4),
+                      const SizedBox(height: 4),
                       AnimatedRotation(
                         turns: _expanded ? 0.5 : 0,
                         duration: const Duration(milliseconds: 250),
@@ -486,15 +486,15 @@ class _SlotCardState extends State<SlotCard> with SingleTickerProviderStateMixin
           SizeTransition(
             sizeFactor: _expandAnimation,
             child: Container(
-              padding: EdgeInsets.fromLTRB(14, 0, 14, 14),
+              padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Divider(color: Theme.of(context).dividerColor, height: 1),
-                  SizedBox(height: 14),
+                  const SizedBox(height: 14),
                   // Metadata info
                   Container(
-                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     decoration: BoxDecoration(
                       color: Theme.of(context).colorScheme.surfaceContainerHighest,
                       borderRadius: BorderRadius.circular(10),
@@ -502,7 +502,7 @@ class _SlotCardState extends State<SlotCard> with SingleTickerProviderStateMixin
                     child: Row(
                       children: [
                         Icon(Icons.menu_book_rounded, size: 16, color: Theme.of(context).colorScheme.onSurfaceVariant),
-                        SizedBox(width: 8),
+                        const SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             'Juz ini berisi ${_surahsInJuz.length} Surat  •  Total: $_totalAyat ayat',
@@ -513,15 +513,15 @@ class _SlotCardState extends State<SlotCard> with SingleTickerProviderStateMixin
                     ),
                   ),
                   if (widget.isOwned && !isComplete) ...[
-                    SizedBox(height: 14),
+                    const SizedBox(height: 14),
                     Text(
                       'Posisi terakhir: $lastPositionString',
                       style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 13),
                     ),
-                    SizedBox(height: 8),
+                    const SizedBox(height: 8),
                     // Dropdown Surat
                     Container(
-                      padding: EdgeInsets.symmetric(horizontal: 12),
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
                       decoration: BoxDecoration(
                         border: Border.all(color: Theme.of(context).dividerColor),
                         borderRadius: BorderRadius.circular(12),
@@ -530,7 +530,7 @@ class _SlotCardState extends State<SlotCard> with SingleTickerProviderStateMixin
                         child: DropdownButton<int>(
                           value: _selectedSurah,
                           isExpanded: true,
-                          icon: Icon(Icons.keyboard_arrow_down_rounded, color: AppTheme.primaryGreen),
+                          icon: const Icon(Icons.keyboard_arrow_down_rounded, color: AppTheme.primaryGreen),
                           items: _surahsInJuz.entries.map((entry) {
                             final bounds = entry.value;
                             return DropdownMenuItem<int>(
@@ -550,7 +550,7 @@ class _SlotCardState extends State<SlotCard> with SingleTickerProviderStateMixin
                         ),
                       ),
                     ),
-                    SizedBox(height: 10),
+                    const SizedBox(height: 10),
                     TextField(
                       controller: _ayatController,
                       keyboardType: TextInputType.number,
@@ -562,7 +562,7 @@ class _SlotCardState extends State<SlotCard> with SingleTickerProviderStateMixin
                       ),
                       enabled: _selectedSurah != null,
                     ),
-                    SizedBox(height: 12),
+                    const SizedBox(height: 12),
                     Row(
                       children: [
                         Expanded(
@@ -570,38 +570,38 @@ class _SlotCardState extends State<SlotCard> with SingleTickerProviderStateMixin
                             onPressed: _saveProgress,
                             style: ElevatedButton.styleFrom(
                               backgroundColor: AppTheme.primaryGreen,
-                              padding: EdgeInsets.symmetric(vertical: 13),
+                              padding: const EdgeInsets.symmetric(vertical: 13),
                             ),
-                            child: Text('Simpan Progres', style: TextStyle(fontWeight: FontWeight.w600)),
+                            child: const Text('Simpan Progres', style: TextStyle(fontWeight: FontWeight.w600)),
                           ),
                         ),
-                        SizedBox(width: 8),
+                        const SizedBox(width: 8),
                         OutlinedButton(
                           onPressed: _confirmRelease,
                           style: OutlinedButton.styleFrom(
-                            side: BorderSide(color: Colors.redAccent),
-                            padding: EdgeInsets.symmetric(vertical: 13, horizontal: 14),
+                            side: const BorderSide(color: Colors.redAccent),
+                            padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 14),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           ),
-                          child: Text('Lepas', style: TextStyle(color: Colors.redAccent)),
+                          child: const Text('Lepas', style: TextStyle(color: Colors.redAccent)),
                         ),
                       ],
                     ),
-                    SizedBox(height: 12),
+                    const SizedBox(height: 12),
                     ElevatedButton.icon(
                       onPressed: _confirmMarkFinished,
-                      icon: Icon(Icons.check_circle_rounded),
-                      label: Text('Saya Sudah Membaca 1 Juz Penuh'),
+                      icon: const Icon(Icons.check_circle_rounded),
+                      label: const Text('Saya Sudah Membaca 1 Juz Penuh'),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppTheme.primaryGreen.withOpacity(0.15),
                         foregroundColor: AppTheme.primaryGreen,
                         elevation: 0,
-                        minimumSize: Size(double.infinity, 48),
+                        minimumSize: const Size(double.infinity, 48),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
                     ),
                   ] else if (!widget.isOwned) ...[
-                    SizedBox(height: 12),
+                    const SizedBox(height: 12),
                     Text(
                       isComplete
                           ? '✅ Juz ini telah selesai dibaca oleh @${widget.memberName ?? '...'}. Alhamdulillah!'
@@ -613,18 +613,18 @@ class _SlotCardState extends State<SlotCard> with SingleTickerProviderStateMixin
                       ),
                     ),
                   ] else ...[
-                    SizedBox(height: 12),
-                    Text('✅ Juz ini sudah Anda selesaikan. Alhamdulillah!',
+                    const SizedBox(height: 12),
+                    const Text('✅ Juz ini sudah Anda selesaikan. Alhamdulillah!',
                       style: TextStyle(color: AppTheme.primaryGreen, fontSize: 13)),
-                    SizedBox(height: 12),
+                    const SizedBox(height: 12),
                     OutlinedButton.icon(
                       onPressed: () => _markAsFinished(false),
-                      icon: Icon(Icons.undo_rounded, size: 18),
-                      label: Text('Batalkan Status Selesai'),
+                      icon: const Icon(Icons.undo_rounded, size: 18),
+                      label: const Text('Batalkan Status Selesai'),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: Theme.of(context).colorScheme.onSurfaceVariant,
                         side: BorderSide(color: Theme.of(context).dividerColor),
-                        minimumSize: Size(double.infinity, 42),
+                        minimumSize: const Size(double.infinity, 42),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                       ),
                     ),

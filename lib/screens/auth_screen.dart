@@ -78,7 +78,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
             child: SlideTransition(
               position: _slideAnimation,
               child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: 28),
+                padding: const EdgeInsets.symmetric(horizontal: 28),
                 child: Column(
                   children: [
                     const Spacer(flex: 2),
@@ -97,9 +97,9 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                           ),
                         ],
                       ),
-                      child: Icon(Icons.menu_book_rounded, size: 52, color: Colors.white),
+                      child: const Icon(Icons.menu_book_rounded, size: 52, color: Colors.white),
                     ),
-                    SizedBox(height: 32),
+                    const SizedBox(height: 32),
                     // Title
                     Text(
                       'Khataman Quran',
@@ -110,7 +110,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                         letterSpacing: -0.5,
                       ),
                     ),
-                    SizedBox(height: 12),
+                    const SizedBox(height: 12),
                     Text(
                       'Lacak perjalanan spiritual Anda\nbersama atau sendiri.',
                       textAlign: TextAlign.center,
@@ -137,16 +137,16 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                     SizedBox(
                       width: double.infinity,
                       child: _isLoading
-                          ? Center(child: CircularProgressIndicator(color: AppTheme.primaryGreen))
+                          ? const Center(child: CircularProgressIndicator(color: AppTheme.primaryGreen))
                           : _googleButton(),
                     ),
-                    SizedBox(height: 16),
+                    const SizedBox(height: 16),
                     Text(
                       'Dengan masuk, Anda menyetujui Ketentuan Layanan\ndan Kebijakan Privasi kami.',
                       textAlign: TextAlign.center,
                       style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.7), height: 1.5),
                     ),
-                    SizedBox(height: 32),
+                    const SizedBox(height: 32),
                   ],
                 ),
               ),
@@ -159,7 +159,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
 
   Widget _featurePill(IconData icon, String label) {
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(20),
@@ -169,7 +169,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, size: 16, color: AppTheme.primaryGreen),
-          SizedBox(width: 6),
+          const SizedBox(width: 6),
           Text(label, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 13)),
         ],
       ),
@@ -180,7 +180,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
     return GestureDetector(
       onTap: _signInWithGoogle,
       child: Container(
-        padding: EdgeInsets.symmetric(vertical: 16),
+        padding: const EdgeInsets.symmetric(vertical: 16),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(14),
@@ -193,10 +193,10 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
               'https://www.google.com/favicon.ico',
               width: 22,
               height: 22,
-              errorBuilder: (_, __, ___) => Icon(Icons.g_mobiledata, color: Colors.blue, size: 26),
+              errorBuilder: (_, __, ___) => const Icon(Icons.g_mobiledata, color: Colors.blue, size: 26),
             ),
-            SizedBox(width: 12),
-            Text(
+            const SizedBox(width: 12),
+            const Text(
               'Masuk dengan Google',
               style: TextStyle(color: Color(0xFF1F1F1F), fontSize: 16, fontWeight: FontWeight.w600),
             ),

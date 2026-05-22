@@ -14,7 +14,7 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Load environment variables
-  await dotenv.load(fileName: ".env");
+  await dotenv.load(fileName: '.env');
 
   await Supabase.initialize(
     url: dotenv.env['SUPABASE_URL'] ?? '',

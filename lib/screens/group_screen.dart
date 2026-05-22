@@ -123,13 +123,13 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
       context: context,
       isScrollControlled: true,
       backgroundColor: Theme.of(context).colorScheme.surface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (BuildContext sheetContext) {
         return FutureBuilder<List<Map<String, dynamic>>>(
           future: usersFuture,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return Container(
+              return const SizedBox(
                 height: 300,
                 child: Center(child: CircularProgressIndicator(color: AppTheme.primaryGreen)),
               );
@@ -148,7 +148,7 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
                     return Column(
                       children: [
                         Padding(
-                          padding: EdgeInsets.all(20),
+                          padding: const EdgeInsets.all(20),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -158,9 +158,9 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
                                   decoration: BoxDecoration(color: Colors.grey.withOpacity(0.3), borderRadius: BorderRadius.circular(10)),
                                 ),
                               ),
-                              SizedBox(height: 20),
+                              const SizedBox(height: 20),
                               Text('Tambahkan Anggota', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSurface)),
-                              SizedBox(height: 8),
+                              const SizedBox(height: 8),
                               Text('Pilih pengguna yang ingin Anda undang ke dalam grup ini.', style: TextStyle(fontSize: 14, color: Theme.of(context).colorScheme.onSurfaceVariant)),
                             ],
                           ),
@@ -211,10 +211,10 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
                         SafeArea(
                           top: false,
                           child: Container(
-                            padding: EdgeInsets.all(20),
+                            padding: const EdgeInsets.all(20),
                             decoration: BoxDecoration(
                               color: Theme.of(context).colorScheme.surface,
-                              boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, -2))],
+                              boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, -2))],
                             ),
                             child: Row(
                             children: [
@@ -225,11 +225,11 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
                                     _selectedUsersForInvite.clear();
                                     Navigator.push(this.context, MaterialPageRoute(builder: (_) => GroupDetailScreen(groupId: groupId)));
                                   },
-                                  child: Text('Lewati'),
-                                  style: OutlinedButton.styleFrom(padding: EdgeInsets.symmetric(vertical: 16)),
+                                  style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
+                                  child: const Text('Lewati'),
                                 ),
                               ),
-                              SizedBox(width: 12),
+                              const SizedBox(width: 12),
                               Expanded(
                                 flex: 2,
                                 child: ElevatedButton(
@@ -256,7 +256,7 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
                                         showDialog(
                                           context: this.context,
                                           builder: (_) => AlertDialog(
-                                            title: Text('Gagal Menambahkan'),
+                                            title: const Text('Gagal Menambahkan'),
                                             content: Text('Supabase Error: $e\n\nKemungkinan besar database (Row Level Security) melarang Anda menambahkan akun orang lain secara langsung.'),
                                             actions: [
                                               TextButton(
@@ -264,7 +264,7 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
                                                   Navigator.pop(_);
                                                   Navigator.push(this.context, MaterialPageRoute(builder: (_) => GroupDetailScreen(groupId: groupId)));
                                                 },
-                                                child: Text('Lanjutkan ke Grup'),
+                                                child: const Text('Lanjutkan ke Grup'),
                                               )
                                             ],
                                           )
@@ -272,12 +272,12 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
                                       }
                                     }
                                   },
-                                  child: Text('Tambahkan (${_selectedUsersForInvite.length})'),
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: AppTheme.primaryGreen,
                                     foregroundColor: Colors.white,
-                                    padding: EdgeInsets.symmetric(vertical: 16),
+                                    padding: const EdgeInsets.symmetric(vertical: 16),
                                   ),
+                                  child: Text('Tambahkan (${_selectedUsersForInvite.length})'),
                                 ),
                               ),
                             ],
@@ -296,7 +296,7 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
     ).whenComplete(() {
       // In case they swiped down to dismiss instead of clicking "Lewati"
       if (_selectedUsersForInvite.isEmpty) {
-        Navigator.push(this.context, MaterialPageRoute(builder: (_) => GroupDetailScreen(groupId: groupId)));
+        Navigator.push(context, MaterialPageRoute(builder: (_) => GroupDetailScreen(groupId: groupId)));
       }
     });
   }
@@ -387,7 +387,7 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        title: Text('Khataman Grup'),
+        title: const Text('Khataman Grup'),
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         leading: IconButton(
           icon: Icon(Icons.arrow_back_ios_rounded, color: Theme.of(context).colorScheme.onSurface),
@@ -420,7 +420,7 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
         label: Text(_showCreateForm ? 'Tutup' : 'Buat Grup'),
       ),
       body: _isLoading
-          ? Center(child: CircularProgressIndicator(color: AppTheme.primaryGreen))
+          ? const Center(child: CircularProgressIndicator(color: AppTheme.primaryGreen))
           : Column(
               children: [
                 // Create Form
@@ -444,20 +444,20 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
       color: Theme.of(context).colorScheme.surface,
-      padding: EdgeInsets.fromLTRB(16, 12, 16, 16),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text('Buat Grup Khataman Baru', style: TextStyle(
             color: Theme.of(context).colorScheme.onSurface, fontWeight: FontWeight.w600, fontSize: 15,
           )),
-          SizedBox(height: 10),
+          const SizedBox(height: 10),
           TextField(
             controller: _namaGrupController,
             style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
             decoration: const InputDecoration(hintText: 'Nama grup (misal: Khataman Keluarga)'),
           ),
-          SizedBox(height: 12),
+          const SizedBox(height: 12),
           // Toggle Public / Private
           Row(
             children: [
@@ -466,7 +466,7 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
                   onTap: () => setState(() => _groupVisibility = 'PUBLIC'),
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 150),
-                    padding: EdgeInsets.symmetric(vertical: 10),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
                     decoration: BoxDecoration(
                       color: _groupVisibility == 'PUBLIC'
                           ? AppTheme.primaryGreen
@@ -481,7 +481,7 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
                             color: _groupVisibility == 'PUBLIC'
                                 ? Colors.white
                                 : Theme.of(context).colorScheme.onSurfaceVariant),
-                        SizedBox(width: 6),
+                        const SizedBox(width: 6),
                         Text('Publik',
                             style: TextStyle(
                                 fontWeight: FontWeight.w600,
@@ -493,13 +493,13 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
                   ),
                 ),
               ),
-              SizedBox(width: 10),
+              const SizedBox(width: 10),
               Expanded(
                 child: GestureDetector(
                   onTap: () => setState(() => _groupVisibility = 'PRIVATE'),
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 150),
-                    padding: EdgeInsets.symmetric(vertical: 10),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
                     decoration: BoxDecoration(
                       color: _groupVisibility == 'PRIVATE'
                           ? AppTheme.accentGold
@@ -514,7 +514,7 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
                             color: _groupVisibility == 'PRIVATE'
                                 ? Colors.white
                                 : Theme.of(context).colorScheme.onSurfaceVariant),
-                        SizedBox(width: 6),
+                        const SizedBox(width: 6),
                         Text('Privat',
                             style: TextStyle(
                                 fontWeight: FontWeight.w600,
@@ -529,19 +529,19 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
             ],
           ),
           if (_groupVisibility == 'PRIVATE')
-            Padding(
+            const Padding(
               padding: EdgeInsets.only(top: 6),
               child: Text(
                 '🔒 Anggota harus mendapat persetujuan Admin sebelum bisa masuk.',
                 style: TextStyle(fontSize: 11, color: AppTheme.accentGold),
               ),
             ),
-          SizedBox(height: 10),
+          const SizedBox(height: 10),
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
               onPressed: _createGroup,
-              child: Text('Buat Grup Sekarang'),
+              child: const Text('Buat Grup Sekarang'),
             ),
           ),
         ],
@@ -558,7 +558,7 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
         children: [
           // Search Bar
           Padding(
-            padding: EdgeInsets.fromLTRB(16, 12, 16, 8),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
             child: TextField(
               controller: _searchController,
               style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
@@ -631,8 +631,8 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
             }
           : null,
       child: Container(
-        margin: EdgeInsets.only(bottom: 12),
-        padding: EdgeInsets.all(16),
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(16),
@@ -670,7 +670,7 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
                 size: 26,
               ),
             ),
-            SizedBox(width: 14),
+            const SizedBox(width: 14),
             // Info
             Expanded(
               child: Column(
@@ -688,29 +688,29 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
                         ),
                       ),
                       if (isPrivate) ...[
-                        SizedBox(width: 6),
-                        Icon(Icons.lock_rounded, size: 13, color: AppTheme.accentGold),
+                        const SizedBox(width: 6),
+                        const Icon(Icons.lock_rounded, size: 13, color: AppTheme.accentGold),
                       ],
                     ],
                   ),
-                  SizedBox(height: 4),
+                  const SizedBox(height: 4),
                   Row(
                     children: [
                       Icon(Icons.tag_rounded, size: 13, color: Theme.of(context).colorScheme.onSurfaceVariant),
-                      SizedBox(width: 3),
+                      const SizedBox(width: 3),
                       Text(
                         group['kode_gk_unik'] ?? '',
                         style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12),
                       ),
                       if (isCreator) ...[
-                        SizedBox(width: 8),
+                        const SizedBox(width: 8),
                         Container(
-                          padding: EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                           decoration: BoxDecoration(
                             color: AppTheme.accentGold.withOpacity(0.15),
                             borderRadius: BorderRadius.circular(6),
                           ),
-                          child: Text('Admin', style: TextStyle(color: AppTheme.accentGold, fontSize: 10)),
+                          child: const Text('Admin', style: TextStyle(color: AppTheme.accentGold, fontSize: 10)),
                         ),
                       ],
                     ],
@@ -718,39 +718,39 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
                 ],
               ),
             ),
-            SizedBox(width: 8),
+            const SizedBox(width: 8),
             // Action Button
             if (canOpen)
               Container(
-                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                 decoration: BoxDecoration(
                   color: AppTheme.primaryGreen.withOpacity(0.15),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Text('Buka', style: TextStyle(color: AppTheme.primaryGreen, fontWeight: FontWeight.w600, fontSize: 13)),
+                child: const Text('Buka', style: TextStyle(color: AppTheme.primaryGreen, fontWeight: FontWeight.w600, fontSize: 13)),
               )
             else if (isPending)
               Container(
-                padding: EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
                 decoration: BoxDecoration(
                   color: AppTheme.accentGold.withOpacity(0.12),
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(color: AppTheme.accentGold.withOpacity(0.4)),
                 ),
-                child: Text('Menunggu...', style: TextStyle(color: AppTheme.accentGold, fontWeight: FontWeight.w600, fontSize: 12)),
+                child: const Text('Menunggu...', style: TextStyle(color: AppTheme.accentGold, fontWeight: FontWeight.w600, fontSize: 12)),
               )
             else
               GestureDetector(
                 onTap: () => _joinGroup(group['id_group'], group['nama_grup'] ?? 'Grup', visibility),
                 child: Container(
-                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(
+                    gradient: const LinearGradient(
                       colors: [Color(0xFF6C63FF), Color(0xFF3F3D8B)],
                     ),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: Text('Gabung', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13)),
+                  child: const Text('Gabung', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13)),
                 ),
               ),
           ],
@@ -762,12 +762,12 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
   Widget _buildEmptyState(String message) {
     return Center(
       child: Padding(
-        padding: EdgeInsets.all(32),
+        padding: const EdgeInsets.all(32),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(Icons.group_off_rounded, size: 64, color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.4)),
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
             Text(
               message,
               textAlign: TextAlign.center,

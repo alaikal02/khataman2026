@@ -80,7 +80,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         );
     
     _notificationChannel?.subscribe((status, [error]) {
-      debugPrint('🔔 [Realtime] Status channel notifications: $status' + (error != null ? ', Error: $error' : ''));
+      debugPrint('🔔 [Realtime] Status channel notifications: $status${error != null ? ', Error: $error' : ''}');
       
       // Jika koneksi terputus, error, atau timeout di Android/mobile, coba hubungkan kembali setelah delay kecil
       if (status == RealtimeSubscribeStatus.channelError || 
@@ -281,9 +281,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Widget _buildGreetingCard(BuildContext context, String name) {
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.all(22),
+      padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
+        gradient: const LinearGradient(
           colors: [Color(0xFF1A3A2A), Color(0xFF0D2118)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -296,7 +296,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       ),
       child: Row(
         children: [
-          Expanded(
+          const Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -323,12 +323,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ),
           ),
           Container(
-            padding: EdgeInsets.all(14),
+            padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
               color: AppTheme.primaryGreen.withOpacity(0.15),
               borderRadius: BorderRadius.circular(16),
             ),
-            child: Icon(Icons.auto_stories_rounded, color: AppTheme.primaryGreen, size: 36),
+            child: const Icon(Icons.auto_stories_rounded, color: AppTheme.primaryGreen, size: 36),
           ),
         ],
       ),
@@ -347,7 +347,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       onTap: onTap,
       child: Container(
         width: double.infinity,
-        padding: EdgeInsets.all(22),
+        padding: const EdgeInsets.all(22),
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(20),
@@ -356,7 +356,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         child: Row(
           children: [
             Container(
-              padding: EdgeInsets.all(14),
+              padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
                 gradient: gradient,
                 borderRadius: BorderRadius.circular(16),
@@ -370,13 +370,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               ),
               child: Icon(icon, color: Colors.white, size: 28),
             ),
-            SizedBox(width: 18),
+            const SizedBox(width: 18),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(title, style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: Theme.of(context).colorScheme.onSurface)),
-                  SizedBox(height: 6),
+                  const SizedBox(height: 6),
                   Text(subtitle, style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant, height: 1.5)),
                 ],
               ),
@@ -392,9 +392,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     return Row(
       children: [
         Expanded(child: _statCard(context, '30', 'Total Juz', Icons.layers_rounded, AppTheme.primaryGreen)),
-        SizedBox(width: 12),
+        const SizedBox(width: 12),
         Expanded(child: _statCard(context, '114', 'Surah', Icons.menu_book_rounded, AppTheme.accentGold)),
-        SizedBox(width: 12),
+        const SizedBox(width: 12),
         Expanded(child: _statCard(context, '6236', 'Ayat', Icons.format_list_numbered_rounded, AppTheme.accentTeal)),
       ],
     );
@@ -402,7 +402,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   Widget _statCard(BuildContext context, String value, String label, IconData icon, Color color) {
     return Container(
-      padding: EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
@@ -411,9 +411,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       child: Column(
         children: [
           Icon(icon, color: color, size: 22),
-          SizedBox(height: 8),
+          const SizedBox(height: 8),
           Text(value, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: color)),
-          SizedBox(height: 4),
+          const SizedBox(height: 4),
           Text(label, style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant)),
         ],
       ),

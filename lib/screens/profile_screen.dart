@@ -3,7 +3,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_theme.dart';
 import '../providers/auth_provider.dart';
 import 'package:provider/provider.dart';
-import 'settings_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({Key? key}) : super(key: key);
@@ -117,7 +116,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Batal'),
+            child: const Text('Batal'),
           ),
           TextButton(
             onPressed: () {
@@ -126,7 +125,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               auth.signOut();
             },
             style: TextButton.styleFrom(foregroundColor: Colors.redAccent),
-            child: Text('Ya, Keluar'),
+            child: const Text('Ya, Keluar'),
           ),
         ],
       ),
@@ -144,7 +143,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        title: Text('Profil Saya'),
+        title: const Text('Profil Saya'),
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         leading: IconButton(
           icon: Icon(Icons.arrow_back_ios_rounded, color: Theme.of(context).colorScheme.onSurface),
@@ -152,12 +151,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
       ),
       body: _isLoading
-          ? Center(child: CircularProgressIndicator(color: AppTheme.primaryGreen))
+          ? const Center(child: CircularProgressIndicator(color: AppTheme.primaryGreen))
           : SingleChildScrollView(
               padding: EdgeInsets.fromLTRB(20, 20, 20, 20 + MediaQuery.of(context).padding.bottom),
               child: Column(
                 children: [
-                  SizedBox(height: 12),
+                  const SizedBox(height: 12),
 
                   // ── Avatar ──────────────────────────────────
                   Stack(
@@ -178,16 +177,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                       ),
                       Container(
-                        padding: EdgeInsets.all(6),
-                        decoration: BoxDecoration(
+                        padding: const EdgeInsets.all(6),
+                        decoration: const BoxDecoration(
                           color: AppTheme.primaryGreen,
                           shape: BoxShape.circle,
                         ),
-                        child: Icon(Icons.camera_alt_rounded, size: 16, color: Colors.white),
+                        child: const Icon(Icons.camera_alt_rounded, size: 16, color: Colors.white),
                       ),
                     ],
                   ),
-                  SizedBox(height: 12),
+                  const SizedBox(height: 12),
 
                   // ── Display name from Google ─────────────────
                   Text(
@@ -196,16 +195,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       fontSize: 20, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
-                  SizedBox(height: 4),
+                  const SizedBox(height: 4),
                   Text(
                     email,
                     style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant),
                   ),
-                  SizedBox(height: 32),
+                  const SizedBox(height: 32),
 
                   // ── Username Card ─────────────────────────────
                   Container(
-                    padding: EdgeInsets.all(20),
+                    padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
                       color: Theme.of(context).colorScheme.surface,
                       borderRadius: BorderRadius.circular(18),
@@ -224,12 +223,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               GestureDetector(
                                 onTap: () => setState(() => _isEditing = true),
                                 child: Container(
-                                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                                   decoration: BoxDecoration(
                                     color: AppTheme.primaryGreen.withOpacity(0.15),
                                     borderRadius: BorderRadius.circular(8),
                                   ),
-                                  child: Row(
+                                  child: const Row(
                                     children: [
                                       Icon(Icons.edit_rounded, size: 14, color: AppTheme.primaryGreen),
                                       SizedBox(width: 4),
@@ -240,7 +239,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               ),
                           ],
                         ),
-                        SizedBox(height: 12),
+                        const SizedBox(height: 12),
                         if (_isEditing) ...[
                           TextField(
                             controller: _usernameController,
@@ -248,13 +247,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             decoration: InputDecoration(
                               hintText: 'Masukkan username baru',
                               prefixText: '@',
-                              prefixStyle: TextStyle(color: AppTheme.primaryGreen, fontWeight: FontWeight.w600),
+                              prefixStyle: const TextStyle(color: AppTheme.primaryGreen, fontWeight: FontWeight.w600),
                               helperText: 'Hanya huruf, angka, dan underscore. Min. 3 karakter.',
                               helperStyle: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 11),
                             ),
                             autofocus: true,
                           ),
-                          SizedBox(height: 14),
+                          const SizedBox(height: 14),
                           Row(
                             children: [
                               Expanded(
@@ -268,24 +267,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   style: OutlinedButton.styleFrom(
                                     side: BorderSide(color: Theme.of(context).dividerColor),
                                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                    padding: EdgeInsets.symmetric(vertical: 13),
+                                    padding: const EdgeInsets.symmetric(vertical: 13),
                                   ),
                                   child: Text('Batal', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
                                 ),
                               ),
-                              SizedBox(width: 10),
+                              const SizedBox(width: 10),
                               Expanded(
                                 child: ElevatedButton(
                                   onPressed: _isSaving ? null : _saveUsername,
                                   style: ElevatedButton.styleFrom(
-                                    padding: EdgeInsets.symmetric(vertical: 13),
+                                    padding: const EdgeInsets.symmetric(vertical: 13),
                                   ),
                                   child: _isSaving
-                                      ? SizedBox(
+                                      ? const SizedBox(
                                           width: 18, height: 18,
                                           child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                                         )
-                                      : Text('Simpan'),
+                                      : const Text('Simpan'),
                                 ),
                               ),
                             ],
@@ -293,7 +292,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ] else ...[
                           Row(
                             children: [
-                              Text('@', style: TextStyle(color: AppTheme.primaryGreen, fontSize: 18, fontWeight: FontWeight.w600)),
+                              const Text('@', style: TextStyle(color: AppTheme.primaryGreen, fontSize: 18, fontWeight: FontWeight.w600)),
                               Text(
                                 username,
                                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: Theme.of(context).colorScheme.onSurface),
@@ -304,11 +303,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ],
                     ),
                   ),
-                  SizedBox(height: 16),
+                  const SizedBox(height: 16),
 
                   // ── Info Card ────────────────────────────────
                   Container(
-                    padding: EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
                       color: Theme.of(context).colorScheme.surface,
                       borderRadius: BorderRadius.circular(18),
@@ -325,7 +324,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           trailing: Image.network(
                             'https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg',
                             width: 20, height: 20,
-                            errorBuilder: (_, __, ___) => Icon(Icons.g_mobiledata_rounded, color: Colors.red),
+                            errorBuilder: (_, __, ___) => const Icon(Icons.g_mobiledata_rounded, color: Colors.red),
                           ),
                         ),
                         Divider(color: Theme.of(context).dividerColor, height: 24),
@@ -339,23 +338,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ],
                     ),
                   ),
-                  SizedBox(height: 32),
+                  const SizedBox(height: 32),
 
                   // ── Logout Button ─────────────────────────────
                   SizedBox(
                     width: double.infinity,
                     child: OutlinedButton.icon(
                       onPressed: () => _confirmLogout(authProvider),
-                      icon: Icon(Icons.logout_rounded, color: Colors.redAccent),
-                      label: Text('Keluar dari Akun', style: TextStyle(color: Colors.redAccent)),
+                      icon: const Icon(Icons.logout_rounded, color: Colors.redAccent),
+                      label: const Text('Keluar dari Akun', style: TextStyle(color: Colors.redAccent)),
                       style: OutlinedButton.styleFrom(
-                        side: BorderSide(color: Colors.redAccent),
-                        padding: EdgeInsets.symmetric(vertical: 14),
+                        side: const BorderSide(color: Colors.redAccent),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                       ),
                     ),
                   ),
-                  SizedBox(height: 24),
+                  const SizedBox(height: 24),
                 ],
               ),
             ),
@@ -366,14 +365,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Row(
       children: [
         Container(
-          padding: EdgeInsets.all(8),
+          padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
             color: Theme.of(context).colorScheme.surfaceContainerHighest,
             borderRadius: BorderRadius.circular(10),
           ),
           child: Icon(icon, size: 18, color: Theme.of(context).colorScheme.onSurfaceVariant),
         ),
-        SizedBox(width: 12),
+        const SizedBox(width: 12),
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

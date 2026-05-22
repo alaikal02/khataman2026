@@ -50,7 +50,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
           final gid = m['group_id'] as String;
           final uid = m['user_id'] as String;
           final status = m['approval_status'] as String? ?? 'PENDING';
-          statuses['${gid}_${uid}'] = status;
+          statuses['${gid}_$uid'] = status;
         }
       }
     } catch (e) {
@@ -110,7 +110,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
       // Update state lokal
       if (mounted) {
         setState(() {
-          _memberStatuses['${groupId}_${senderId}'] = 'APPROVED';
+          _memberStatuses['${groupId}_$senderId'] = 'APPROVED';
           // Mark notification as read locally
           final idx = _notifications.indexWhere((element) => element['id'] == notifId);
           if (idx != -1) {
@@ -189,7 +189,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
       // Update state lokal
       if (mounted) {
         setState(() {
-          _memberStatuses.remove('${groupId}_${senderId}'); // status menjadi null (artinya ditolak/dihapus)
+          _memberStatuses.remove('${groupId}_$senderId'); // status menjadi null (artinya ditolak/dihapus)
           // Mark notification as read locally
           final idx = _notifications.indexWhere((element) => element['id'] == notifId);
           if (idx != -1) {
@@ -383,9 +383,9 @@ class _NotificationScreenState extends State<NotificationScreen> {
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(color: AppTheme.primaryGreen.withOpacity(0.3)),
               ),
-              child: Row(
+              child: const Row(
                 mainAxisSize: MainAxisSize.min,
-                children: const [
+                children: [
                   Icon(Icons.check_circle_rounded, color: AppTheme.primaryGreen, size: 14),
                   SizedBox(width: 6),
                   Text(
@@ -416,9 +416,9 @@ class _NotificationScreenState extends State<NotificationScreen> {
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(color: Colors.redAccent.withOpacity(0.3)),
               ),
-              child: Row(
+              child: const Row(
                 mainAxisSize: MainAxisSize.min,
-                children: const [
+                children: [
                   Icon(Icons.cancel_rounded, color: Colors.redAccent, size: 14),
                   SizedBox(width: 6),
                   Text(
@@ -651,7 +651,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
                               notifId,
                               groupId,
                               senderId,
-                              _memberStatuses['${groupId}_${senderId}'],
+                              _memberStatuses['${groupId}_$senderId'],
                             ),
                           ),
                       ],

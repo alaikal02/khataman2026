@@ -14,7 +14,7 @@ class SettingsScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        title: Text('Pengaturan'),
+        title: const Text('Pengaturan'),
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         leading: IconButton(
           icon: Icon(Icons.arrow_back_ios_rounded, color: Theme.of(context).colorScheme.onSurface),
@@ -22,7 +22,7 @@ class SettingsScreen extends StatelessWidget {
         ),
       ),
       body: ListView(
-        padding: EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16),
         children: [
 
           // ── TAMPILAN ─────────────────────────────────────────
@@ -36,7 +36,7 @@ class SettingsScreen extends StatelessWidget {
               subtitle: settings.themeMode == ThemeMode.dark ? 'Gelap' : 'Terang',
               trailing: Switch(
                 value: settings.themeMode == ThemeMode.dark,
-                activeColor: AppTheme.primaryGreen,
+                activeThumbColor: AppTheme.primaryGreen,
                 onChanged: (val) => settings.setThemeMode(
                   val ? ThemeMode.dark : ThemeMode.light,
                 ),
@@ -49,7 +49,7 @@ class SettingsScreen extends StatelessWidget {
               iconColor: const Color(0xFF00BCD4),
               title: 'Ukuran Teks',
               child: Padding(
-                padding: EdgeInsets.fromLTRB(56, 0, 16, 12),
+                padding: const EdgeInsets.fromLTRB(56, 0, 16, 12),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -95,17 +95,17 @@ class SettingsScreen extends StatelessWidget {
                   : 'Nonaktif',
               trailing: Switch(
                 value: settings.reminderEnabled,
-                activeColor: AppTheme.primaryGreen,
+                activeThumbColor: AppTheme.primaryGreen,
                 onChanged: settings.setReminderEnabled,
               ),
             ),
             if (settings.reminderEnabled) ...[
               _divider(context),
               ListTile(
-                contentPadding: EdgeInsets.fromLTRB(56, 0, 16, 0),
+                contentPadding: const EdgeInsets.fromLTRB(56, 0, 16, 0),
                 title: Text('Jam Pengingat', style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontSize: 14)),
                 subtitle: Text(settings.reminderTimeLabel,
-                    style: TextStyle(color: AppTheme.primaryGreen, fontWeight: FontWeight.w600)),
+                    style: const TextStyle(color: AppTheme.primaryGreen, fontWeight: FontWeight.w600)),
                 trailing: Icon(Icons.chevron_right_rounded, color: Theme.of(context).colorScheme.onSurfaceVariant),
                 onTap: () async {
                   final picked = await showTimePicker(
@@ -136,7 +136,7 @@ class SettingsScreen extends StatelessWidget {
               subtitle: 'Saat anggota klaim atau selesai Juz',
               trailing: Switch(
                 value: settings.groupNotifEnabled,
-                activeColor: AppTheme.primaryGreen,
+                activeThumbColor: AppTheme.primaryGreen,
                 onChanged: settings.setGroupNotif,
               ),
             ),
@@ -150,15 +150,15 @@ class SettingsScreen extends StatelessWidget {
               iconColor: const Color(0xFF4CAF50),
               title: 'Target Harian',
               child: Padding(
-                padding: EdgeInsets.fromLTRB(56, 0, 16, 12),
+                padding: const EdgeInsets.fromLTRB(56, 0, 16, 12),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       '${settings.dailyTargetJuz} Juz per hari',
-                      style: TextStyle(color: AppTheme.primaryGreen, fontWeight: FontWeight.w600),
+                      style: const TextStyle(color: AppTheme.primaryGreen, fontWeight: FontWeight.w600),
                     ),
-                    SizedBox(height: 4),
+                    const SizedBox(height: 4),
                     Slider(
                       value: settings.dailyTargetJuz.toDouble(),
                       min: 1,
@@ -213,12 +213,12 @@ class SettingsScreen extends StatelessWidget {
               title: 'Hapus Akun',
               subtitle: 'Hapus akun dan semua data Anda secara permanen',
               titleColor: Colors.redAccent,
-              trailing: Icon(Icons.chevron_right_rounded, color: Colors.redAccent),
+              trailing: const Icon(Icons.chevron_right_rounded, color: Colors.redAccent),
               onTap: () => _confirmDeleteAccount(context),
             ),
           ]),
 
-          SizedBox(height: 32),
+          const SizedBox(height: 32),
           Center(
             child: Text(
               'Khataman Quran • v1.0.0\nDibuat dengan ❤️ untuk umat',
@@ -226,7 +226,7 @@ class SettingsScreen extends StatelessWidget {
               style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12, height: 1.6),
             ),
           ),
-          SizedBox(height: 24),
+          const SizedBox(height: 24),
         ],
       ),
     );
@@ -236,10 +236,10 @@ class SettingsScreen extends StatelessWidget {
 
   Widget _sectionHeader(BuildContext context, String title) {
     return Padding(
-      padding: EdgeInsets.fromLTRB(4, 20, 0, 8),
+      padding: const EdgeInsets.fromLTRB(4, 20, 0, 8),
       child: Text(
         title.toUpperCase(),
-        style: TextStyle(
+        style: const TextStyle(
           color: AppTheme.primaryGreen,
           fontSize: 11,
           fontWeight: FontWeight.w700,
@@ -251,7 +251,7 @@ class SettingsScreen extends StatelessWidget {
 
   Widget _buildCard(BuildContext context, List<Widget> children) {
     return Container(
-      margin: EdgeInsets.only(bottom: 4),
+      margin: const EdgeInsets.only(bottom: 4),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
@@ -274,9 +274,9 @@ class SettingsScreen extends StatelessWidget {
   }) {
     return ListTile(
       onTap: onTap,
-      contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       leading: Container(
-        padding: EdgeInsets.all(8),
+        padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
           color: iconColor.withOpacity(0.15),
           borderRadius: BorderRadius.circular(10),
@@ -301,9 +301,9 @@ class SettingsScreen extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         ListTile(
-          contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
           leading: Container(
-            padding: EdgeInsets.all(8),
+            padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
               color: iconColor.withOpacity(0.15),
               borderRadius: BorderRadius.circular(10),
@@ -328,14 +328,14 @@ class SettingsScreen extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('Versi: 1.0.0', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
-            SizedBox(height: 8),
+            const SizedBox(height: 8),
             Text(
               'Aplikasi untuk melacak progres Khataman Al-Quran secara mandiri maupun bersama dalam grup.',
               style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, height: 1.5),
             ),
-            SizedBox(height: 12),
+            const SizedBox(height: 12),
             Text('Stack Teknologi:', style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontWeight: FontWeight.w600)),
-            SizedBox(height: 4),
+            const SizedBox(height: 4),
             Text('• Flutter (Dart)\n• Supabase (PostgreSQL)\n• Google OAuth',
                 style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, height: 1.6)),
           ],
@@ -343,7 +343,7 @@ class SettingsScreen extends StatelessWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Tutup', style: TextStyle(color: AppTheme.primaryGreen)),
+            child: const Text('Tutup', style: TextStyle(color: AppTheme.primaryGreen)),
           ),
         ],
       ),
@@ -356,7 +356,7 @@ class SettingsScreen extends StatelessWidget {
       context: context,
       builder: (_) => AlertDialog(
         backgroundColor: Theme.of(context).colorScheme.surface,
-        title: Text('⚠️ Hapus Akun?', style: TextStyle(color: Colors.redAccent)),
+        title: const Text('⚠️ Hapus Akun?', style: TextStyle(color: Colors.redAccent)),
         content: Text(
           'Seluruh data Anda (progres khataman, keanggotaan grup) akan dihapus secara PERMANEN dan tidak dapat dikembalikan.\n\nApakah Anda yakin?',
           style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, height: 1.5),
@@ -364,7 +364,7 @@ class SettingsScreen extends StatelessWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Batal'),
+            child: const Text('Batal'),
           ),
           TextButton(
             onPressed: () async {
@@ -388,7 +388,7 @@ class SettingsScreen extends StatelessWidget {
               }
             },
             style: TextButton.styleFrom(foregroundColor: Colors.redAccent),
-            child: Text('Ya, Hapus Permanen'),
+            child: const Text('Ya, Hapus Permanen'),
           ),
         ],
       ),

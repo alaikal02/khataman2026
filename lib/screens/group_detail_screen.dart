@@ -114,7 +114,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
         );
 
     _subscription?.subscribe((status, [error]) {
-      debugPrint('🔄 [Realtime Group] Status: $status' + (error != null ? ', Error: $error' : ''));
+      debugPrint('🔄 [Realtime Group] Status: $status${error != null ? ', Error: $error' : ''}');
       
       // Re-koneksi otomatis jika terjadi error atau timeout
       if (status == RealtimeSubscribeStatus.channelError || 
@@ -176,7 +176,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
       }
 
       int pCount = 0;
-      if (groupData != null && groupData['creator_id'] == _supabase.auth.currentUser?.id) {
+      if (groupData['creator_id'] == _supabase.auth.currentUser?.id) {
         final pendingRes = await _supabase
             .from('group_members')
             .select('user_id')
@@ -221,7 +221,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Tutup', style: TextStyle(color: AppTheme.primaryGreen)),
+            child: const Text('Tutup', style: TextStyle(color: AppTheme.primaryGreen)),
           ),
         ],
       ),
@@ -260,8 +260,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                       surface: Colors.white,
                       onSurface: Color(0xFF1A1A2E),
                       secondary: AppTheme.accentGold,
-                    ),
-              dialogBackgroundColor: isDark ? AppTheme.bgCard : Colors.white,
+                    ), dialogTheme: DialogThemeData(backgroundColor: isDark ? AppTheme.bgCard : Colors.white),
             ),
             child: child!,
           );
@@ -360,7 +359,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
         // Update tidak berhasil → slot sudah diambil orang lain
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
+            const SnackBar(
               content: Text('⚠️ Juz ini sudah diambil anggota lain. Pilih Juz lain.'),
               backgroundColor: Colors.orange,
             ),
@@ -369,7 +368,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
       } else {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
+            const SnackBar(
               content: Text('✅ Juz berhasil diambil!'),
               backgroundColor: AppTheme.primaryGreen,
             ),
@@ -481,7 +480,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
               width: double.maxFinite,
               child: membersList.isEmpty
                   ? Padding(
-                      padding: EdgeInsets.symmetric(vertical: 16),
+                      padding: const EdgeInsets.symmetric(vertical: 16),
                       child: Text('Belum ada anggota lain di grup ini.',
                           style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
                     )
@@ -501,12 +500,12 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                             children: [
                               CircleAvatar(
                                 backgroundImage: avatarUrl != null ? NetworkImage(avatarUrl) : null,
-                                child: avatarUrl == null ? Icon(Icons.person) : null,
+                                child: avatarUrl == null ? const Icon(Icons.person) : null,
                               ),
                               if (isPending)
                                 Container(
                                   decoration: BoxDecoration(color: Theme.of(context).colorScheme.surface, shape: BoxShape.circle),
-                                  child: Icon(Icons.hourglass_top_rounded, size: 14, color: AppTheme.accentGold),
+                                  child: const Icon(Icons.hourglass_top_rounded, size: 14, color: AppTheme.accentGold),
                                 ),
                             ],
                           ),
@@ -522,7 +521,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     IconButton(
-                                      icon: Icon(Icons.check_circle_outline_rounded, color: AppTheme.primaryGreen),
+                                      icon: const Icon(Icons.check_circle_outline_rounded, color: AppTheme.primaryGreen),
                                       tooltip: 'Terima',
                                       onPressed: () async {
                                         await _supabase
@@ -550,7 +549,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                                       },
                                     ),
                                     IconButton(
-                                      icon: Icon(Icons.cancel_outlined, color: Colors.redAccent),
+                                      icon: const Icon(Icons.cancel_outlined, color: Colors.redAccent),
                                       tooltip: 'Tolak',
                                       onPressed: () async {
                                         await _supabase
@@ -592,7 +591,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(ctx),
-                child: Text('Tutup', style: TextStyle(color: AppTheme.primaryGreen)),
+                child: const Text('Tutup', style: TextStyle(color: AppTheme.primaryGreen)),
               ),
             ],
           ),
@@ -623,7 +622,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Batal'),
+            child: const Text('Batal'),
           ),
           TextButton(
             onPressed: () {
@@ -631,7 +630,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
               _deleteGroup();
             },
             style: TextButton.styleFrom(foregroundColor: Colors.redAccent),
-            child: Text('Ya, Hapus'),
+            child: const Text('Ya, Hapus'),
           ),
         ],
       ),
@@ -654,7 +653,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Grup berhasil dihapus'), backgroundColor: AppTheme.primaryGreen),
+          const SnackBar(content: Text('Grup berhasil dihapus'), backgroundColor: AppTheme.primaryGreen),
         );
         Navigator.pop(context, true); // Kirim 'true' sebagai tanda berhasil dihapus
       }
@@ -664,9 +663,9 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
         showDialog(
           context: context,
           builder: (_) => AlertDialog(
-            title: Text('Gagal Menghapus Grup'),
+            title: const Text('Gagal Menghapus Grup'),
             content: Text('Terjadi kesalahan saat menghapus grup:\n\n$e\n\n(Jika ini masalah izin, tambahkan policy DELETE di tabel groups pada dashboard Supabase)'),
-            actions: [TextButton(onPressed: () => Navigator.pop(context), child: Text('Tutup'))],
+            actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Tutup'))],
           )
         );
       }
@@ -688,7 +687,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
             gradient: LinearGradient(
               begin: Alignment(-1.5 + _shimmerController.value * 3, 0),
               end: Alignment(-0.5 + _shimmerController.value * 3, 0),
-              colors: [
+              colors: const [
                 Color(0xFF1F2937),
                 Color(0xFF374151),
                 Color(0xFF1F2937),
@@ -702,8 +701,8 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
 
   Widget _buildShimmerCard() {
     return Container(
-      margin: EdgeInsets.only(bottom: 10),
-      padding: EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
@@ -712,18 +711,18 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
       child: Row(
         children: [
           _buildShimmerBox(width: 44, height: 44, radius: 12),
-          SizedBox(width: 14),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _buildShimmerBox(width: 100, height: 14),
-                SizedBox(height: 8),
+                const SizedBox(height: 8),
                 _buildShimmerBox(height: 5),
               ],
             ),
           ),
-          SizedBox(width: 12),
+          const SizedBox(width: 12),
           _buildShimmerBox(width: 36, height: 14, radius: 4),
         ],
       ),
@@ -735,8 +734,8 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
       children: [
         // Header shimmer
         Container(
-          margin: EdgeInsets.fromLTRB(16, 12, 16, 16),
-          padding: EdgeInsets.all(20),
+          margin: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+          padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
             color: Theme.of(context).colorScheme.surface,
             borderRadius: BorderRadius.circular(18),
@@ -745,16 +744,16 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _buildShimmerBox(width: 160, height: 14),
-              SizedBox(height: 10),
+              const SizedBox(height: 10),
               _buildShimmerBox(width: 100, height: 26),
-              SizedBox(height: 14),
+              const SizedBox(height: 14),
               _buildShimmerBox(height: 10),
             ],
           ),
         ),
         Expanded(
           child: ListView.builder(
-            padding: EdgeInsets.symmetric(horizontal: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 16),
             itemCount: 8,
             itemBuilder: (_, __) => _buildShimmerCard(),
           ),
@@ -778,7 +777,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
         ),
         actions: [
           if (_group != null) IconButton(
-            icon: Icon(Icons.copy_rounded, color: AppTheme.primaryGreen),
+            icon: const Icon(Icons.copy_rounded, color: AppTheme.primaryGreen),
             tooltip: 'Salin Kode Grup',
             onPressed: () {
               Clipboard.setData(ClipboardData(text: _group!['kode_gk_unik']));
@@ -792,14 +791,14 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                 isLabelVisible: _pendingCount > 0,
                 label: Text('$_pendingCount'),
                 backgroundColor: Colors.redAccent,
-                child: Icon(Icons.manage_accounts_rounded, color: AppTheme.accentGold),
+                child: const Icon(Icons.manage_accounts_rounded, color: AppTheme.accentGold),
               ),
               tooltip: 'Kelola Anggota',
               onPressed: _showManageMembersDialog,
             ),
           if (_group != null && currentUserId == _group!['creator_id'])
             IconButton(
-              icon: Icon(Icons.delete_outline_rounded, color: Colors.redAccent),
+              icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent),
               tooltip: 'Hapus Grup',
               onPressed: _confirmDeleteGroup,
             ),
@@ -821,7 +820,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
       children: [
         // Kode Group Container
         Container(
-          padding: EdgeInsets.all(20),
+          padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
             color: Theme.of(context).colorScheme.surface,
             borderRadius: BorderRadius.circular(16),
@@ -830,13 +829,13 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
           child: Column(
             children: [
               Text('Kode Bergabung', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
-              SizedBox(height: 8),
+              const SizedBox(height: 8),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text(code, style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, letterSpacing: 4, color: AppTheme.primaryGreen)),
+                  Text(code, style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, letterSpacing: 4, color: AppTheme.primaryGreen)),
                   IconButton(
-                    icon: Icon(Icons.copy_rounded, color: AppTheme.primaryGreen),
+                    icon: const Icon(Icons.copy_rounded, color: AppTheme.primaryGreen),
                     onPressed: () {
                       Clipboard.setData(ClipboardData(text: code));
                       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Kode disalin: $code')));
@@ -844,15 +843,15 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                   )
                 ],
               ),
-              SizedBox(height: 8),
+              const SizedBox(height: 8),
               Text('Bagikan kode ini agar anggota lain dapat bergabung sebelum siklus dimulai.', textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant, height: 1.5)),
             ],
           ),
         ),
-        SizedBox(height: 32),
+        const SizedBox(height: 32),
         // Members list
         Text('Anggota Bergabung (${_members.length})', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSurface)),
-        SizedBox(height: 12),
+        const SizedBox(height: 12),
         ..._members.map((m) {
           final user = m['users'] ?? {};
           final name = user['username'] ?? 'User';
@@ -872,38 +871,38 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
         const SizedBox(height: 24),
         // Divider
         Divider(color: Theme.of(context).dividerColor),
-        SizedBox(height: 24),
+        const SizedBox(height: 24),
         // Admin actions
         Text(
           'Mulai Siklus Khataman',
           textAlign: TextAlign.center,
           style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Theme.of(context).colorScheme.onSurface),
         ),
-        SizedBox(height: 8),
+        const SizedBox(height: 8),
         Text(
           'Admin dapat memulai siklus dan memilih cara pembagian Juz untuk anggota yang telah bergabung.',
           textAlign: TextAlign.center,
           style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, height: 1.5, fontSize: 13),
         ),
-        SizedBox(height: 24),
+        const SizedBox(height: 24),
         SizedBox(
           width: double.infinity,
           child: ElevatedButton.icon(
             onPressed: () => _startNewPutaran(true),
-            icon: Icon(Icons.auto_awesome_rounded),
-            label: Text('Bagi Rata Otomatis'),
+            icon: const Icon(Icons.auto_awesome_rounded),
+            label: const Text('Bagi Rata Otomatis'),
           ),
         ),
-        SizedBox(height: 10),
+        const SizedBox(height: 10),
         SizedBox(
           width: double.infinity,
           child: OutlinedButton.icon(
             onPressed: () => _startNewPutaran(false),
-            icon: Icon(Icons.pan_tool_alt_rounded, color: AppTheme.accentGold),
-            label: Text('Klaim Mandiri (Open Slot)', style: TextStyle(color: AppTheme.accentGold)),
+            icon: const Icon(Icons.pan_tool_alt_rounded, color: AppTheme.accentGold),
+            label: const Text('Klaim Mandiri (Open Slot)', style: TextStyle(color: AppTheme.accentGold)),
             style: OutlinedButton.styleFrom(
-              side: BorderSide(color: AppTheme.accentGold),
-              padding: EdgeInsets.symmetric(vertical: 14),
+              side: const BorderSide(color: AppTheme.accentGold),
+              padding: const EdgeInsets.symmetric(vertical: 14),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
           ),
@@ -966,7 +965,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
           if (isAdmin)
             Switch(
               value: isLimited,
-              activeColor: AppTheme.primaryGreen,
+              activeThumbColor: AppTheme.primaryGreen,
               onChanged: (value) async {
                 setState(() {
                   if (_group != null) {
@@ -1046,10 +1045,10 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
       children: [
         // Summary Card
         Container(
-          margin: EdgeInsets.fromLTRB(16, 12, 16, 8),
-          padding: EdgeInsets.all(18),
+          margin: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+          padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
-            gradient: LinearGradient(
+            gradient: const LinearGradient(
               colors: [Color(0xFF1A3A2A), Color(0xFF0D2118)],
             ),
             borderRadius: BorderRadius.circular(18),
@@ -1119,7 +1118,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
               ),
               Text(
                 '${(completed / 30 * 100).round()}%',
-                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: AppTheme.primaryGreen),
+                style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: AppTheme.primaryGreen),
               ),
             ],
           ),
@@ -1153,8 +1152,8 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                 );
               } else {
                 return Container(
-                  margin: EdgeInsets.only(bottom: 10),
-                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  margin: const EdgeInsets.only(bottom: 10),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   decoration: BoxDecoration(
                     color: Theme.of(context).colorScheme.surface,
                     borderRadius: BorderRadius.circular(14),
@@ -1179,7 +1178,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                               ),
                             ),
                           ),
-                          SizedBox(width: 12),
+                          const SizedBox(width: 12),
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -1193,12 +1192,12 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                       GestureDetector(
                         onTap: () => _claimSlot(slot['id_slot']),
                         child: Container(
-                          padding: EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                           decoration: BoxDecoration(
                             gradient: AppTheme.primaryGradient,
                             borderRadius: BorderRadius.circular(10),
                           ),
-                          child: Text('Ambil Juz Ini',
+                          child: const Text('Ambil Juz Ini',
                               style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13)),
                         ),
                       ),

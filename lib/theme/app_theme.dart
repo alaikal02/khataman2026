@@ -41,9 +41,7 @@ class AppTheme {
         primary: primaryGreen,
         secondary: accentGold,
         surface: bgCard,
-        surfaceContainerHighest: bgCardLight, // used for secondary backgrounds
-        background: bgDark,
-        onBackground: textPrimary,
+        surfaceContainerHighest: bgCardLight,
         onSurface: textPrimary,
         onSurfaceVariant: textSecondary, // used for secondary text
       ),
@@ -61,9 +59,9 @@ class AppTheme {
         style: ElevatedButton.styleFrom(
           backgroundColor: primaryGreen,
           foregroundColor: Colors.white,
-          padding: EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          textStyle: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
@@ -75,14 +73,14 @@ class AppTheme {
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Color(0xFF30363D)),
+          borderSide: const BorderSide(color: Color(0xFF30363D)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: primaryGreen, width: 1.5),
+          borderSide: const BorderSide(color: primaryGreen, width: 1.5),
         ),
-        labelStyle: TextStyle(color: textSecondary),
-        hintStyle: TextStyle(color: textSecondary),
+        labelStyle: const TextStyle(color: textSecondary),
+        hintStyle: const TextStyle(color: textSecondary),
       ),
     );
   }
@@ -97,8 +95,6 @@ class AppTheme {
         secondary: accentGold,
         surface: Colors.white,
         surfaceContainerHighest: Color(0xFFEEEEEE),
-        background: Color(0xFFF5F5F5),
-        onBackground: Color(0xFF1A1A2E),
         onSurface: Color(0xFF1A1A2E),
         onSurfaceVariant: Color(0xFF757575),
       ),
@@ -116,9 +112,9 @@ class AppTheme {
         style: ElevatedButton.styleFrom(
           backgroundColor: primaryGreen,
           foregroundColor: Colors.white,
-          padding: EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          textStyle: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
@@ -130,13 +126,13 @@ class AppTheme {
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Color(0xFFDDDDDD)),
+          borderSide: const BorderSide(color: Color(0xFFDDDDDD)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: primaryGreen, width: 1.5),
+          borderSide: const BorderSide(color: primaryGreen, width: 1.5),
         ),
-        hintStyle: TextStyle(color: Colors.grey),
+        hintStyle: const TextStyle(color: Colors.grey),
       ),
     );
   }

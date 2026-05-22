@@ -113,12 +113,12 @@ class _MandiriScreenState extends State<MandiriScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text('Batal'),
+            child: const Text('Batal'),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
             style: TextButton.styleFrom(foregroundColor: Colors.redAccent),
-            child: Text('Ya, Reset Semua'),
+            child: const Text('Ya, Reset Semua'),
           ),
         ],
       ),
@@ -138,7 +138,7 @@ class _MandiriScreenState extends State<MandiriScreen> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
+          const SnackBar(
             content: Text('Progres berhasil direset. Bismillah, mulai lagi! 🌙'),
             backgroundColor: AppTheme.primaryGreen,
           ),
@@ -161,7 +161,7 @@ class _MandiriScreenState extends State<MandiriScreen> {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        title: Text('Khataman Mandiri'),
+        title: const Text('Khataman Mandiri'),
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         leading: IconButton(
           icon: Icon(Icons.arrow_back_ios_rounded, color: Theme.of(context).colorScheme.onSurface),
@@ -169,14 +169,14 @@ class _MandiriScreenState extends State<MandiriScreen> {
         ),
         actions: [
           IconButton(
-            icon: Icon(Icons.restart_alt_rounded, color: Colors.redAccent),
+            icon: const Icon(Icons.restart_alt_rounded, color: Colors.redAccent),
             tooltip: 'Reset Semua Progres',
             onPressed: _resetAllProgress,
           ),
         ],
       ),
       body: _isLoading
-          ? Center(child: CircularProgressIndicator(color: AppTheme.primaryGreen))
+          ? const Center(child: CircularProgressIndicator(color: AppTheme.primaryGreen))
           : Column(
               children: [
                 // Summary Card
@@ -206,10 +206,10 @@ class _MandiriScreenState extends State<MandiriScreen> {
 
   Widget _buildSummaryCard(int completed, int totalPercent) {
     return Container(
-      margin: EdgeInsets.fromLTRB(16, 8, 16, 8),
-      padding: EdgeInsets.all(20),
+      margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
+        gradient: const LinearGradient(
           colors: [Color(0xFF1A3A2A), Color(0xFF0D2118)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
