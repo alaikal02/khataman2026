@@ -131,6 +131,7 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setDouble(_keyDailyTarget, juz);
+    if (_reminderEnabled) await _scheduleReminder();
   }
 
   Future<void> _scheduleReminder() async {
@@ -145,11 +146,11 @@ class SettingsProvider extends ChangeNotifier {
       icon: '@mipmap/ic_launcher',
     );
 
-    // Show immediate test notification
+    // Show immediate test notification with personalized target and page equivalents
     await _notifPlugin.show(
       0,
       '📖 Waktunya Membaca Al-Quran',
-      'Jangan lupa target khataman hari ini. Bismillah!',
+      'Target harian Anda hari ini: Membaca $dailyTargetJuzLabel. Semangat! Bismillah!',
       const NotificationDetails(android: androidDetails),
     );
   }

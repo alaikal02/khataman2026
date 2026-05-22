@@ -311,6 +311,26 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
         }
         await _supabase.from('slot_khataman').insert(slotsToInsert);
       }
+
+      // Send group notifications about the new cycle!
+      try {
+        final groupName = _group?['nama_grup'] ?? 'Grup';
+        final formattedDate = '${endDate.day}/${endDate.month}/${endDate.year}';
+        final adminName = _supabase.auth.currentUser?.userMetadata?['full_name'] as String? ??
+            _supabase.auth.currentUser?.email?.split('@')[0] ??
+            'Admin';
+            
+        await NotificationService.sendToGroup(
+          groupId: widget.groupId,
+          type: 'CYCLE_STARTED',
+          title: '📖 Putaran Baru Dimulai!',
+          body: '$adminName memulai putaran baru di kelompok "$groupName" dengan tenggat waktu $formattedDate.',
+          excludeUserId: _supabase.auth.currentUser?.id,
+        );
+      } catch (e) {
+        debugPrint('Error sending cycle started notif: $e');
+      }
+
       _fetchData();
     } catch (e) {
       if (mounted) {
@@ -821,6 +841,25 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
           .from('putaran_siklus')
           .update({'target_deadline': newDeadline.toIso8601String()})
           .eq('id_putaran', _putaran!['id_putaran']);
+
+      // Send group notifications about the new deadline!
+      try {
+        final groupName = _group?['nama_grup'] ?? 'Grup';
+        final formattedDate = '${newDeadline.day}/${newDeadline.month}/${newDeadline.year}';
+        final adminName = _supabase.auth.currentUser?.userMetadata?['full_name'] as String? ??
+            _supabase.auth.currentUser?.email?.split('@')[0] ??
+            'Admin';
+            
+        await NotificationService.sendToGroup(
+          groupId: widget.groupId,
+          type: 'DEADLINE_CHANGED',
+          title: '⏰ Tenggat Kelompok Diperbarui',
+          body: '$adminName mengubah tenggat waktu kelompok "$groupName" menjadi $formattedDate.',
+          excludeUserId: _supabase.auth.currentUser?.id,
+        );
+      } catch (e) {
+        debugPrint('Error sending deadline change notif: $e');
+      }
 
       _fetchData(silent: true);
 
