@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../components/mandiri_juz_card.dart';
+import '../components/juz_progress_card.dart';
 import '../theme/app_theme.dart';
 
 class MandiriScreen extends StatefulWidget {
@@ -189,11 +189,12 @@ class _MandiriScreenState extends State<MandiriScreen> {
                     itemBuilder: (context, index) {
                       final juzNumber = index + 1;
                       final progress = _getProgressForJuz(juzNumber);
-                      return MandiriJuzCard(
+                      return JuzProgressCard(
                         key: ValueKey('mandiri_juz_$juzNumber'),
                         juzNumber: juzNumber,
                         lastAyat: progress?['ayat_terakhir'] as int? ?? 0,
                         isComplete: progress?['selesai'] == true,
+                        isGroupMode: false,
                         onSave: (absoluteIndex, total) => _saveProgress(juzNumber, absoluteIndex, total),
                       );
                     },

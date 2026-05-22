@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../components/slot_card.dart';
+import '../components/juz_progress_card.dart';
 import '../theme/app_theme.dart';
 import '../services/notification_service.dart';
 
@@ -1116,9 +1116,19 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                   ),
                 ],
               ),
-              Text(
-                '${(completed / 30 * 100).round()}%',
-                style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: AppTheme.primaryGreen),
+              Container(
+                width: 70,
+                height: 70,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: AppTheme.primaryGreen, width: 3),
+                ),
+                child: Center(
+                  child: Text(
+                    '${(completed / 30 * 100).round()}%',
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppTheme.primaryGreen),
+                  ),
+                ),
               ),
             ],
           ),
@@ -1135,77 +1145,26 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
               itemCount: _slots.length,
               itemBuilder: (context, index) {
                 final slot = _slots[index];
-                if (slot['user_id'] != null) {
-                  // Ambil username langsung dari hasil join query
-                  final memberName = (slot['users'] as Map<String, dynamic>?)?['username'] as String?;
-                  return SlotCard(
-                    key: ValueKey('slot_${slot['id_slot']}_${slot['user_id']}'),
-                    slot: slot,
-                    memberName: memberName,
-                    isOwned: slot['user_id'] == currentUserId,
-                    onRelease: _releaseSlot,
-                    groupId: widget.groupId,
-                    groupName: _group?['nama_grup'],
-                    onProgressUpdated: () {
-                      if (mounted) setState(() {});
-                    },
+                final memberName = (slot['users'] as Map<String, dynamic>?)?['username'] as String?;
+                
+                return JuzProgressCard(
+                  key: ValueKey('slot_${slot['id_slot']}_${slot['user_id']}'),
+                  juzNumber: slot['nomor_juz'] as int,
+                  lastAyat: slot['ayat_terakhir_input'] as int? ?? 0,
+                  isComplete: slot['status_checklist'] == true,
+                  isGroupMode: true,
+                  isOwned: slot['user_id'] == currentUserId,
+                  memberName: memberName,
+                  slotId: slot['id_slot'] as int?,
+                  groupId: widget.groupId,
+                  groupName: _group?['nama_grup'],
+                  onRelease: _releaseSlot,
+                  onClaim: _claimSlot,
+                  onProgressUpdated: () {
+                    if (mounted) setState(() {});
+                  },
                 );
-              } else {
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 10),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.surface,
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: Theme.of(context).dividerColor),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            width: 38,
-                            height: 38,
-                            decoration: BoxDecoration(
-                              color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Center(
-                              child: Text(
-                                '${slot['nomor_juz']}',
-                                style: TextStyle(fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSurface),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('Juz ${slot['nomor_juz']}',
-                                  style: TextStyle(fontWeight: FontWeight.w600, color: Theme.of(context).colorScheme.onSurface)),
-                              Text('Slot Kosong', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12)),
-                            ],
-                          ),
-                        ],
-                      ),
-                      GestureDetector(
-                        onTap: () => _claimSlot(slot['id_slot']),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                          decoration: BoxDecoration(
-                            gradient: AppTheme.primaryGradient,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: const Text('Ambil Juz Ini',
-                              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13)),
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              }
-            },
+              },
           ),
           ),
         ),

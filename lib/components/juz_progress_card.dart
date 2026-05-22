@@ -4,31 +4,49 @@ import 'package:quran/quran.dart' as quran;
 import '../theme/app_theme.dart';
 import '../services/notification_service.dart';
 
-class SlotCard extends StatefulWidget {
-  final Map<String, dynamic> slot;
+class JuzProgressCard extends StatefulWidget {
+  final int juzNumber;
+  final int lastAyat;
+  final bool isComplete;
+  
+  // Mode configuration
+  final bool isGroupMode;
   final bool isOwned;
-  final Function(int) onRelease;
-  final VoidCallback? onProgressUpdated; // ← Callback baru
   final String? memberName;
+  
+  // Database IDs / parameters
+  final int? slotId;
   final String? groupId;
   final String? groupName;
+  
+  // Callbacks
+  final Function(int absoluteIndex, int total)? onSave;
+  final Function(int slotId)? onRelease;
+  final Function(int slotId)? onClaim;
+  final VoidCallback? onProgressUpdated;
 
-  const SlotCard({
+  const JuzProgressCard({
     Key? key,
-    required this.slot,
-    required this.isOwned,
-    required this.onRelease,
-    this.onProgressUpdated,
+    required this.juzNumber,
+    required this.lastAyat,
+    required this.isComplete,
+    this.isGroupMode = false,
+    this.isOwned = false,
     this.memberName,
+    this.slotId,
     this.groupId,
     this.groupName,
+    this.onSave,
+    this.onRelease,
+    this.onClaim,
+    this.onProgressUpdated,
   }) : super(key: key);
 
   @override
-  State<SlotCard> createState() => _SlotCardState();
+  State<JuzProgressCard> createState() => _JuzProgressCardState();
 }
 
-class _SlotCardState extends State<SlotCard> with SingleTickerProviderStateMixin {
+class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProviderStateMixin {
   bool _expanded = false;
   late TextEditingController _ayatController;
   final _supabase = Supabase.instance.client;
@@ -38,6 +56,10 @@ class _SlotCardState extends State<SlotCard> with SingleTickerProviderStateMixin
   int _totalAyat = 0;
   Map<int, List<int>> _surahsInJuz = {};
   int? _selectedSurah;
+
+  // Local state to keep UI snappy and responsive
+  late int _localLastAyat;
+  late bool _localIsComplete;
 
   @override
   void initState() {
@@ -51,20 +73,32 @@ class _SlotCardState extends State<SlotCard> with SingleTickerProviderStateMixin
       parent: _expandController,
       curve: Curves.easeInOut,
     );
+    _localLastAyat = widget.lastAyat;
+    _localIsComplete = widget.isComplete;
     _initQuranData();
   }
 
+  @override
+  void didUpdateWidget(covariant JuzProgressCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.lastAyat != widget.lastAyat || 
+        oldWidget.isComplete != widget.isComplete || 
+        oldWidget.juzNumber != widget.juzNumber) {
+      _localLastAyat = widget.lastAyat;
+      _localIsComplete = widget.isComplete;
+      _initQuranData();
+    }
+  }
+
   void _initQuranData() {
-    final juzNumber = widget.slot['nomor_juz'] as int;
-    _surahsInJuz = quran.getSurahAndVersesFromJuz(juzNumber);
+    _surahsInJuz = quran.getSurahAndVersesFromJuz(widget.juzNumber);
     
     _totalAyat = 0;
     _surahsInJuz.forEach((surah, bounds) {
       _totalAyat += (bounds[1] - bounds[0] + 1);
     });
 
-    // Tentukan Surat dan Ayat yang dipilih berdasarkan index absolut
-    int absoluteIndex = widget.slot['ayat_terakhir_input'] as int? ?? 0;
+    int absoluteIndex = _localLastAyat;
     
     if (absoluteIndex == 0) {
       _selectedSurah = _surahsInJuz.keys.first;
@@ -99,7 +133,19 @@ class _SlotCardState extends State<SlotCard> with SingleTickerProviderStateMixin
     super.dispose();
   }
 
-  Future<void> _saveProgress() async {
+  void _toggleExpand() {
+    // Unclaimed slots cannot be expanded
+    if (widget.isGroupMode && widget.memberName == null) return;
+    
+    setState(() => _expanded = !_expanded);
+    if (_expanded) {
+      _expandController.forward();
+    } else {
+      _expandController.reverse();
+    }
+  }
+
+  Future<void> _handleSave() async {
     final inputAyah = int.tryParse(_ayatController.text);
     if (inputAyah == null || inputAyah < 0 || _selectedSurah == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -119,7 +165,6 @@ class _SlotCardState extends State<SlotCard> with SingleTickerProviderStateMixin
       return;
     }
 
-    // Hitung index absolut
     int absoluteIndex = 0;
     for (var entry in _surahsInJuz.entries) {
       int surah = entry.key;
@@ -136,69 +181,83 @@ class _SlotCardState extends State<SlotCard> with SingleTickerProviderStateMixin
 
     final isComplete = absoluteIndex == _totalAyat;
 
-    try {
-      await _supabase.from('slot_khataman').update({
-        'ayat_terakhir_input': absoluteIndex,
-        'status_checklist': isComplete,
-      }).eq('id_slot', widget.slot['id_slot']);
+    if (widget.isGroupMode) {
+      // Group Mode DB operation
+      if (widget.slotId == null) return;
+      try {
+        await _supabase.from('slot_khataman').update({
+          'ayat_terakhir_input': absoluteIndex,
+          'status_checklist': isComplete,
+        }).eq('id_slot', widget.slotId!);
 
-      // Kirim notifikasi jika Juz selesai
-      if (isComplete && widget.groupId != null) {
-        try {
-          final senderName = _supabase.auth.currentUser?.userMetadata?['full_name'] as String? ??
-              _supabase.auth.currentUser?.email?.split('@')[0] ??
-              'Seseorang';
-          final gName = widget.groupName ?? 'Grup';
+        // Send notifications if completed
+        if (isComplete && widget.groupId != null) {
+          try {
+            final senderName = _supabase.auth.currentUser?.userMetadata?['full_name'] as String? ??
+                _supabase.auth.currentUser?.email?.split('@')[0] ??
+                'Seseorang';
+            final gName = widget.groupName ?? 'Grup';
 
-          await NotificationService.sendToGroup(
-            groupId: widget.groupId!,
-            type: 'JUZ_COMPLETED',
-            title: 'Juz Selesai Dibaca',
-            body: '$senderName telah menyelesaikan Juz ${widget.slot['nomor_juz']} di grup "$gName"',
-            excludeUserId: _supabase.auth.currentUser?.id,
+            await NotificationService.sendToGroup(
+              groupId: widget.groupId!,
+              type: 'JUZ_COMPLETED',
+              title: 'Juz Selesai Dibaca',
+              body: '$senderName telah menyelesaikan Juz ${widget.juzNumber} di grup "$gName"',
+              excludeUserId: _supabase.auth.currentUser?.id,
+            );
+          } catch (e) {
+            debugPrint('Error sending completed notif: $e');
+          }
+        }
+
+        if (mounted) {
+          setState(() {
+            _localLastAyat = absoluteIndex;
+            _localIsComplete = isComplete;
+            if (isComplete) {
+              _expanded = false;
+              _expandController.reverse();
+            }
+          });
+
+          widget.onProgressUpdated?.call();
+
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(isComplete ? '✅ Juz ${widget.juzNumber} selesai! Alhamdulillah!' : 'Progres disimpan'),
+            backgroundColor: isComplete ? AppTheme.primaryGreen : Theme.of(context).colorScheme.surfaceContainerHighest,
+          ));
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Gagal menyimpan progres'), backgroundColor: Colors.redAccent),
           );
-        } catch (notifErr) {
-          print('Error sending juz completed notification: $notifErr');
         }
       }
-
-      if (mounted) {
-        // Memperbarui state lokal agar UI langsung berubah tanpa harus muat ulang halaman
-        setState(() {
-          widget.slot['ayat_terakhir_input'] = absoluteIndex;
-          widget.slot['status_checklist'] = isComplete;
-          
-          if (isComplete) {
+    } else {
+      // Individual Mode
+      if (widget.onSave != null) {
+        widget.onSave!(absoluteIndex, _totalAyat);
+        if (isComplete) {
+          setState(() {
             _expanded = false;
             _expandController.reverse();
-          }
-        });
-
-        // Beritahu parent (GroupDetailScreen) untuk merender ulang persentase total
-        widget.onProgressUpdated?.call();
-
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(isComplete ? '✅ Juz ${widget.slot['nomor_juz']} selesai! Alhamdulillah!' : 'Progres disimpan'),
-          backgroundColor: isComplete ? AppTheme.primaryGreen : Theme.of(context).colorScheme.surfaceContainerHighest,
-        ));
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Gagal menyimpan progres'), backgroundColor: Colors.redAccent),
-        );
+          });
+        }
       }
     }
   }
 
   Future<void> _confirmRelease() async {
+    if (widget.slotId == null || widget.onRelease == null) return;
+    
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
         backgroundColor: Theme.of(context).colorScheme.surface,
         title: Text('Lepas Juz?', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
         content: Text(
-          'Progres Juz ${widget.slot['nomor_juz']} Anda akan direset dan slot ini akan tersedia untuk anggota lain.',
+          'Progres Juz ${widget.juzNumber} Anda akan direset dan slot ini akan tersedia untuk anggota lain.',
           style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, height: 1.5),
         ),
         actions: [
@@ -215,7 +274,7 @@ class _SlotCardState extends State<SlotCard> with SingleTickerProviderStateMixin
       ),
     );
     if (confirmed == true) {
-      widget.onRelease(widget.slot['id_slot']);
+      widget.onRelease!(widget.slotId!);
     }
   }
 
@@ -226,7 +285,7 @@ class _SlotCardState extends State<SlotCard> with SingleTickerProviderStateMixin
         backgroundColor: Theme.of(context).colorScheme.surface,
         title: Text('Selesaikan Juz?', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
         content: Text(
-          'Apakah Anda yakin telah membaca seluruh isi Juz ${widget.slot['nomor_juz']} ini? Progres akan otomatis menjadi 100%.',
+          'Apakah Anda yakin telah membaca seluruh isi Juz ${widget.juzNumber} ini? Progres akan otomatis menjadi 100%.',
           style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, height: 1.5),
         ),
         actions: [
@@ -249,88 +308,98 @@ class _SlotCardState extends State<SlotCard> with SingleTickerProviderStateMixin
   }
 
   Future<void> _markAsFinished(bool isFinished) async {
-    try {
-      final absoluteIndex = isFinished ? _totalAyat : 0;
-      await _supabase.from('slot_khataman').update({
-        'ayat_terakhir_input': absoluteIndex,
-        'status_checklist': isFinished,
-      }).eq('id_slot', widget.slot['id_slot']);
+    final absoluteIndex = isFinished ? _totalAyat : 0;
 
-      // Kirim notifikasi jika Juz selesai
-      if (isFinished && widget.groupId != null) {
-        try {
-          final senderName = _supabase.auth.currentUser?.userMetadata?['full_name'] as String? ??
-              _supabase.auth.currentUser?.email?.split('@')[0] ??
-              'Seseorang';
-          final gName = widget.groupName ?? 'Grup';
+    if (widget.isGroupMode) {
+      if (widget.slotId == null) return;
+      try {
+        await _supabase.from('slot_khataman').update({
+          'ayat_terakhir_input': absoluteIndex,
+          'status_checklist': isFinished,
+        }).eq('id_slot', widget.slotId!);
 
-          await NotificationService.sendToGroup(
-            groupId: widget.groupId!,
-            type: 'JUZ_COMPLETED',
-            title: 'Juz Selesai Dibaca',
-            body: '$senderName telah menyelesaikan Juz ${widget.slot['nomor_juz']} di grup "$gName"',
-            excludeUserId: _supabase.auth.currentUser?.id,
+        // Kirim notifikasi jika Juz selesai
+        if (isFinished && widget.groupId != null) {
+          try {
+            final senderName = _supabase.auth.currentUser?.userMetadata?['full_name'] as String? ??
+                _supabase.auth.currentUser?.email?.split('@')[0] ??
+                'Seseorang';
+            final gName = widget.groupName ?? 'Grup';
+
+            await NotificationService.sendToGroup(
+              groupId: widget.groupId!,
+              type: 'JUZ_COMPLETED',
+              title: 'Juz Selesai Dibaca',
+              body: '$senderName telah menyelesaikan Juz ${widget.juzNumber} di grup "$gName"',
+              excludeUserId: _supabase.auth.currentUser?.id,
+            );
+          } catch (e) {
+            debugPrint('Error sending finished notif: $e');
+          }
+        }
+
+        if (mounted) {
+          setState(() {
+            _localLastAyat = absoluteIndex;
+            _localIsComplete = isFinished;
+            if (isFinished) {
+              _expanded = false;
+              _expandController.reverse();
+            } else {
+              _initQuranData();
+            }
+          });
+
+          widget.onProgressUpdated?.call();
+
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(isFinished ? '✅ Juz ${widget.juzNumber} ditandai selesai!' : 'Status selesai dibatalkan.'),
+            backgroundColor: isFinished ? AppTheme.primaryGreen : Theme.of(context).colorScheme.surfaceContainerHighest,
+          ));
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Gagal memperbarui status'), backgroundColor: Colors.redAccent),
           );
-        } catch (notifErr) {
-          print('Error sending juz completed notification: $notifErr');
         }
       }
-
-      if (mounted) {
-        setState(() {
-          widget.slot['ayat_terakhir_input'] = absoluteIndex;
-          widget.slot['status_checklist'] = isFinished;
-          
-          if (isFinished) {
+    } else {
+      // Individual Mode
+      if (widget.onSave != null) {
+        widget.onSave!(absoluteIndex, _totalAyat);
+        if (isFinished) {
+          setState(() {
             _expanded = false;
             _expandController.reverse();
-          } else {
-            _initQuranData(); // Reset input fields if reverting
-          }
-        });
-
-        widget.onProgressUpdated?.call();
-
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(isFinished ? '✅ Juz ${widget.slot['nomor_juz']} ditandai selesai!' : 'Status selesai dibatalkan.'),
-          backgroundColor: isFinished ? AppTheme.primaryGreen : Theme.of(context).colorScheme.surfaceContainerHighest,
-        ));
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Gagal memperbarui status'), backgroundColor: Colors.redAccent),
-        );
+          });
+        }
       }
     }
   }
 
   int _calculateProgress() {
     if (_totalAyat == 0) return 0;
-    final last = widget.slot['ayat_terakhir_input'] as int? ?? 0;
-    final p = ((last / _totalAyat) * 100).round();
+    final p = ((_localLastAyat / _totalAyat) * 100).round();
     return p > 100 ? 100 : p;
-  }
-
-  void _toggleExpand() {
-    setState(() => _expanded = !_expanded);
-    if (_expanded) {
-      _expandController.forward();
-    } else {
-      _expandController.reverse();
-    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final isComplete = widget.slot['status_checklist'] == true;
+    // 1. Is this an unclaimed slot?
+    final isUnclaimed = widget.isGroupMode && widget.memberName == null;
+
+    if (isUnclaimed) {
+      return _buildUnclaimedCard();
+    }
+
+    final isComplete = _localIsComplete;
     final progress = isComplete ? 100 : _calculateProgress();
-    final juzNumber = widget.slot['nomor_juz'] as int;
-    final lastAyat = widget.slot['ayat_terakhir_input'] as int? ?? 0;
+    final surahAwal = _surahsInJuz.isNotEmpty ? quran.getSurahName(_surahsInJuz.keys.first) : '';
 
     String lastPositionString = 'Belum dibaca';
-    if (lastAyat > 0 && _surahsInJuz.isNotEmpty) {
-      int tempAbsolute = lastAyat;
+    if (_localLastAyat > 0 && _surahsInJuz.isNotEmpty) {
+      int tempAbsolute = _localLastAyat;
       for (var entry in _surahsInJuz.entries) {
         int surah = entry.key;
         int start = entry.value[0];
@@ -354,16 +423,16 @@ class _SlotCardState extends State<SlotCard> with SingleTickerProviderStateMixin
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: isComplete
-              ? AppTheme.primaryGreen.withOpacity(0.5)
+              ? AppTheme.primaryGreen.withAlpha(128)
               : widget.isOwned
-                  ? AppTheme.accentTeal.withOpacity(0.4)
+                  ? AppTheme.accentTeal.withAlpha(102)
                   : Theme.of(context).dividerColor,
           width: widget.isOwned && !isComplete ? 1.5 : 1,
         ),
       ),
       child: Column(
         children: [
-          // ── Header (always visible) ──────────────────────────
+          // Header (always visible)
           InkWell(
             borderRadius: BorderRadius.circular(16),
             onTap: _toggleExpand,
@@ -388,7 +457,7 @@ class _SlotCardState extends State<SlotCard> with SingleTickerProviderStateMixin
                       child: isComplete
                           ? const Icon(Icons.check_rounded, color: Colors.white, size: 22)
                           : Text(
-                              '$juzNumber',
+                              '${widget.juzNumber}',
                               style: TextStyle(
                                 fontSize: 17,
                                 fontWeight: FontWeight.bold,
@@ -406,7 +475,7 @@ class _SlotCardState extends State<SlotCard> with SingleTickerProviderStateMixin
                         Row(
                           children: [
                             Text(
-                              'Juz $juzNumber',
+                              'Juz ${widget.juzNumber}',
                               style: TextStyle(
                                 fontSize: 15, fontWeight: FontWeight.w700, color: Theme.of(context).colorScheme.onSurface,
                               ),
@@ -416,7 +485,7 @@ class _SlotCardState extends State<SlotCard> with SingleTickerProviderStateMixin
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                                 decoration: BoxDecoration(
-                                  color: AppTheme.primaryGreen.withOpacity(0.15),
+                                  color: AppTheme.primaryGreen.withAlpha(38),
                                   borderRadius: BorderRadius.circular(6),
                                 ),
                                 child: const Text('Selesai', style: TextStyle(color: AppTheme.primaryGreen, fontSize: 10, fontWeight: FontWeight.w600)),
@@ -427,7 +496,7 @@ class _SlotCardState extends State<SlotCard> with SingleTickerProviderStateMixin
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                                 decoration: BoxDecoration(
-                                  color: AppTheme.accentTeal.withOpacity(0.15),
+                                  color: AppTheme.accentTeal.withAlpha(38),
                                   borderRadius: BorderRadius.circular(6),
                                 ),
                                 child: const Text('Milik Anda', style: TextStyle(color: AppTheme.accentTeal, fontSize: 10, fontWeight: FontWeight.w600)),
@@ -437,7 +506,9 @@ class _SlotCardState extends State<SlotCard> with SingleTickerProviderStateMixin
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          widget.memberName != null ? '@${widget.memberName}' : '',
+                          widget.isGroupMode
+                              ? (widget.memberName != null ? '@${widget.memberName}' : 'Slot Kosong')
+                              : surahAwal,
                           style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
                         ),
                         const SizedBox(height: 8),
@@ -482,7 +553,7 @@ class _SlotCardState extends State<SlotCard> with SingleTickerProviderStateMixin
             ),
           ),
 
-          // ── Expanded Content ─────────────────────────────────
+          // Expanded Content
           SizeTransition(
             sizeFactor: _expandAnimation,
             child: Container(
@@ -512,7 +583,9 @@ class _SlotCardState extends State<SlotCard> with SingleTickerProviderStateMixin
                       ],
                     ),
                   ),
-                  if (widget.isOwned && !isComplete) ...[
+                  
+                  // Read Input & Buttons
+                  if ((widget.isOwned || !widget.isGroupMode) && !isComplete) ...[
                     const SizedBox(height: 14),
                     Text(
                       'Posisi terakhir: $lastPositionString',
@@ -567,7 +640,7 @@ class _SlotCardState extends State<SlotCard> with SingleTickerProviderStateMixin
                       children: [
                         Expanded(
                           child: ElevatedButton(
-                            onPressed: _saveProgress,
+                            onPressed: _handleSave,
                             style: ElevatedButton.styleFrom(
                               backgroundColor: AppTheme.primaryGreen,
                               padding: const EdgeInsets.symmetric(vertical: 13),
@@ -575,16 +648,18 @@ class _SlotCardState extends State<SlotCard> with SingleTickerProviderStateMixin
                             child: const Text('Simpan Progres', style: TextStyle(fontWeight: FontWeight.w600)),
                           ),
                         ),
-                        const SizedBox(width: 8),
-                        OutlinedButton(
-                          onPressed: _confirmRelease,
-                          style: OutlinedButton.styleFrom(
-                            side: const BorderSide(color: Colors.redAccent),
-                            padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 14),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        if (widget.isGroupMode) ...[
+                          const SizedBox(width: 8),
+                          OutlinedButton(
+                            onPressed: _confirmRelease,
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(color: Colors.redAccent),
+                              padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 14),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                            child: const Text('Lepas', style: TextStyle(color: Colors.redAccent)),
                           ),
-                          child: const Text('Lepas', style: TextStyle(color: Colors.redAccent)),
-                        ),
+                        ],
                       ],
                     ),
                     const SizedBox(height: 12),
@@ -593,14 +668,15 @@ class _SlotCardState extends State<SlotCard> with SingleTickerProviderStateMixin
                       icon: const Icon(Icons.check_circle_rounded),
                       label: const Text('Saya Sudah Membaca 1 Juz Penuh'),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: AppTheme.primaryGreen.withOpacity(0.15),
+                        backgroundColor: AppTheme.primaryGreen.withAlpha(38),
                         foregroundColor: AppTheme.primaryGreen,
                         elevation: 0,
                         minimumSize: const Size(double.infinity, 48),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
                     ),
-                  ] else if (!widget.isOwned) ...[
+                  ] else if (widget.isGroupMode && !widget.isOwned) ...[
+                    // Claimed by someone else in the group
                     const SizedBox(height: 12),
                     Text(
                       isComplete
@@ -613,6 +689,7 @@ class _SlotCardState extends State<SlotCard> with SingleTickerProviderStateMixin
                       ),
                     ),
                   ] else ...[
+                    // Completed by the current user
                     const SizedBox(height: 12),
                     const Text('✅ Juz ini sudah Anda selesaikan. Alhamdulillah!',
                       style: TextStyle(color: AppTheme.primaryGreen, fontSize: 13)),
@@ -633,6 +710,64 @@ class _SlotCardState extends State<SlotCard> with SingleTickerProviderStateMixin
               ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildUnclaimedCard() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Theme.of(context).dividerColor),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Center(
+                  child: Text(
+                    '${widget.juzNumber}',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Theme.of(context).colorScheme.onSurface),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Juz ${widget.juzNumber}',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Theme.of(context).colorScheme.onSurface)),
+                  const SizedBox(height: 4),
+                  Text('Slot Kosong', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12)),
+                ],
+              ),
+            ],
+          ),
+          if (widget.onClaim != null && widget.slotId != null)
+            GestureDetector(
+              onTap: () => widget.onClaim!(widget.slotId!),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                decoration: BoxDecoration(
+                  gradient: AppTheme.primaryGradient,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Text('Ambil Juz Ini',
+                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13)),
+              ),
+            ),
         ],
       ),
     );
