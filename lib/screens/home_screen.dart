@@ -9,6 +9,8 @@ import 'mandiri_screen.dart';
 import 'profile_screen.dart';
 import 'settings_screen.dart';
 import 'notification_screen.dart';
+import 'history_screen.dart';
+import '../services/personal_history_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -19,6 +21,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   int _unreadNotificationsCount = 0;
+  int _personalKhatamCount = 0;
   RealtimeChannel? _notificationChannel;
 
   @override
@@ -26,6 +29,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _fetchUnreadCount();
+    _loadPersonalStats();
     _subscribeToNotifications();
   }
 
@@ -34,7 +38,56 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (state == AppLifecycleState.resumed) {
       debugPrint('🔔 [App Lifecycle] App resumed (foreground). Refreshing notifications...');
       _fetchUnreadCount();
+      _loadPersonalStats();
       _subscribeToNotifications();
+    }
+  }
+
+  Future<void> _loadPersonalStats() async {
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId == null) return;
+    
+    final localMandiriKhatams = await PersonalHistoryService.getKhatamCount(userId);
+    int groupKhatamsCount = 0;
+    
+    try {
+      final completedGroupSlots = await Supabase.instance.client
+          .from('slot_khataman')
+          .select('putaran_id, putaran_siklus!inner(status_aktif_selesai)')
+          .eq('user_id', userId)
+          .eq('putaran_siklus.status_aktif_selesai', 'SELESAI');
+
+      final slotsList = completedGroupSlots as List;
+      if (slotsList.isNotEmpty) {
+        final uniqueIds = slotsList.map((s) => s['putaran_id']).toSet();
+        groupKhatamsCount = uniqueIds.length;
+      }
+    } catch (e) {
+      debugPrint('Error loading group khatams on home: $e');
+    }
+
+    // Periksa apakah ronde mandiri saat ini sudah 30 Juz selesai (tetapi belum di-reset)
+    bool isCurrentMandiriKhatam = false;
+    try {
+      final activeMandiriRes = await Supabase.instance.client
+          .from('khataman_mandiri')
+          .select('selesai')
+          .eq('user_id', userId)
+          .eq('selesai', true);
+      
+      final activeCompletedList = activeMandiriRes as List;
+      if (activeCompletedList.isNotEmpty) {
+        isCurrentMandiriKhatam = activeCompletedList.length == 30;
+      }
+    } catch (e) {
+      debugPrint('Error loading active mandiri count on home: $e');
+    }
+
+    final totalCount = localMandiriKhatams + groupKhatamsCount + (isCurrentMandiriKhatam ? 1 : 0);
+    if (mounted) {
+      setState(() {
+        _personalKhatamCount = totalCount;
+      });
     }
   }
 
@@ -134,7 +187,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   const SizedBox(height: 32),
                   // Greeting Card
                   _buildGreetingCard(context, displayName),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 18),
+                  // Personal History Card
+                  _buildPersonalHistoryCard(context),
+                  const SizedBox(height: 28),
                   // Section Title
                   Text(
                     'Mulai Sekarang',
@@ -416,6 +472,81 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           const SizedBox(height: 4),
           Text(label, style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant)),
         ],
+      ),
+    );
+  }
+
+  Widget _buildPersonalHistoryCard(BuildContext context) {
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const HistoryScreen()),
+        ).then((_) => _loadPersonalStats());
+      },
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFFE5A93C), Color(0xFFC5891C)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFFC5891C).withOpacity(0.2),
+              blurRadius: 15,
+              offset: const Offset(0, 5),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.18),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.emoji_events_rounded, color: Colors.white, size: 28),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    '🏆  RIWAYAT & STATISTIK SAYA',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white70,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    _personalKhatamCount > 0
+                        ? 'Alhamdulillah, $_personalKhatamCount Kali Khatam Al-Quran'
+                        : 'Pantau Progres & Statistik Khataman Anda',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  const Text(
+                    'Lihat riwayat membaca minggu ini, bulan ini, & tahun ini ➔',
+                    style: TextStyle(fontSize: 10, color: Colors.white70),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

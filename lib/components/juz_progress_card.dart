@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:quran/quran.dart' as quran;
 import '../theme/app_theme.dart';
 import '../services/notification_service.dart';
+import '../services/personal_history_service.dart';
 
 class JuzProgressCard extends StatefulWidget {
   final int juzNumber;
@@ -180,9 +181,14 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
         ScaffoldMessenger.of(context).clearSnackBars();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Target diatur ke $label (Total $targetIndex ayat)'),
+            content: Text(
+              'Target diatur ke $label (Total $targetIndex ayat)',
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
+            ),
             duration: const Duration(seconds: 2),
             backgroundColor: AppTheme.accentTeal,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
         );
       },
@@ -216,6 +222,27 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
     super.dispose();
   }
 
+  void _ensureVisible() {
+    if (!mounted || !_expanded) return;
+    
+    final renderBox = context.findRenderObject() as RenderBox?;
+    if (renderBox == null) return;
+    
+    final position = renderBox.localToGlobal(Offset.zero);
+    final size = renderBox.size;
+    final screenHeight = MediaQuery.of(context).size.height;
+    
+    // Hanya lakukan scroll jika bagian bawah kartu berada di bawah 82% dari tinggi layar
+    if (position.dy + size.height > screenHeight * 0.82) {
+      Scrollable.ensureVisible(
+        context,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+        alignment: 0.65, // Diangkat lebih tinggi agar tombol terbawah tidak tertutup SnackBar melayang
+      );
+    }
+  }
+
   void _toggleExpand() {
     // Unclaimed slots cannot be expanded
     if (widget.isGroupMode && widget.memberName == null) return;
@@ -223,6 +250,11 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
     setState(() => _expanded = !_expanded);
     if (_expanded) {
       _expandController.forward();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Future.delayed(const Duration(milliseconds: 150), () {
+          _ensureVisible();
+        });
+      });
     } else {
       _expandController.reverse();
     }
@@ -232,7 +264,12 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
     final inputAyah = int.tryParse(_ayatController.text);
     if (inputAyah == null || inputAyah < 0 || _selectedSurah == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Input ayat tidak valid'), backgroundColor: Colors.redAccent),
+        SnackBar(
+          content: const Text('Input ayat tidak valid', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w500)),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
       );
       return;
     }
@@ -241,8 +278,13 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
     if (inputAyah < bounds[0] || inputAyah > bounds[1]) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Ayat harus antara ${bounds[0]} dan ${bounds[1]} untuk surat ini'),
+          content: Text(
+            'Ayat harus antara ${bounds[0]} dan ${bounds[1]} untuk surat ini',
+            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
+          ),
           backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
       );
       return;
@@ -272,6 +314,26 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
           'ayat_terakhir_input': absoluteIndex,
           'status_checklist': isComplete,
         }).eq('id_slot', widget.slotId!);
+
+        final currentUserId = _supabase.auth.currentUser?.id;
+        if (currentUserId != null) {
+          if (isComplete) {
+            final desc = 'Alhamdulillah, telah menyelesaikan Juz ${widget.juzNumber}!';
+            await PersonalHistoryService.logReading(
+              userId: currentUserId,
+              juz: widget.juzNumber,
+              description: desc,
+              type: 'Grup: ${widget.groupName ?? 'Khataman Grup'}',
+              isJuzCompletion: true,
+            );
+          } else {
+            await PersonalHistoryService.removeReadingLog(
+              userId: currentUserId,
+              juz: widget.juzNumber,
+              type: 'Grup: ${widget.groupName ?? 'Khataman Grup'}',
+            );
+          }
+        }
 
         // Send notifications if completed
         if (isComplete && widget.groupId != null) {
@@ -306,14 +368,24 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
           widget.onProgressUpdated?.call();
 
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text(isComplete ? '✅ Juz ${widget.juzNumber} selesai! Alhamdulillah!' : 'Progres disimpan'),
-            backgroundColor: isComplete ? AppTheme.primaryGreen : Theme.of(context).colorScheme.surfaceContainerHighest,
+            content: Text(
+              isComplete ? '✅ Juz ${widget.juzNumber} selesai! Alhamdulillah!' : 'Progres disimpan',
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
+            ),
+            backgroundColor: isComplete ? AppTheme.primaryGreen : const Color(0xFF323232),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ));
         }
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Gagal menyimpan progres'), backgroundColor: Colors.redAccent),
+            SnackBar(
+              content: const Text('Gagal menyimpan progres', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w500)),
+              backgroundColor: Colors.redAccent,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
           );
         }
       }
@@ -401,6 +473,26 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
           'status_checklist': isFinished,
         }).eq('id_slot', widget.slotId!);
 
+        final currentUserId = _supabase.auth.currentUser?.id;
+        if (currentUserId != null) {
+          if (isFinished) {
+            final desc = 'Alhamdulillah, telah menyelesaikan Juz ${widget.juzNumber}!';
+            await PersonalHistoryService.logReading(
+              userId: currentUserId,
+              juz: widget.juzNumber,
+              description: desc,
+              type: 'Grup: ${widget.groupName ?? 'Khataman Grup'}',
+              isJuzCompletion: true,
+            );
+          } else {
+            await PersonalHistoryService.removeReadingLog(
+              userId: currentUserId,
+              juz: widget.juzNumber,
+              type: 'Grup: ${widget.groupName ?? 'Khataman Grup'}',
+            );
+          }
+        }
+
         // Kirim notifikasi jika Juz selesai
         if (isFinished && widget.groupId != null) {
           try {
@@ -436,14 +528,32 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
           widget.onProgressUpdated?.call();
 
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text(isFinished ? '✅ Juz ${widget.juzNumber} ditandai selesai!' : 'Status selesai dibatalkan.'),
-            backgroundColor: isFinished ? AppTheme.primaryGreen : Theme.of(context).colorScheme.surfaceContainerHighest,
+            content: Text(
+              isFinished ? '✅ Juz ${widget.juzNumber} ditandai selesai!' : 'Status selesai dibatalkan.',
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
+            ),
+            backgroundColor: isFinished ? AppTheme.primaryGreen : const Color(0xFF323232),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ));
+
+          if (!isFinished && _expanded) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              Future.delayed(const Duration(milliseconds: 100), () {
+                _ensureVisible();
+              });
+            });
+          }
         }
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Gagal memperbarui status'), backgroundColor: Colors.redAccent),
+            SnackBar(
+              content: const Text('Gagal memperbarui status', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w500)),
+              backgroundColor: Colors.redAccent,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
           );
         }
       }

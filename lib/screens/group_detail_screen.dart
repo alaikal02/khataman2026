@@ -25,6 +25,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
   RealtimeChannel? _subscription;
   bool _isLoading = true;
   int _pendingCount = 0;
+  int _completedCount = 0;
   late AnimationController _shimmerController;
 
   @override
@@ -192,6 +193,13 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
           .eq('approval_status', 'APPROVED');
       final membersList = List<dynamic>.from(membersData);
 
+      final completedCountRes = await _supabase
+          .from('putaran_siklus')
+          .select('id_putaran')
+          .eq('group_id', widget.groupId)
+          .eq('status_aktif_selesai', 'SELESAI');
+      final completedCount = (completedCountRes as List).length;
+
       if (mounted) {
         setState(() {
           _group = groupData;
@@ -199,6 +207,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
           _slots = sData;
           _members = membersList;
           _pendingCount = pCount;
+          _completedCount = completedCount;
           _isLoading = false;
         });
       }
@@ -274,9 +283,26 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
       final startDate = DateTime(picked.start.year, picked.start.month, picked.start.day, 0, 0, 0);
       final endDate = DateTime(picked.end.year, picked.end.month, picked.end.day, 23, 59, 59);
 
+      int nextPutaranNum = 1;
+      try {
+        final lastPutaranRes = await _supabase
+            .from('putaran_siklus')
+            .select('nomor_putaran')
+            .eq('group_id', widget.groupId)
+            .order('nomor_putaran', ascending: false)
+            .limit(1)
+            .maybeSingle();
+
+        if (lastPutaranRes != null && lastPutaranRes['nomor_putaran'] != null) {
+          nextPutaranNum = (lastPutaranRes['nomor_putaran'] as int) + 1;
+        }
+      } catch (e) {
+        debugPrint('Error fetching last putaran number: $e');
+      }
+
       final newPutaran = await _supabase.from('putaran_siklus').insert({
         'group_id': widget.groupId,
-        'nomor_putaran': 1,
+        'nomor_putaran': nextPutaranNum,
         'start_date': startDate.toIso8601String(),
         'target_deadline': endDate.toIso8601String()
       }).select().single();
@@ -934,6 +960,16 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                     }
                   },
                 ),
+                ListTile(
+                  leading: const Icon(Icons.history_rounded, color: AppTheme.accentGold),
+                  title: const Text('Riwayat Khataman'),
+                  subtitle: const Text('Lihat pencapaian & sejarah khataman kelompok'),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _showKhatamHistorySheet();
+                  },
+                ),
+                const Divider(),
                 if (isAdmin) ...[
                   SwitchListTile(
                     title: const Text('Batasi Pengambilan Juz'),
@@ -1138,6 +1174,364 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
         );
       }
     }
+  }
+
+  void _showKhatamHistorySheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        return DraggableScrollableSheet(
+          initialChildSize: 0.85,
+          minChildSize: 0.5,
+          maxChildSize: 0.95,
+          builder: (context, scrollController) {
+            return Container(
+              decoration: BoxDecoration(
+                color: isDark ? AppTheme.bgCard : Colors.white,
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(24),
+                  topRight: Radius.circular(24),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.3),
+                    blurRadius: 10,
+                    offset: const Offset(0, -3),
+                  ),
+                ],
+              ),
+              child: Column(
+                children: [
+                  // Handle Bar
+                  Center(
+                    child: Container(
+                      margin: const EdgeInsets.symmetric(vertical: 12),
+                      width: 40,
+                      height: 5,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.withOpacity(0.3),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
+                  // Header
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: AppTheme.accentGold.withOpacity(0.15),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.emoji_events_rounded, color: AppTheme.accentGold, size: 24),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Riwayat Khataman',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: Theme.of(context).colorScheme.onSurface,
+                                ),
+                              ),
+                              Text(
+                                'Daftar putaran khataman kelompok yang selesai',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close_rounded),
+                          onPressed: () => Navigator.pop(context),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Divider(),
+                  // Body with FutureBuilder
+                  Expanded(
+                    child: FutureBuilder<List<dynamic>>(
+                      future: _supabase
+                          .from('putaran_siklus')
+                          .select()
+                          .eq('group_id', widget.groupId)
+                          .eq('status_aktif_selesai', 'SELESAI')
+                          .order('nomor_putaran', ascending: false),
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState == ConnectionState.waiting) {
+                          return const Center(
+                            child: CircularProgressIndicator(color: AppTheme.primaryGreen),
+                          );
+                        }
+                        if (snapshot.hasError) {
+                          return Center(
+                            child: Text(
+                              'Gagal memuat riwayat: ${snapshot.error}',
+                              style: const TextStyle(color: Colors.redAccent),
+                            ),
+                          );
+                        }
+                        final historyList = snapshot.data ?? [];
+                        if (historyList.isEmpty) {
+                          return Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(32.0),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.emoji_events_outlined,
+                                    size: 64,
+                                    color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.3),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    'Belum ada Riwayat Khataman',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    'Selesaikan target 30 Juz pada putaran aktif untuk mencatatkan riwayat khataman pertama kelompok Anda!',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.7),
+                                      height: 1.5,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        }
+
+                        return ListView.builder(
+                          controller: scrollController,
+                          padding: const EdgeInsets.all(16),
+                          itemCount: historyList.length + 1,
+                          itemBuilder: (context, index) {
+                            if (index == 0) {
+                              // Trophy Banner Card
+                              return Container(
+                                margin: const EdgeInsets.only(bottom: 20),
+                                padding: const EdgeInsets.all(18),
+                                decoration: BoxDecoration(
+                                  gradient: const LinearGradient(
+                                    colors: [Color(0xFF1A3A2A), Color(0xFF0D2118)],
+                                  ),
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(color: AppTheme.accentGold.withOpacity(0.5)),
+                                ),
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.emoji_events_rounded, size: 48, color: AppTheme.accentGold),
+                                    const SizedBox(width: 16),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          const Text(
+                                            'Pencapaian Luar Biasa!',
+                                            style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            'Total ${historyList.length} Kali Khatam Al-Quran',
+                                            style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          const Text(
+                                            'Semoga berkah dan istiqomah untuk setiap baris ayat yang dibaca bersama.',
+                                            style: TextStyle(color: Colors.white60, fontSize: 10, height: 1.4),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }
+
+                            final cycle = historyList[index - 1];
+                            final startStr = cycle['start_date'] != null 
+                                ? _formatSimpleDate(DateTime.parse(cycle['start_date'])) 
+                                : '-';
+                            final endStr = cycle['target_deadline'] != null 
+                                ? _formatSimpleDate(DateTime.parse(cycle['target_deadline'])) 
+                                : '-';
+
+                            return Card(
+                              margin: const EdgeInsets.only(bottom: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                side: BorderSide(color: Theme.of(context).dividerColor.withOpacity(0.3)),
+                              ),
+                              child: Theme(
+                                data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                                child: ExpansionTile(
+                                  leading: Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      color: AppTheme.primaryGreen.withOpacity(0.1),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(Icons.check_circle_rounded, color: AppTheme.primaryGreen, size: 20),
+                                  ),
+                                  title: Text(
+                                    'Putaran Ke-${cycle['nomor_putaran']}',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: Theme.of(context).colorScheme.onSurface,
+                                    ),
+                                  ),
+                                  subtitle: Text(
+                                    'Periode: $startStr s/d $endStr',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                                  children: [
+                                    FutureBuilder<List<dynamic>>(
+                                      future: _supabase
+                                          .from('slot_khataman')
+                                          .select('nomor_juz, users(username)')
+                                          .eq('putaran_id', cycle['id_putaran'])
+                                          .order('nomor_juz', ascending: true),
+                                      builder: (context, slotSnapshot) {
+                                        if (slotSnapshot.connectionState == ConnectionState.waiting) {
+                                          return const Padding(
+                                            padding: EdgeInsets.all(16.0),
+                                            child: Center(
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                                color: AppTheme.primaryGreen,
+                                              ),
+                                            ),
+                                          );
+                                        }
+                                        if (slotSnapshot.hasError || !slotSnapshot.hasData || slotSnapshot.data!.isEmpty) {
+                                          return const Padding(
+                                            padding: EdgeInsets.all(16.0),
+                                            child: Text(
+                                              'Gagal memuat detail pembaca atau data slot tidak ditemukan.',
+                                              style: TextStyle(fontSize: 11, color: Colors.grey),
+                                            ),
+                                          );
+                                        }
+                                        final slots = slotSnapshot.data!;
+                                        return Container(
+                                          padding: const EdgeInsets.all(12),
+                                          decoration: BoxDecoration(
+                                            color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.2),
+                                            borderRadius: const BorderRadius.only(
+                                              bottomLeft: Radius.circular(12),
+                                              bottomRight: Radius.circular(12),
+                                            ),
+                                          ),
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              const Padding(
+                                                padding: EdgeInsets.only(left: 4, bottom: 8),
+                                                child: Text(
+                                                  'Daftar Pembaca per Juz:',
+                                                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppTheme.primaryGreen),
+                                                ),
+                                              ),
+                                              GridView.builder(
+                                                shrinkWrap: true,
+                                                physics: const NeverScrollableScrollPhysics(),
+                                                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                                                  crossAxisCount: 2,
+                                                  childAspectRatio: 3.8,
+                                                  crossAxisSpacing: 8,
+                                                  mainAxisSpacing: 6,
+                                                ),
+                                                itemCount: slots.length,
+                                                itemBuilder: (context, sIdx) {
+                                                  final slot = slots[sIdx];
+                                                  final juzNum = slot['nomor_juz'];
+                                                  final username = slot['users']?['username'] ?? 'Umum';
+                                                  return Container(
+                                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                                    decoration: BoxDecoration(
+                                                      color: Theme.of(context).colorScheme.surface,
+                                                      borderRadius: BorderRadius.circular(8),
+                                                      border: Border.all(color: Theme.of(context).dividerColor.withOpacity(0.3)),
+                                                    ),
+                                                    child: Row(
+                                                      children: [
+                                                        Container(
+                                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                          decoration: BoxDecoration(
+                                                            color: AppTheme.primaryGreen.withOpacity(0.15),
+                                                            borderRadius: BorderRadius.circular(4),
+                                                          ),
+                                                          child: Text(
+                                                            'Juz $juzNum',
+                                                            style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: AppTheme.primaryGreen),
+                                                          ),
+                                                        ),
+                                                        const SizedBox(width: 6),
+                                                        Expanded(
+                                                          child: Text(
+                                                            '@$username',
+                                                            overflow: TextOverflow.ellipsis,
+                                                            style: TextStyle(
+                                                              fontSize: 10,
+                                                              fontWeight: FontWeight.w500,
+                                                              color: Theme.of(context).colorScheme.onSurface,
+                                                            ),
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  );
+                                                },
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  String _formatSimpleDate(DateTime dt) {
+    return '${dt.day}/${dt.month}/${dt.year}';
   }
 
   Future<void> _confirmLeaveGroup() async {
@@ -1399,6 +1793,49 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
     return ListView(
       padding: EdgeInsets.fromLTRB(24, 24, 24, 24 + MediaQuery.of(context).padding.bottom),
       children: [
+        if (_completedCount > 0) ...[
+          Container(
+            margin: const EdgeInsets.only(bottom: 20),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF1A3A2A), Color(0xFF0D2118)],
+              ),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppTheme.accentGold.withOpacity(0.5)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.emoji_events_rounded, size: 40, color: AppTheme.accentGold),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Pencapaian Kelompok',
+                        style: TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '🏆 $_completedCount Kali Khataman Selesai!',
+                        style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 4),
+                      InkWell(
+                        onTap: _showKhatamHistorySheet,
+                        child: const Text(
+                          'Lihat Riwayat Lengkap ➔',
+                          style: TextStyle(color: AppTheme.accentGold, fontSize: 11, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
         // Kode Group Container
         Container(
           padding: const EdgeInsets.all(20),
@@ -1547,6 +1984,28 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                         'Putaran ${_putaran?['nomor_putaran'] ?? 1}${dateRangeText.isNotEmpty ? ' • $dateRangeText' : ''}',
                         style: const TextStyle(color: Colors.white70, fontSize: 12),
                       ),
+                      if (_completedCount > 0) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                          decoration: BoxDecoration(
+                            color: AppTheme.accentGold.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: AppTheme.accentGold.withOpacity(0.5), width: 0.5),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.emoji_events_rounded, size: 10, color: AppTheme.accentGold),
+                              const SizedBox(width: 3),
+                              Text(
+                                '$_completedCount Khatam',
+                                style: const TextStyle(color: AppTheme.accentGold, fontSize: 9, fontWeight: FontWeight.bold),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                   const SizedBox(height: 6),
@@ -1682,7 +2141,9 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                   onRelease: _releaseSlot,
                   onClaim: _claimSlot,
                   onProgressUpdated: () {
-                    if (mounted) setState(() {});
+                    if (mounted) {
+                      _fetchData(silent: true);
+                    }
                   },
                 );
               },
