@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../components/juz_progress_card.dart';
+import '../components/khatam_celebration.dart';
 import '../theme/app_theme.dart';
 import '../services/notification_service.dart';
 
@@ -141,19 +142,31 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
           .eq('id_group', widget.groupId)
           .single();
 
-      final pData = await _supabase
+      var pData = await _supabase
           .from('putaran_siklus')
           .select()
           .eq('group_id', widget.groupId)
-          .eq('status_aktif_selesai', 'AKTIF')
+          .order('nomor_putaran', ascending: false)
+          .limit(1)
           .maybeSingle();
 
       List<dynamic> sData = [];
       if (pData != null) {
-        if (_putaran != null &&
-            _putaran!['status_aktif_selesai'] == 'AKTIF' &&
-            pData['status_aktif_selesai'] == 'SELESAI') {
-          _showCelebration();
+        // Join dengan tabel users untuk langsung dapat username
+        sData = await _supabase
+            .from('slot_khataman')
+            .select('*, users(username)')
+            .eq('putaran_id', pData['id_putaran'])
+            .order('nomor_juz', ascending: true);
+
+        // Uji kelengkapan siklus secara mandiri (Self-healing client-side)
+        final completedSlotsCount = sData.where((s) => s['status_checklist'] == true).length;
+        if (completedSlotsCount == 30 && pData['status_aktif_selesai'] == 'AKTIF') {
+          debugPrint('🎉 [Sync] Semua 30 Juz selesai! Menandai putaran siklus sebagai SELESAI...');
+          await _supabase
+              .from('putaran_siklus')
+              .update({'status_aktif_selesai': 'SELESAI'})
+              .eq('id_putaran', pData['id_putaran']);
 
           // Kirim notifikasi khataman selesai ke semua anggota grup
           try {
@@ -167,13 +180,10 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
           } catch (notifErr) {
             debugPrint('Error sending khataman complete notification: $notifErr');
           }
+
+          pData['status_aktif_selesai'] = 'SELESAI';
+          _showCelebration();
         }
-        // Join dengan tabel users untuk langsung dapat username
-        sData = await _supabase
-            .from('slot_khataman')
-            .select('*, users(username)')
-            .eq('putaran_id', pData['id_putaran'])
-            .order('nomor_juz', ascending: true);
       }
 
       int pCount = 0;
@@ -365,6 +375,43 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
         );
       }
     }
+  }
+
+  Future<void> _showNewPutaranDialog() async {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        title: Text('Mulai Putaran Baru?', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
+        content: Text(
+          'Kelompok Anda telah menyelesaikan siklus khataman ini.\n\nSilakan pilih metode pembagian Juz untuk putaran berikutnya:',
+          style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, height: 1.5),
+        ),
+        actionsPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Batal', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _startNewPutaran(true);
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primaryGreen),
+            child: const Text('Bagi Rata Otomatis', style: TextStyle(color: Colors.white)),
+          ),
+          OutlinedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _startNewPutaran(false);
+            },
+            style: OutlinedButton.styleFrom(side: const BorderSide(color: AppTheme.accentGold)),
+            child: const Text('Klaim Mandiri', style: TextStyle(color: AppTheme.accentGold)),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _claimSlot(int slotId) async {
@@ -1958,6 +2005,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
     final approvedMembersCount = _members.where((m) => m['approval_status'] == 'APPROVED').length;
     final memberCount = approvedMembersCount == 0 ? 1 : approvedMembersCount;
     final maxSlots = (30 / memberCount).ceil();
+    final isCreator = _group?['creator_id'] == currentUserId;
 
     return Column(
       children: [
@@ -2114,6 +2162,14 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
             ],
           ),
         ),
+        if (completed == 30)
+          CongratulatoryCard(
+            title: 'Maa Syaa Allah, Kelompok Anda Khatam! 🎉',
+            description: 'Alhamdulillah! Kelompok "${_group?['nama_grup'] ?? 'Grup'}" telah menyelesaikan siklus khataman 30 Juz Al-Quran.',
+            resetLabel: 'Putaran Baru',
+            showResetButton: isCreator,
+            onReset: _showNewPutaranDialog,
+          ),
         Expanded(
           child: RefreshIndicator(
             color: AppTheme.primaryGreen,

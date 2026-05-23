@@ -13,7 +13,6 @@ class HistoryScreen extends StatefulWidget {
 class _HistoryScreenState extends State<HistoryScreen> {
   final _supabase = Supabase.instance.client;
   List<Map<String, dynamic>> _history = [];
-  List<Map<String, dynamic>> _groupKhatamLogs = [];
   int _khatamCount = 0;
   bool _isCurrentMandiriKhatam = false;
   bool _isLoading = true;
@@ -126,7 +125,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
     if (mounted) {
       setState(() {
         _history = combinedHistory;
-        _groupKhatamLogs = fetchedGroupKhatamLogs;
         _isCurrentMandiriKhatam = isCurrentMandiriKhatam;
         _khatamCount = displayKhatamCount;
         _isLoading = false;
@@ -253,7 +251,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
     final limit = now.subtract(Duration(days: daysRange));
     int count = 0;
     
-    // 1. Khatam Mandiri lokal
+    // 1. Khatam Mandiri & Grup luring yang tercatat di riwayat gabungan
     for (var item in _history) {
       if (item['isKhatamCompletion'] == true) {
         final date = DateTime.tryParse(item['timestamp'] ?? '');
@@ -263,15 +261,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
       }
     }
 
-    // 2. Khatam Grup
-    for (var item in _groupKhatamLogs) {
-      final date = DateTime.tryParse(item['timestamp'] ?? '');
-      if (date != null && date.isAfter(limit)) {
-        count++;
-      }
-    }
-
-    // 3. Khatam Mandiri Aktif saat ini yang belum di-reset
+    // 2. Khatam Mandiri Aktif saat ini yang belum di-reset
     if (_isCurrentMandiriKhatam) {
       count++;
     }
