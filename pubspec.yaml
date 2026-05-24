@@ -28,11 +28,26 @@ flutter:
   assets:
     - .env
     - assets/images/app_icon.png
+    - assets/images/app_icon_dark.png
+    - assets/images/adaptive_foreground.png
 
 flutter_launcher_icons:
   android: "launcher_icon"
   ios: true
   image_path: "assets/images/app_icon.png"
+  
+  # Adaptive Icon Android (Light / Dark mode & Material You support)
+  adaptive_icon_background: "#2ECC71"
+  adaptive_icon_background_dark: "#102A1E"
+  adaptive_icon_foreground: "assets/images/adaptive_foreground.png"
+  adaptive_icon_monochrome: "assets/images/adaptive_foreground.png"
+  
+  # iOS 18+ Adaptive/Dark/Tinted icon support
+  image_path_ios_dark_transparent: "assets/images/adaptive_foreground.png"
+  image_path_ios_tinted_grayscale: "assets/images/adaptive_foreground.png"
+  desaturate_tinted_to_grayscale_ios: true
+  remove_alpha_ios: true
+
   web:
     generate: true
     image_path: "assets/images/app_icon.png"

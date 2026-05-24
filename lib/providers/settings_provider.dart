@@ -11,7 +11,7 @@ class SettingsProvider extends ChangeNotifier {
   static const _keyGroupNotif = 'group_notif';
   static const _keyDailyTarget = 'daily_target';
 
-  ThemeMode _themeMode = ThemeMode.dark;
+  ThemeMode _themeMode = ThemeMode.system;
   double _fontSize = 1.0; // 0.85 = kecil, 1.0 = normal, 1.2 = besar
   bool _reminderEnabled = false;
   int _reminderHour = 20;

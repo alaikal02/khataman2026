@@ -335,24 +335,40 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Widget _buildGreetingCard(BuildContext context, String name) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardBgGradient = isDark
+        ? const LinearGradient(
+            colors: [Color(0xFF1A3A2A), Color(0xFF0D2118)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          )
+        : const LinearGradient(
+            colors: [Color(0xFFEBFDF3), Color(0xFFD4F8E6)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          );
+    final headerTextColor = isDark ? AppTheme.primaryGreen : AppTheme.darkGreen;
+    final bodyTextColor = isDark ? Colors.white : const Color(0xFF1A1A2E);
+    final subtitleTextColor = isDark ? Colors.white70 : const Color(0xFF757575);
+    final iconBgColor = isDark ? AppTheme.primaryGreen.withOpacity(0.15) : AppTheme.primaryGreen.withOpacity(0.12);
+    final iconColor = isDark ? AppTheme.primaryGreen : AppTheme.darkGreen;
+    final borderColor = isDark ? AppTheme.primaryGreen.withOpacity(0.3) : AppTheme.primaryGreen.withOpacity(0.2);
+    final shadowColor = isDark ? AppTheme.primaryGreen.withOpacity(0.15) : AppTheme.primaryGreen.withOpacity(0.06);
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF1A3A2A), Color(0xFF0D2118)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        gradient: cardBgGradient,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppTheme.primaryGreen.withOpacity(0.3)),
+        border: Border.all(color: borderColor),
         boxShadow: [
-          BoxShadow(color: AppTheme.primaryGreen.withOpacity(0.15), blurRadius: 30, spreadRadius: 2),
+          BoxShadow(color: shadowColor, blurRadius: 30, spreadRadius: 2),
         ],
       ),
       child: Row(
         children: [
-          const Expanded(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -360,20 +376,20 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   '📖  Al-Quran Al-Karim',
                   style: TextStyle(
                     fontSize: 13,
-                    color: AppTheme.primaryGreen,
+                    color: headerTextColor,
                     fontWeight: FontWeight.w600,
                     letterSpacing: 1,
                   ),
                 ),
-                SizedBox(height: 8),
+                const SizedBox(height: 8),
                 Text(
                   '"Dan bacalah Al-Quran dengan tartil."',
-                  style: TextStyle(fontSize: 15, color: Colors.white, fontStyle: FontStyle.italic, height: 1.5),
+                  style: TextStyle(fontSize: 15, color: bodyTextColor, fontStyle: FontStyle.italic, height: 1.5),
                 ),
-                SizedBox(height: 4),
+                const SizedBox(height: 4),
                 Text(
                   '— QS. Al-Muzzammil: 4',
-                  style: TextStyle(fontSize: 12, color: Colors.white70),
+                  style: TextStyle(fontSize: 12, color: subtitleTextColor),
                 ),
               ],
             ),
@@ -381,10 +397,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: AppTheme.primaryGreen.withOpacity(0.15),
+              color: iconBgColor,
               borderRadius: BorderRadius.circular(16),
             ),
-            child: const Icon(Icons.auto_stories_rounded, color: AppTheme.primaryGreen, size: 36),
+            child: Icon(Icons.auto_stories_rounded, color: iconColor, size: 36),
           ),
         ],
       ),

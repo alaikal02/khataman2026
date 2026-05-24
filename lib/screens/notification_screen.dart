@@ -296,7 +296,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
       case 'KHATAMAN_COMPLETE':
         return Colors.orangeAccent;
       default:
-        return AppTheme.textSecondary;
+        return Theme.of(context).colorScheme.onSurfaceVariant;
     }
   }
 
@@ -347,7 +347,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
         child: RefreshIndicator(
           onRefresh: _loadNotifications,
           color: AppTheme.primaryGreen,
-          backgroundColor: AppTheme.bgCard,
+          backgroundColor: Theme.of(context).colorScheme.surface,
           child: _buildBody(),
         ),
       ),
@@ -476,6 +476,11 @@ class _NotificationScreenState extends State<NotificationScreen> {
   }
 
   Widget _buildBody() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+    final onSurfaceVariant = Theme.of(context).colorScheme.onSurfaceVariant;
+    final surfaceColor = Theme.of(context).colorScheme.surface;
+
     if (_isLoading) {
       return const Center(
         child: CircularProgressIndicator(color: AppTheme.primaryGreen),
@@ -494,31 +499,31 @@ class _NotificationScreenState extends State<NotificationScreen> {
                 Container(
                   padding: const EdgeInsets.all(24),
                   decoration: BoxDecoration(
-                    color: AppTheme.bgCard,
+                    color: surfaceColor,
                     shape: BoxShape.circle,
                     border: Border.all(color: AppTheme.primaryGreen.withOpacity(0.2)),
                   ),
                   child: Icon(
                     Icons.notifications_none_rounded,
                     size: 64,
-                    color: AppTheme.textSecondary.withOpacity(0.5),
+                    color: onSurfaceVariant.withOpacity(0.5),
                   ),
                 ),
                 const SizedBox(height: 24),
-                const Text(
+                Text(
                   'Belum Ada Notifikasi',
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
-                    color: AppTheme.textPrimary,
+                    color: onSurface,
                   ),
                 ),
                 const SizedBox(height: 8),
-                const Text(
+                Text(
                   'Aktivitas grup Anda akan muncul di sini.',
                   style: TextStyle(
                     fontSize: 14,
-                    color: AppTheme.textSecondary,
+                    color: onSurfaceVariant,
                   ),
                   textAlign: TextAlign.center,
                 ),
@@ -544,6 +549,10 @@ class _NotificationScreenState extends State<NotificationScreen> {
         final groupId = notif['group_id'] as String?;
         final senderId = notif['sender_id'] as String?;
 
+        final cardBg = isRead
+            ? (isDark ? AppTheme.bgCard : Colors.white)
+            : (isDark ? AppTheme.bgCardLight.withOpacity(0.7) : const Color(0xFFEBFDF3));
+
         return Padding(
           padding: const EdgeInsets.only(bottom: 12),
           child: InkWell(
@@ -553,7 +562,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
               duration: const Duration(milliseconds: 300),
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: isRead ? AppTheme.bgCard : AppTheme.bgCardLight.withOpacity(0.7),
+                color: cardBg,
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
                   color: isRead 
@@ -620,16 +629,16 @@ class _NotificationScreenState extends State<NotificationScreen> {
                                 style: TextStyle(
                                   fontSize: 15,
                                   fontWeight: isRead ? FontWeight.w600 : FontWeight.bold,
-                                  color: AppTheme.textPrimary,
+                                  color: onSurface,
                                 ),
                               ),
                             ),
                             const SizedBox(width: 8),
                             Text(
                               timeStr,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 11,
-                                color: AppTheme.textSecondary,
+                                color: onSurfaceVariant,
                               ),
                             ),
                           ],
@@ -639,7 +648,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
                           body,
                           style: TextStyle(
                             fontSize: 13,
-                            color: isRead ? AppTheme.textSecondary : AppTheme.textPrimary.withOpacity(0.9),
+                            color: isRead ? onSurfaceVariant : onSurface.withOpacity(0.9),
                             height: 1.4,
                           ),
                         ),

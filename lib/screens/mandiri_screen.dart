@@ -232,17 +232,31 @@ class _MandiriScreenState extends State<MandiriScreen> {
   }
 
   Widget _buildSummaryCard(int completed, int totalPercent) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardBgGradient = isDark
+        ? const LinearGradient(
+            colors: [Color(0xFF1A3A2A), Color(0xFF0D2118)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          )
+        : const LinearGradient(
+            colors: [Color(0xFFEBFDF3), Color(0xFFD4F8E6)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          );
+    final titleTextColor = isDark ? Colors.white70 : const Color(0xFF757575);
+    final valueTextColor = isDark ? Colors.white : const Color(0xFF1A1A2E);
+    final percentColor = isDark ? AppTheme.primaryGreen : AppTheme.darkGreen;
+    final progressBgColor = isDark ? Colors.white.withOpacity(0.12) : AppTheme.primaryGreen.withOpacity(0.15);
+    final borderColor = isDark ? AppTheme.primaryGreen.withOpacity(0.3) : AppTheme.primaryGreen.withOpacity(0.2);
+
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF1A3A2A), Color(0xFF0D2118)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        gradient: cardBgGradient,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppTheme.primaryGreen.withOpacity(0.3)),
+        border: Border.all(color: borderColor),
       ),
       child: Column(
         children: [
@@ -252,11 +266,11 @@ class _MandiriScreenState extends State<MandiriScreen> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Progres Khataman', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                  Text('Progres Khataman', style: TextStyle(color: titleTextColor, fontSize: 13)),
                   const SizedBox(height: 4),
                   Text(
                     '$completed / 30 Juz',
-                    style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.white),
+                    style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: valueTextColor),
                   ),
                 ],
               ),
@@ -265,12 +279,12 @@ class _MandiriScreenState extends State<MandiriScreen> {
                 height: 70,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  border: Border.all(color: AppTheme.primaryGreen, width: 3),
+                  border: Border.all(color: percentColor, width: 3),
                 ),
                 child: Center(
                   child: Text(
                     '$totalPercent%',
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppTheme.primaryGreen),
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: percentColor),
                   ),
                 ),
               ),
@@ -282,8 +296,8 @@ class _MandiriScreenState extends State<MandiriScreen> {
             child: LinearProgressIndicator(
               value: completed / 30,
               minHeight: 10,
-              backgroundColor: Colors.white.withOpacity(0.12),
-              valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.primaryGreen),
+              backgroundColor: progressBgColor,
+              valueColor: AlwaysStoppedAnimation<Color>(percentColor),
             ),
           ),
         ],

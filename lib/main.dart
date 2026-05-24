@@ -9,6 +9,7 @@ import 'screens/home_screen.dart';
 import 'providers/auth_provider.dart' as app_auth;
 import 'providers/settings_provider.dart';
 import 'theme/app_theme.dart';
+import 'widgets/custom_loading_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -67,7 +68,7 @@ class AuthWrapper extends StatelessWidget {
     final authProvider = Provider.of<app_auth.AuthProvider>(context);
 
     if (authProvider.isLoading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return const CustomLoadingScreen();
     }
 
     if (authProvider.user != null) {

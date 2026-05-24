@@ -768,41 +768,81 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                                             icon: const Icon(Icons.check_circle_outline_rounded, color: AppTheme.primaryGreen),
                                             tooltip: 'Terima',
                                             onPressed: () async {
-                                              await _supabase
-                                                  .from('group_members')
-                                                  .update({'approval_status': 'APPROVED'})
-                                                  .eq('user_id', member['user_id'])
-                                                  .eq('group_id', widget.groupId);
-
-                                              // Kirim notifikasi ke anggota yang disetujui
                                               try {
-                                                final gName = widget.groupName ?? _group?['nama_grup'] ?? 'Grup';
-                                                await NotificationService.send(
-                                                  userId: member['user_id'] as String,
-                                                  type: 'JOIN_APPROVED',
-                                                  title: 'Permintaan Bergabung Disetujui',
-                                                  body: 'Selamat! Permintaan Anda bergabung ke grup "$gName" telah disetujui.',
-                                                  groupId: widget.groupId,
-                                                );
-                                              } catch (notifErr) {
-                                                print('Error sending approved notification: $notifErr');
-                                              }
+                                                await _supabase
+                                                    .from('group_members')
+                                                    .update({'approval_status': 'APPROVED'})
+                                                    .eq('user_id', member['user_id'])
+                                                    .eq('group_id', widget.groupId);
 
-                                              setStateDialog(() => member['approval_status'] = 'APPROVED');
-                                              _fetchData(silent: true);
+                                                // Kirim notifikasi ke anggota yang disetujui
+                                                try {
+                                                  final gName = widget.groupName ?? _group?['nama_grup'] ?? 'Grup';
+                                                  await NotificationService.send(
+                                                    userId: member['user_id'] as String,
+                                                    type: 'JOIN_APPROVED',
+                                                    title: 'Permintaan Bergabung Disetujui',
+                                                    body: 'Selamat! Permintaan Anda bergabung ke grup "$gName" telah disetujui.',
+                                                    groupId: widget.groupId,
+                                                  );
+                                                } catch (notifErr) {
+                                                  print('Error sending approved notification: $notifErr');
+                                                }
+
+                                                setStateDialog(() => member['approval_status'] = 'APPROVED');
+                                                _fetchData(silent: true);
+
+                                                if (mounted) {
+                                                  ScaffoldMessenger.of(context).showSnackBar(
+                                                    SnackBar(
+                                                      content: Text('${user['username'] ?? 'User'} berhasil disetujui bergabung'),
+                                                      backgroundColor: AppTheme.primaryGreen,
+                                                    ),
+                                                  );
+                                                }
+                                              } catch (e) {
+                                                if (mounted) {
+                                                  ScaffoldMessenger.of(context).showSnackBar(
+                                                    SnackBar(
+                                                      content: Text('Gagal menyetujui: Koneksi bermasalah atau coba lagi ($e)'),
+                                                      backgroundColor: Colors.redAccent,
+                                                    ),
+                                                  );
+                                                }
+                                              }
                                             },
                                           ),
                                           IconButton(
                                             icon: const Icon(Icons.cancel_outlined, color: Colors.redAccent),
                                             tooltip: 'Tolak',
                                             onPressed: () async {
-                                              await _supabase
-                                                  .from('group_members')
-                                                  .delete()
-                                                  .eq('user_id', member['user_id'])
-                                                  .eq('group_id', widget.groupId);
-                                              setStateDialog(() => membersList.removeAt(i));
-                                              _fetchData(silent: true);
+                                              try {
+                                                await _supabase
+                                                    .from('group_members')
+                                                    .delete()
+                                                    .eq('user_id', member['user_id'])
+                                                    .eq('group_id', widget.groupId);
+                                                setStateDialog(() => membersList.removeAt(i));
+                                                _fetchData(silent: true);
+
+                                                if (mounted) {
+                                                  ScaffoldMessenger.of(context).showSnackBar(
+                                                    SnackBar(
+                                                      content: Text('Permintaan bergabung ${user['username'] ?? 'User'} ditolak'),
+                                                      backgroundColor: Colors.redAccent,
+                                                    ),
+                                                  );
+                                                }
+                                              } catch (e) {
+                                                if (mounted) {
+                                                  ScaffoldMessenger.of(context).showSnackBar(
+                                                    SnackBar(
+                                                      content: Text('Gagal menolak permintaan: Koneksi bermasalah atau coba lagi ($e)'),
+                                                      backgroundColor: Colors.redAccent,
+                                                    ),
+                                                  );
+                                                }
+                                              }
                                             },
                                           ),
                                         ],
@@ -811,32 +851,72 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                                         icon: Icon(Icons.person_remove_rounded, color: Colors.redAccent.withOpacity(0.7)),
                                         tooltip: 'Keluarkan Anggota',
                                         onPressed: () async {
-                                          // Keluarkan anggota
-                                          await _supabase
-                                              .from('group_members')
-                                              .delete()
-                                              .eq('user_id', member['user_id'])
-                                              .eq('group_id', widget.groupId);
-                                          
-                                          // Bersihkan slot yang sedang dia pegang jika ada
-                                          await _supabase
-                                              .from('slot_khataman')
-                                              .update({'user_id': null, 'ayat_terakhir_input': 0, 'status_checklist': false})
-                                              .eq('user_id', member['user_id']);
+                                          final confirm = await showDialog<bool>(
+                                            context: context,
+                                            builder: (ctx) => AlertDialog(
+                                              title: const Text('Keluarkan Anggota?'),
+                                              content: Text('Apakah Anda yakin ingin mengeluarkan ${user['username'] ?? 'anggota ini'} dari grup?'),
+                                              actions: [
+                                                TextButton(
+                                                  onPressed: () => Navigator.pop(ctx, false),
+                                                  child: const Text('Batal', style: TextStyle(color: AppTheme.textSecondary)),
+                                                ),
+                                                ElevatedButton(
+                                                  onPressed: () => Navigator.pop(ctx, true),
+                                                  style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+                                                  child: const Text('Keluarkan'),
+                                                ),
+                                              ],
+                                            ),
+                                          );
+                                          if (confirm != true) return;
 
-                                          setStateDialog(() {
-                                            membersList.removeAt(i);
-                                            // Kembalikan ke daftar sugesti
-                                            final returnedUser = {
-                                              'id_user': member['user_id'],
-                                              'username': user['username'],
-                                              'email': user['email'],
-                                              'avatar_url': user['avatar_url']
-                                            };
-                                            availableUsers.add(returnedUser);
-                                            filteredAvailableUsers.add(returnedUser);
-                                          });
-                                          _fetchData(silent: true);
+                                          try {
+                                            // Keluarkan anggota
+                                            await _supabase
+                                                .from('group_members')
+                                                .delete()
+                                                .eq('user_id', member['user_id'])
+                                                .eq('group_id', widget.groupId);
+                                            
+                                            // Bersihkan slot yang sedang dia pegang jika ada
+                                            await _supabase
+                                                .from('slot_khataman')
+                                                .update({'user_id': null, 'ayat_terakhir_input': 0, 'status_checklist': false})
+                                                .eq('user_id', member['user_id']);
+
+                                            setStateDialog(() {
+                                              membersList.removeAt(i);
+                                              // Kembalikan ke daftar sugesti
+                                              final returnedUser = {
+                                                'id_user': member['user_id'],
+                                                'username': user['username'],
+                                                'email': user['email'],
+                                                'avatar_url': user['avatar_url']
+                                              };
+                                              availableUsers.add(returnedUser);
+                                              filteredAvailableUsers.add(returnedUser);
+                                            });
+                                            _fetchData(silent: true);
+
+                                            if (mounted) {
+                                              ScaffoldMessenger.of(context).showSnackBar(
+                                                SnackBar(
+                                                  content: Text('${user['username'] ?? 'User'} berhasil dikeluarkan dari grup'),
+                                                  backgroundColor: Colors.orangeAccent,
+                                                ),
+                                              );
+                                            }
+                                          } catch (e) {
+                                            if (mounted) {
+                                              ScaffoldMessenger.of(context).showSnackBar(
+                                                SnackBar(
+                                                  content: Text('Gagal mengeluarkan anggota: Koneksi bermasalah atau coba lagi ($e)'),
+                                                  backgroundColor: Colors.redAccent,
+                                                ),
+                                              );
+                                            }
+                                          }
                                         },
                                       ),
                               );
@@ -1708,6 +1788,10 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
   // Widget Shimmer tanpa package eksternal
   // ─────────────────────────────────────────────────────────
   Widget _buildShimmerBox({double width = double.infinity, double height = 16, double radius = 8}) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final baseColor = isDark ? const Color(0xFF1F2937) : const Color(0xFFE5E7EB);
+    final highlightColor = isDark ? const Color(0xFF374151) : const Color(0xFFF3F4F6);
+
     return AnimatedBuilder(
       animation: _shimmerController,
       builder: (_, __) {
@@ -1719,10 +1803,10 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
             gradient: LinearGradient(
               begin: Alignment(-1.5 + _shimmerController.value * 3, 0),
               end: Alignment(-0.5 + _shimmerController.value * 3, 0),
-              colors: const [
-                Color(0xFF1F2937),
-                Color(0xFF374151),
-                Color(0xFF1F2937),
+              colors: [
+                baseColor,
+                highlightColor,
+                baseColor,
               ],
             ),
           ),
