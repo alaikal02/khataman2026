@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../theme/app_theme.dart';
 import '../providers/settings_provider.dart';
 
@@ -382,36 +383,316 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 
+  void _showLoadingDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(
+        child: CircularProgressIndicator(color: AppTheme.primaryGreen),
+      ),
+    );
+  }
+
+  Future<String?> _showChooseNewAdminDialog(
+      BuildContext context, String groupName, List<Map<String, dynamic>> members) async {
+    return showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        String? selectedUserId;
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            return AlertDialog(
+              backgroundColor: Theme.of(context).colorScheme.surface,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              title: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(Icons.stars_rounded, color: AppTheme.accentGold, size: 28),
+                      SizedBox(width: 8),
+                      Text('Pilih Admin Baru', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Anda adalah Admin grup "$groupName". Pilih anggota aktif untuk menggantikan kepemimpinan Anda sebelum akun dihapus:',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      height: 1.5,
+                    ),
+                  ),
+                ],
+              ),
+              content: SizedBox(
+                width: double.maxFinite,
+                height: 280,
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: members.length,
+                  itemBuilder: (context, idx) {
+                    final m = members[idx];
+                    final user = m['users'] as Map<String, dynamic>? ?? {};
+                    final uid = user['id_user'] as String? ?? m['user_id'] as String;
+                    final username = user['username'] as String? ?? 'Anggota';
+                    final email = user['email'] as String? ?? '';
+                    final avatarUrl = user['avatar_url'] as String?;
+                    final isSelected = selectedUserId == uid;
+
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? AppTheme.primaryGreen.withOpacity(0.08)
+                            : Theme.of(context).colorScheme.surfaceContainerLow,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: isSelected
+                              ? AppTheme.primaryGreen
+                              : Theme.of(context).dividerColor.withOpacity(0.2),
+                          width: isSelected ? 1.5 : 1.0,
+                        ),
+                      ),
+                      child: ListTile(
+                        onTap: () {
+                          setStateDialog(() {
+                            selectedUserId = uid;
+                          });
+                        },
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                        leading: CircleAvatar(
+                          backgroundImage: avatarUrl != null ? NetworkImage(avatarUrl) : null,
+                          child: avatarUrl == null ? const Icon(Icons.person) : null,
+                        ),
+                        title: Text(
+                          username,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: Theme.of(context).colorScheme.onSurface,
+                          ),
+                        ),
+                        subtitle: email.isNotEmpty
+                            ? Text(
+                                email,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                ),
+                              )
+                            : null,
+                        trailing: Radio<String>(
+                          value: uid,
+                          groupValue: selectedUserId,
+                          activeColor: AppTheme.primaryGreen,
+                          onChanged: (val) {
+                            setStateDialog(() {
+                              selectedUserId = val;
+                            });
+                          },
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              actions: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(ctx, null),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.redAccent,
+                          side: const BorderSide(color: Colors.redAccent),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        child: const Text('Batal', style: TextStyle(fontWeight: FontWeight.w600)),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: selectedUserId == null
+                            ? null
+                            : () => Navigator.pop(ctx, selectedUserId),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppTheme.primaryGreen,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          textStyle: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        child: const Text('Konfirmasi & Lanjut'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   void _confirmDeleteAccount(BuildContext context) {
     final supabase = Supabase.instance.client;
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (dialogCtx) => AlertDialog(
         backgroundColor: Theme.of(context).colorScheme.surface,
-        title: const Text('⚠️ Hapus Akun?', style: TextStyle(color: Colors.redAccent)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.redAccent, size: 28),
+            SizedBox(width: 8),
+            Text('Hapus Akun?', style: TextStyle(fontWeight: FontWeight.bold)),
+          ],
+        ),
         content: Text(
-          'Seluruh data Anda (progres khataman, keanggotaan grup) akan dihapus secara PERMANEN dan tidak dapat dikembalikan.\n\nApakah Anda yakin?',
-          style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, height: 1.5),
+          'Seluruh data Anda (progres khataman mandiri, riwayat membaca, dan keanggotaan grup) akan dihapus secara PERMANEN.\n\nApakah Anda yakin?',
+          style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, height: 1.5, fontSize: 14),
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Batal'),
+            onPressed: () => Navigator.pop(dialogCtx),
+            child: Text('Batal', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontWeight: FontWeight.w600)),
           ),
-          TextButton(
+          ElevatedButton(
             onPressed: () async {
-              Navigator.pop(context);
+              Navigator.pop(dialogCtx); // Close warning dialog
+              
+              _showLoadingDialog(context); // Show loading dialog
+              
               try {
                 final userId = supabase.auth.currentUser?.id;
-                if (userId != null) {
-                  // Hapus data user dari tabel users (cascade akan hapus semua)
-                  await supabase.from('users').delete().eq('id_user', userId);
-                  await supabase.auth.signOut();
-                  if (context.mounted) {
-                    Navigator.of(context).popUntil((route) => route.isFirst);
+                if (userId == null) {
+                  Navigator.pop(context); // Dismiss loading dialog
+                  return;
+                }
+
+                // 1. Dapatkan semua grup di mana user adalah CREATOR/ADMIN
+                final myGroupsAsAdmin = await supabase
+                    .from('groups')
+                    .select('id_group, nama_grup')
+                    .eq('creator_id', userId);
+
+                final adminGroupsList = myGroupsAsAdmin as List;
+                
+                // Hide loading dialog before showing chooser dialogs
+                Navigator.pop(context);
+
+                Map<String, String> selectedNewAdmins = {};
+
+                for (var group in adminGroupsList) {
+                  final String groupId = group['id_group'].toString();
+                  final String groupName = group['nama_grup'] ?? 'Grup';
+
+                  // Query anggota APPROVED lainnya
+                  final otherMembersRes = await supabase
+                      .from('group_members')
+                      .select('user_id, users(id_user, username, email, avatar_url)')
+                      .eq('group_id', groupId)
+                      .eq('approval_status', 'APPROVED')
+                      .neq('user_id', userId);
+
+                  final otherMembers = otherMembersRes as List;
+
+                  if (otherMembers.isNotEmpty) {
+                    if (context.mounted) {
+                      final selectedAdminId = await _showChooseNewAdminDialog(
+                        context,
+                        groupName,
+                        List<Map<String, dynamic>>.from(otherMembers),
+                      );
+
+                      if (selectedAdminId == null) {
+                        // User cancelled choice, abort entire process!
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Hapus akun dibatalkan.'),
+                              backgroundColor: Colors.redAccent,
+                            ),
+                          );
+                        }
+                        return;
+                      }
+                      selectedNewAdmins[groupId] = selectedAdminId;
+                    }
                   }
                 }
+
+                // Show loading dialog again for final execution
+                if (context.mounted) {
+                  _showLoadingDialog(context);
+                }
+
+                // 2. Terapkan pemindahan admin
+                for (var entry in selectedNewAdmins.entries) {
+                  await supabase
+                      .from('groups')
+                      .update({'creator_id': entry.value})
+                      .eq('id_group', entry.key);
+                }
+
+                // 3. Hapus grup-grup kosong di mana user adalah creator dan tidak ada anggota lain
+                for (var group in adminGroupsList) {
+                  final String groupId = group['id_group'].toString();
+                  if (!selectedNewAdmins.containsKey(groupId)) {
+                    await supabase.from('groups').delete().eq('id_group', groupId);
+                  }
+                }
+
+                // 4. Hapus dari keanggotaan grup (`group_members`)
+                await supabase.from('group_members').delete().eq('user_id', userId);
+
+                // 5. Tangani Slot Membaca Grup (slot_khataman)
+                // A. Selesai 100% -> Dipertahankan sebagai snapshot (set user_id ke null)
+                await supabase
+                    .from('slot_khataman')
+                    .update({'user_id': null})
+                    .eq('user_id', userId)
+                    .eq('status_checklist', true);
+
+                // B. Belum selesai 100% -> Reset & Lepas ke grup (status = false, input = 0, user = null)
+                await supabase
+                    .from('slot_khataman')
+                    .update({
+                      'user_id': null,
+                      'ayat_terakhir_input': 0,
+                      'status_checklist': false,
+                    })
+                    .eq('user_id', userId)
+                    .eq('status_checklist', false);
+
+                // 6. Hapus data pribadi
+                await supabase.from('notifications').delete().eq('user_id', userId);
+                await supabase.from('riwayat_personal').delete().eq('user_id', userId);
+                await supabase.from('khataman_mandiri').delete().eq('user_id', userId);
+
+                // 7. Hapus user profile
+                await supabase.from('users').delete().eq('id_user', userId);
+
+                // 8. Bersihkan SharedPreferences lokal
+                final prefs = await SharedPreferences.getInstance();
+                await prefs.clear();
+
+                // 9. Sign out Supabase auth
+                await supabase.auth.signOut();
+
+                // Dismiss loading dialog
+                if (context.mounted) {
+                  Navigator.pop(context);
+                  Navigator.of(context).popUntil((route) => route.isFirst);
+                }
               } catch (e) {
+                // In case of error, make sure loading dialog is closed
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(content: Text('Gagal menghapus akun: $e'), backgroundColor: Colors.redAccent),
@@ -419,8 +700,8 @@ class SettingsScreen extends StatelessWidget {
                 }
               }
             },
-            style: TextButton.styleFrom(foregroundColor: Colors.redAccent),
-            child: const Text('Ya, Hapus Permanen'),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, foregroundColor: Colors.white, elevation: 0),
+            child: const Text('Ya, Hapus', style: TextStyle(fontWeight: FontWeight.bold)),
           ),
         ],
       ),
