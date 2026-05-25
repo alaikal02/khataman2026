@@ -162,7 +162,11 @@ class SettingsScreen extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
                       decoration: BoxDecoration(
-                        border: Border.all(color: Theme.of(context).dividerColor),
+                        border: Border.all(
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? AppTheme.primaryGreen.withOpacity(0.3)
+                              : AppTheme.primaryGreen.withOpacity(0.2),
+                        ),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: DropdownButtonHideUnderline(
@@ -264,18 +268,32 @@ class SettingsScreen extends StatelessWidget {
   }
 
   Widget _buildCard(BuildContext context, List<Widget> children) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       margin: const EdgeInsets.only(bottom: 4),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Theme.of(context).dividerColor),
+        border: Border.all(
+          color: isDark 
+              ? AppTheme.primaryGreen.withOpacity(0.3) 
+              : AppTheme.primaryGreen.withOpacity(0.2),
+        ),
       ),
       child: Column(children: children),
     );
   }
 
-  Widget _divider(BuildContext context) => Divider(color: Theme.of(context).dividerColor, height: 1, indent: 56);
+  Widget _divider(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Divider(
+      color: isDark 
+          ? AppTheme.primaryGreen.withOpacity(0.15) 
+          : AppTheme.primaryGreen.withOpacity(0.12), 
+      height: 1, 
+      indent: 56,
+    );
+  }
 
   Widget _buildTileLeading(BuildContext context, {
     required IconData icon,

@@ -91,12 +91,27 @@ class PersonalHistoryService {
     }
   }
 
-  // Get Khatam count
+  // Get Khatam count with dynamic self-healing directly from history log
   static Future<int> getKhatamCount(String userId) async {
     try {
       final prefs = await SharedPreferences.getInstance();
+      final key = '$_keyPrefix$userId';
+      final rawList = prefs.getStringList(key) ?? [];
+      
+      int trueCount = 0;
+      for (final itemJson in rawList) {
+        try {
+          final item = jsonDecode(itemJson) as Map<String, dynamic>;
+          // Hanya hitung khataman mandiri yang selesai penuh
+          if (item['isKhatamCompletion'] == true && item['type'] == 'Mandiri') {
+            trueCount++;
+          }
+        } catch (_) {}
+      }
+      
       final khatamKey = '$_khatamCountPrefix$userId';
-      return prefs.getInt(khatamKey) ?? 0;
+      await prefs.setInt(khatamKey, trueCount);
+      return trueCount;
     } catch (e) {
       debugPrint('📝 [History Log] Error loading khatam count: $e');
       return 0;

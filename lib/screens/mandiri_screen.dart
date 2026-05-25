@@ -252,52 +252,47 @@ class _MandiriScreenState extends State<MandiriScreen> {
 
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
       decoration: BoxDecoration(
         gradient: cardBgGradient,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: borderColor),
       ),
-      child: Column(
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Progres Khataman', style: TextStyle(color: titleTextColor, fontSize: 13)),
-                  const SizedBox(height: 4),
-                  Text(
-                    '$completed / 30 Juz',
-                    style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: valueTextColor),
-                  ),
-                ],
-              ),
-              Container(
-                width: 70,
-                height: 70,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: percentColor, width: 3),
-                ),
-                child: Center(
-                  child: Text(
-                    '$totalPercent%',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: percentColor),
-                  ),
-                ),
+              Text('Progres Khataman', style: TextStyle(color: titleTextColor, fontSize: 13)),
+              const SizedBox(height: 4),
+              Text(
+                '$completed / 30 Juz',
+                style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: valueTextColor),
               ),
             ],
           ),
-          const SizedBox(height: 14),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: LinearProgressIndicator(
-              value: completed / 30,
-              minHeight: 10,
-              backgroundColor: progressBgColor,
-              valueColor: AlwaysStoppedAnimation<Color>(percentColor),
+          SizedBox(
+            width: 72,
+            height: 72,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                SizedBox(
+                  width: 72,
+                  height: 72,
+                  child: CircularProgressIndicator(
+                    value: completed / 30,
+                    strokeWidth: 4.5,
+                    backgroundColor: progressBgColor,
+                    valueColor: AlwaysStoppedAnimation<Color>(percentColor),
+                  ),
+                ),
+                Text(
+                  '$totalPercent%',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: percentColor),
+                ),
+              ],
             ),
           ),
         ],

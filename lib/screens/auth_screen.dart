@@ -95,6 +95,13 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                           width: 130,
                           height: 130,
                           decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: isDark 
+                                  ? [const Color(0xFF0F3E2B), const Color(0xFF1B593F)] 
+                                  : [const Color(0xFF2ECC71), const Color(0xFF1A8A4A)],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
                             borderRadius: BorderRadius.circular(36),
                             boxShadow: [
                               BoxShadow(
@@ -104,11 +111,11 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                               ),
                             ],
                           ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(36),
-                            child: Image.asset(
-                              isDark ? 'assets/images/app_icon_dark.png' : 'assets/images/app_icon.png',
-                              fit: BoxFit.cover,
+                          child: const Center(
+                            child: Icon(
+                              Icons.menu_book_rounded,
+                              color: Colors.white,
+                              size: 68,
                             ),
                           ),
                         ),
@@ -244,13 +251,26 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
             color: isDark 
-                ? const Color(0xFF8E918F).withOpacity(0.3) 
-                : const Color(0xFF747775).withOpacity(0.2),
+                ? AppTheme.primaryGreen.withOpacity(0.3) 
+                : Colors.grey.withOpacity(0.2),
             width: 1,
           ),
           boxShadow: isDark 
-              ? [] 
-              : [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 15, offset: const Offset(0, 6))],
+              ? [
+                  BoxShadow(
+                    color: AppTheme.primaryGreen.withOpacity(0.18), 
+                    blurRadius: 20, 
+                    spreadRadius: 1,
+                    offset: const Offset(0, 4),
+                  )
+                ] 
+              : [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.08), 
+                    blurRadius: 15, 
+                    offset: const Offset(0, 6),
+                  )
+                ],
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,

@@ -38,7 +38,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
     final localMandiriKhatams = await PersonalHistoryService.getKhatamCount(userId);
 
     // 2. Ambil putaran siklus grup selesai yang diikuti oleh user dari Supabase
-    int groupKhatamsCount = 0;
     List<Map<String, dynamic>> fetchedGroupKhatamLogs = [];
     
     try {
@@ -60,7 +59,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
           }
         }
         
-        groupKhatamsCount = cyclesMap.keys.length;
 
         // Buat entri log riwayat untuk khataman grup yang selesai
         for (var pId in cyclesMap.keys) {
@@ -111,16 +109,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
       return tB.compareTo(tA);
     });
 
-    // Menghitung total khatam gabungan
-    final displayKhatamCount = localMandiriKhatams + groupKhatamsCount + (isCurrentMandiriKhatam ? 1 : 0);
-
-    // Self-healing: jika saved count di lokal (tidak termasuk active mandiri) lebih kecil dari totalTrackedKhatams
-    final baseTrackedWithoutCurrent = localMandiriKhatams + groupKhatamsCount;
-    int baseLocalSaved = await PersonalHistoryService.getKhatamCount(userId);
-    if (baseLocalSaved < baseTrackedWithoutCurrent) {
-      await PersonalHistoryService.setKhatamCount(userId, baseTrackedWithoutCurrent);
-      baseLocalSaved = baseTrackedWithoutCurrent;
-    }
+    // Menghitung total khatam mandiri
+    final displayKhatamCount = localMandiriKhatams + (isCurrentMandiriKhatam ? 1 : 0);
 
     if (mounted) {
       setState(() {
@@ -181,7 +171,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   border: Border.all(color: Colors.white.withOpacity(0.12), width: 0.8),
                 ),
                 child: const Text(
-                  'Jumlah gabungan dari khataman mandiri dan keikutsertaan khataman grup Anda.',
+                  'Jumlah total dari penyelesaian Khataman Mandiri 30 Juz Anda.',
                   style: TextStyle(
                     color: Colors.white70,
                     fontSize: 11,
@@ -245,15 +235,15 @@ class _HistoryScreenState extends State<HistoryScreen> {
     }
   }
 
-  // Menghitung berapa kali khatam 30 Juz dalam rentang waktu tertentu (Mandiri + Grup)
+  // Menghitung berapa kali khatam 30 Juz dalam rentang waktu tertentu (Mandiri)
   int _getKhatamStatsCount({required int daysRange}) {
     final now = DateTime.now();
     final limit = now.subtract(Duration(days: daysRange));
     int count = 0;
     
-    // 1. Khatam Mandiri & Grup luring yang tercatat di riwayat gabungan
+    // 1. Khatam Mandiri yang tercatat di riwayat gabungan
     for (var item in _history) {
-      if (item['isKhatamCompletion'] == true) {
+      if (item['isKhatamCompletion'] == true && item['isGroupKhatam'] != true) {
         final date = DateTime.tryParse(item['timestamp'] ?? '');
         if (date != null && date.isAfter(limit)) {
           count++;

@@ -73,6 +73,13 @@ class _CustomLoadingScreenState extends State<CustomLoadingScreen>
                   width: 120,
                   height: 120,
                   decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: isDark 
+                          ? [const Color(0xFF0F3E2B), const Color(0xFF1B593F)] 
+                          : [const Color(0xFF2ECC71), const Color(0xFF1A8A4A)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
                     borderRadius: BorderRadius.circular(32),
                     boxShadow: [
                       BoxShadow(
@@ -82,11 +89,11 @@ class _CustomLoadingScreenState extends State<CustomLoadingScreen>
                       ),
                     ],
                   ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(32),
-                    child: Image.asset(
-                      isDark ? 'assets/images/app_icon_dark.png' : 'assets/images/app_icon.png',
-                      fit: BoxFit.cover,
+                  child: const Center(
+                    child: Icon(
+                      Icons.menu_book_rounded,
+                      color: Colors.white,
+                      size: 60,
                     ),
                   ),
                 ),

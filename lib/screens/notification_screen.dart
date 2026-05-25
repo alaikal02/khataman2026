@@ -326,7 +326,9 @@ class _NotificationScreenState extends State<NotificationScreen> {
   Widget build(BuildContext context) {
     final unreadCount = _notifications.where((n) => !(n['is_read'] as bool? ?? false)).length;
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
+      backgroundColor: isDark ? const Color(0xFF161B22) : const Color(0xFFEEEEEE),
       appBar: AppBar(
         title: const Text('Notifikasi'),
         actions: [
@@ -340,7 +342,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
       ),
       body: Container(
         decoration: BoxDecoration(
-          gradient: Theme.of(context).brightness == Brightness.dark
+          gradient: isDark
               ? AppTheme.darkBgGradient
               : AppTheme.lightBgGradient,
         ),

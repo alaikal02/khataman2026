@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:quran/quran.dart' as quran;
 import '../components/juz_progress_card.dart';
 import '../components/khatam_celebration.dart';
 import '../theme/app_theme.dart';
@@ -1816,13 +1817,18 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
   }
 
   Widget _buildShimmerCard() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Theme.of(context).dividerColor),
+        border: Border.all(
+          color: isDark 
+              ? AppTheme.primaryGreen.withOpacity(0.3) 
+              : Colors.grey.withOpacity(0.2),
+        ),
       ),
       child: Row(
         children: [
@@ -1887,6 +1893,8 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
       appBar: AppBar(
         title: Text(_group?['nama_grup'] ?? 'Detail Grup'),
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        elevation: 0,
+        scrolledUnderElevation: 0,
         leading: IconButton(
           icon: Icon(Icons.arrow_back_ios_rounded, color: Theme.of(context).colorScheme.onSurface),
           onPressed: () => Navigator.pop(context),
@@ -2083,6 +2091,30 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
 
   Widget _buildSlotList(String? currentUserId) {
     final completed = _slots.where((s) => s['status_checklist'] == true).length;
+    final claimed = _slots.where((s) => s['user_id'] != null).length;
+
+    // Menghitung progres riil komulatif (termasuk pecahan juz)
+    double totalProgressSum = 0.0;
+    for (var slot in _slots) {
+      if (slot['status_checklist'] == true) {
+        totalProgressSum += 1.0;
+      } else {
+        final lastAyat = slot['ayat_terakhir_input'] as int? ?? 0;
+        if (lastAyat > 0 && slot['user_id'] != null) {
+          final juzNum = slot['nomor_juz'] as int? ?? 1;
+          final surahsInJuz = quran.getSurahAndVersesFromJuz(juzNum);
+          int totalAyatInJuz = 0;
+          surahsInJuz.forEach((surah, bounds) {
+            totalAyatInJuz += (bounds[1] - bounds[0] + 1);
+          });
+          if (totalAyatInJuz > 0) {
+            double fraction = lastAyat / totalAyatInJuz;
+            totalProgressSum += fraction > 1.0 ? 1.0 : fraction;
+          }
+        }
+      }
+    }
+    final double realProgressValue = totalProgressSum / 30.0;
     final dateRangeText = _formatDateRange(_putaran?['start_date'], _putaran?['target_deadline']);
     final remainingText = _getRemainingTime(_putaran?['target_deadline']);
     final isLimited = _group?['limit_juz'] == true;
@@ -2091,6 +2123,25 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
     final maxSlots = (30 / memberCount).ceil();
     final isCreator = _group?['creator_id'] == currentUserId;
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardBgGradient = isDark
+        ? const LinearGradient(
+            colors: [Color(0xFF1A3A2A), Color(0xFF0D2118)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          )
+        : const LinearGradient(
+            colors: [Color(0xFFEBFDF3), Color(0xFFD4F8E6)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          );
+
+    final titleTextColor = isDark ? Colors.white70 : AppTheme.darkGreen.withOpacity(0.8);
+    final valueTextColor = isDark ? Colors.white : AppTheme.darkGreen;
+    final percentColor = isDark ? AppTheme.primaryGreen : AppTheme.darkGreen;
+    final progressBgColor = isDark ? Colors.white.withOpacity(0.12) : AppTheme.primaryGreen.withOpacity(0.15);
+    final borderColor = isDark ? AppTheme.primaryGreen.withOpacity(0.3) : AppTheme.primaryGreen.withOpacity(0.2);
+
     return Column(
       children: [
         // Summary Card
@@ -2098,11 +2149,9 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
           margin: const EdgeInsets.fromLTRB(16, 12, 16, 8),
           padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFF1A3A2A), Color(0xFF0D2118)],
-            ),
+            gradient: cardBgGradient,
             borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: AppTheme.primaryGreen.withOpacity(0.3)),
+            border: Border.all(color: borderColor),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -2114,7 +2163,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                     children: [
                       Text(
                         'Putaran ${_putaran?['nomor_putaran'] ?? 1}${dateRangeText.isNotEmpty ? ' • $dateRangeText' : ''}',
-                        style: const TextStyle(color: Colors.white70, fontSize: 12),
+                        style: TextStyle(color: titleTextColor, fontSize: 12),
                       ),
                       if (_completedCount > 0) ...[
                         const SizedBox(width: 8),
@@ -2180,67 +2229,95 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                   const SizedBox(height: 8),
                   Text(
                     '$completed / 30 Juz Selesai',
-                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: valueTextColor),
                   ),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      SizedBox(
-                        width: 150,
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(6),
-                          child: LinearProgressIndicator(
-                            value: completed / 30,
-                            minHeight: 8,
-                            backgroundColor: Colors.white.withOpacity(0.12),
-                            valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.primaryGreen),
-                          ),
+                  if (remainingText.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: remainingText == 'Waktu habis'
+                            ? Colors.redAccent.withOpacity(0.15)
+                            : AppTheme.accentGold.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(
+                          color: remainingText == 'Waktu habis'
+                              ? Colors.redAccent.withOpacity(0.4)
+                              : AppTheme.accentGold.withOpacity(0.4),
+                          width: 0.8,
                         ),
                       ),
-                      if (remainingText.isNotEmpty) ...[
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: remainingText == 'Waktu habis'
-                                ? Colors.redAccent.withOpacity(0.15)
-                                : AppTheme.accentGold.withOpacity(0.15),
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(
-                              color: remainingText == 'Waktu habis'
-                                  ? Colors.redAccent.withOpacity(0.4)
-                                  : AppTheme.accentGold.withOpacity(0.4),
-                              width: 0.8,
-                            ),
+                      child: Text(
+                        remainingText,
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: remainingText == 'Waktu habis'
+                              ? Colors.redAccent
+                              : AppTheme.accentGold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              SizedBox(
+                width: 88,
+                height: 88,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    // Lapisan 1: Pengambilan Juz (Gold)
+                    SizedBox(
+                      width: 88,
+                      height: 88,
+                      child: CircularProgressIndicator(
+                        value: claimed / 30,
+                        strokeWidth: 5.5,
+                        backgroundColor: progressBgColor,
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          isDark ? AppTheme.accentGold : AppTheme.accentGold.withOpacity(0.8),
+                        ),
+                      ),
+                    ),
+                    // Lapisan 2: Selesai Dibaca (Hijau Utama) - Ditumpuk di atas
+                    SizedBox(
+                      width: 88,
+                      height: 88,
+                      child: CircularProgressIndicator(
+                        value: realProgressValue,
+                        strokeWidth: 5.5,
+                        backgroundColor: Colors.transparent,
+                        valueColor: AlwaysStoppedAnimation<Color>(percentColor),
+                      ),
+                    ),
+                    // Teks Tengah: Persentase Selesai & Klaim
+                    Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          '${(realProgressValue * 100).toStringAsFixed(2)}%',
+                          style: TextStyle(
+                            fontSize: 13.5, 
+                            fontWeight: FontWeight.bold, 
+                            color: percentColor,
+                            letterSpacing: -0.2,
+                            height: 1.1,
                           ),
-                          child: Text(
-                            remainingText,
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                              color: remainingText == 'Waktu habis'
-                                  ? Colors.redAccent
-                                  : AppTheme.accentGold,
-                            ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          '$claimed/30',
+                          style: TextStyle(
+                            fontSize: 10, 
+                            fontWeight: FontWeight.w700, 
+                            color: isDark ? Colors.white70 : AppTheme.darkGreen.withOpacity(0.7),
+                            height: 1.1,
                           ),
                         ),
                       ],
-                    ],
-                  ),
-                ],
-              ),
-              Container(
-                width: 70,
-                height: 70,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: AppTheme.primaryGreen, width: 3),
-                ),
-                child: Center(
-                  child: Text(
-                    '${(completed / 30 * 100).round()}%',
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppTheme.primaryGreen),
-                  ),
+                    ),
+                  ],
                 ),
               ),
             ],

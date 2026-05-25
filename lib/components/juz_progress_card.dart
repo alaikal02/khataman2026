@@ -586,6 +586,7 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
       return _buildUnclaimedCard();
     }
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final isComplete = _localIsComplete;
     final progress = isComplete ? 100 : _calculateProgress();
     final surahAwal = _surahsInJuz.isNotEmpty ? quran.getSurahName(_surahsInJuz.keys.first) : '';
@@ -609,18 +610,51 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
       }
     }
 
+    // Dynamic Card background
+    final Color cardBg;
+    if (isComplete) {
+      cardBg = isDark ? const Color(0xFF132B1E) : const Color(0xFFEBFDF3);
+    } else if (widget.isOwned) {
+      cardBg = isDark ? const Color(0xFF0C242A) : const Color(0xFFF4FDF7);
+    } else {
+      cardBg = Theme.of(context).colorScheme.surface;
+    }
+
+    // Dynamic Border color and width
+    final Color borderColor;
+    final double borderWidth;
+    if (isComplete) {
+      borderColor = isDark 
+          ? AppTheme.primaryGreen.withOpacity(0.3) 
+          : AppTheme.primaryGreen.withOpacity(0.35);
+      borderWidth = 1.0;
+    } else if (widget.isOwned) {
+      borderColor = isDark 
+          ? AppTheme.accentTeal.withOpacity(0.4) 
+          : AppTheme.primaryGreen.withOpacity(0.35);
+      borderWidth = 1.5;
+    } else {
+      borderColor = isDark 
+          ? AppTheme.primaryGreen.withOpacity(0.3) 
+          : Colors.grey.withOpacity(0.2);
+      borderWidth = 1.0;
+    }
+
+    // Dynamic Text colors
+    final Color primaryTextColor = Theme.of(context).colorScheme.onSurface;
+    final Color secondaryTextColor = Theme.of(context).colorScheme.onSurfaceVariant;
+    final Color percentTextColor = isComplete 
+        ? (isDark ? AppTheme.primaryGreen : AppTheme.darkGreen) 
+        : Theme.of(context).colorScheme.onSurface;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
+        color: cardBg,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isComplete
-              ? AppTheme.primaryGreen.withAlpha(128)
-              : widget.isOwned
-                  ? AppTheme.accentTeal.withAlpha(102)
-                  : Theme.of(context).dividerColor,
-          width: widget.isOwned && !isComplete ? 1.5 : 1,
+          color: borderColor,
+          width: borderWidth,
         ),
       ),
       child: Column(
@@ -638,23 +672,49 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
                     width: 46,
                     height: 46,
                     decoration: BoxDecoration(
-                      gradient: isComplete
+                      gradient: (isComplete && isDark)
                           ? AppTheme.primaryGradient
-                          : widget.isOwned
+                          : (widget.isOwned && isDark)
                               ? const LinearGradient(colors: [Color(0xFF006064), Color(0xFF00838F)])
                               : null,
-                      color: (!isComplete && !widget.isOwned) ? Theme.of(context).colorScheme.surfaceContainerHighest : null,
+                      color: isComplete
+                          ? (isDark 
+                              ? null 
+                              : AppTheme.primaryGreen.withOpacity(0.12))
+                          : widget.isOwned
+                              ? (isDark 
+                                  ? null 
+                                  : AppTheme.primaryGreen.withOpacity(0.12))
+                              : (isDark 
+                                  ? Colors.white.withOpacity(0.08) 
+                                  : AppTheme.primaryGreen.withOpacity(0.06)),
+                      border: Border.all(
+                        color: isDark
+                            ? Colors.transparent
+                            : isComplete
+                                ? AppTheme.primaryGreen.withOpacity(0.25)
+                                : widget.isOwned
+                                    ? AppTheme.primaryGreen.withOpacity(0.25)
+                                    : AppTheme.primaryGreen.withOpacity(0.15),
+                        width: 0.8,
+                      ),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Center(
                       child: isComplete
-                          ? const Icon(Icons.check_rounded, color: Colors.white, size: 22)
+                          ? Icon(
+                              Icons.check_rounded, 
+                              color: isDark ? Colors.white : AppTheme.darkGreen, 
+                              size: 22,
+                            )
                           : Text(
                               '${widget.juzNumber}',
                               style: TextStyle(
                                 fontSize: 17,
                                 fontWeight: FontWeight.bold,
-                                color: widget.isOwned ? Colors.white : Theme.of(context).colorScheme.onSurface,
+                                color: widget.isOwned 
+                                    ? (isDark ? Colors.white : AppTheme.darkGreen)
+                                    : (isDark ? Colors.white70 : AppTheme.darkGreen),
                               ),
                             ),
                     ),
@@ -670,7 +730,7 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
                             Text(
                               'Juz ${widget.juzNumber}',
                               style: TextStyle(
-                                fontSize: 15, fontWeight: FontWeight.w700, color: Theme.of(context).colorScheme.onSurface,
+                                fontSize: 15, fontWeight: FontWeight.w700, color: primaryTextColor,
                               ),
                             ),
                             if (isComplete) ...[
@@ -689,10 +749,19 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                                 decoration: BoxDecoration(
-                                  color: AppTheme.accentTeal.withAlpha(38),
+                                  color: isDark 
+                                      ? AppTheme.accentTeal.withAlpha(38) 
+                                      : AppTheme.primaryGreen.withOpacity(0.12),
                                   borderRadius: BorderRadius.circular(6),
                                 ),
-                                child: const Text('Milik Anda', style: TextStyle(color: AppTheme.accentTeal, fontSize: 10, fontWeight: FontWeight.w600)),
+                                child: Text(
+                                  'Milik Anda', 
+                                  style: TextStyle(
+                                    color: isDark ? AppTheme.accentTeal : AppTheme.darkGreen, 
+                                    fontSize: 10, 
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
                               ),
                             ],
                           ],
@@ -702,7 +771,7 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
                           widget.isGroupMode
                               ? (widget.memberName != null ? '@${widget.memberName}' : 'Slot Kosong')
                               : surahAwal,
-                          style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                          style: TextStyle(fontSize: 12, color: secondaryTextColor),
                         ),
                         const SizedBox(height: 8),
                         // Progress Bar
@@ -730,14 +799,14 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 15,
-                          color: isComplete ? AppTheme.primaryGreen : Theme.of(context).colorScheme.onSurface,
+                          color: percentTextColor,
                         ),
                       ),
                       const SizedBox(height: 4),
                       AnimatedRotation(
                         turns: _expanded ? 0.5 : 0,
                         duration: const Duration(milliseconds: 250),
-                        child: Icon(Icons.keyboard_arrow_down_rounded, color: Theme.of(context).colorScheme.onSurfaceVariant, size: 22),
+                        child: Icon(Icons.keyboard_arrow_down_rounded, color: secondaryTextColor, size: 22),
                       ),
                     ],
                   ),
@@ -938,13 +1007,19 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
   }
 
   Widget _buildUnclaimedCard() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Theme.of(context).dividerColor),
+        border: Border.all(
+          color: isDark 
+              ? AppTheme.primaryGreen.withOpacity(0.3) 
+              : Colors.grey.withOpacity(0.2),
+          width: 1.0,
+        ),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -955,13 +1030,23 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                  color: isDark 
+                      ? Colors.white.withOpacity(0.08) 
+                      : AppTheme.primaryGreen.withOpacity(0.06),
+                  border: Border.all(
+                    color: isDark ? Colors.transparent : AppTheme.primaryGreen.withOpacity(0.15),
+                    width: 0.8,
+                  ),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Center(
                   child: Text(
                     '${widget.juzNumber}',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Theme.of(context).colorScheme.onSurface),
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold, 
+                      fontSize: 16, 
+                      color: isDark ? Colors.white70 : AppTheme.darkGreen,
+                    ),
                   ),
                 ),
               ),
@@ -983,11 +1068,22 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                 decoration: BoxDecoration(
-                  gradient: AppTheme.primaryGradient,
+                  gradient: isDark ? AppTheme.primaryGradient : null,
+                  color: isDark ? null : AppTheme.primaryGreen.withOpacity(0.12),
+                  border: Border.all(
+                    color: isDark ? Colors.transparent : AppTheme.primaryGreen.withOpacity(0.25),
+                    width: 0.8,
+                  ),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Text('Ambil Juz Ini',
-                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13)),
+                child: Text(
+                  'Ambil Juz Ini',
+                  style: TextStyle(
+                    color: isDark ? Colors.white : AppTheme.darkGreen,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                  ),
+                ),
               ),
             ),
         ],

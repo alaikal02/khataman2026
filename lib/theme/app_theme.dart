@@ -48,6 +48,7 @@ class AppTheme {
       appBarTheme: const AppBarTheme(
         backgroundColor: bgDark,
         elevation: 0,
+        scrolledUnderElevation: 0,
         titleTextStyle: TextStyle(
           color: textPrimary,
           fontSize: 20,
@@ -101,6 +102,7 @@ class AppTheme {
       appBarTheme: const AppBarTheme(
         backgroundColor: Colors.white,
         elevation: 0,
+        scrolledUnderElevation: 0,
         titleTextStyle: TextStyle(
           color: Color(0xFF1A1A2E),
           fontSize: 20,

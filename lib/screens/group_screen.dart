@@ -614,6 +614,7 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
   }
 
   Widget _buildGroupCard(Map<String, dynamic> group, {required bool isJoined, required bool isCreator}) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final groupId = group['id_group'].toString();
     final visibility = (group['visibility'] ?? 'PUBLIC') as String;
     final isPrivate = visibility == 'PRIVATE';
@@ -640,8 +641,12 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
             color: isPending
                 ? AppTheme.accentGold.withOpacity(0.4)
                 : isApproved
-                    ? AppTheme.primaryGreen.withOpacity(0.3)
-                    : Theme.of(context).dividerColor,
+                    ? (isDark
+                        ? AppTheme.primaryGreen.withOpacity(0.3)
+                        : AppTheme.primaryGreen.withOpacity(0.35))
+                    : (isDark
+                        ? const Color(0xFF6C63FF).withOpacity(0.3)
+                        : const Color(0xFF6C63FF).withOpacity(0.15)),
           ),
         ),
         child: Row(
@@ -651,13 +656,32 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
               width: 52,
               height: 52,
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: canOpen
-                      ? [const Color(0xFF2ECC71), const Color(0xFF1A8A4A)]
-                      : isPending
-                          ? [const Color(0xFFB8860B), const Color(0xFF8B6508)]
-                          : [const Color(0xFF6C63FF), const Color(0xFF3F3D8B)],
-                ),
+                gradient: isDark
+                    ? LinearGradient(
+                        colors: canOpen
+                            ? [const Color(0xFF2ECC71), const Color(0xFF1A8A4A)]
+                            : isPending
+                                ? [const Color(0xFFB8860B), const Color(0xFF8B6508)]
+                                : [const Color(0xFF6C63FF), const Color(0xFF3F3D8B)],
+                      )
+                    : null,
+                color: isDark
+                    ? null
+                    : canOpen
+                        ? AppTheme.primaryGreen.withOpacity(0.12)
+                        : isPending
+                            ? AppTheme.accentGold.withOpacity(0.12)
+                            : const Color(0xFF6C63FF).withOpacity(0.12),
+                border: isDark
+                    ? null
+                    : Border.all(
+                        color: canOpen
+                            ? AppTheme.primaryGreen.withOpacity(0.25)
+                            : isPending
+                                ? AppTheme.accentGold.withOpacity(0.25)
+                                : const Color(0xFF6C63FF).withOpacity(0.25),
+                        width: 0.8,
+                      ),
                 borderRadius: BorderRadius.circular(14),
               ),
               child: Icon(
@@ -666,7 +690,13 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
                     : isPending
                         ? Icons.hourglass_top_rounded
                         : Icons.group_add_rounded,
-                color: Colors.white,
+                color: isDark
+                    ? Colors.white
+                    : canOpen
+                        ? AppTheme.darkGreen
+                        : isPending
+                            ? const Color(0xFF8B6508)
+                            : const Color(0xFF3F3D8B),
                 size: 26,
               ),
             ),
@@ -724,10 +754,25 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                 decoration: BoxDecoration(
-                  color: AppTheme.primaryGreen.withOpacity(0.15),
+                  color: isDark 
+                      ? AppTheme.primaryGreen.withOpacity(0.15) 
+                      : AppTheme.primaryGreen.withOpacity(0.12),
+                  border: isDark 
+                      ? null 
+                      : Border.all(
+                          color: AppTheme.primaryGreen.withOpacity(0.25),
+                          width: 0.8,
+                        ),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Text('Buka', style: TextStyle(color: AppTheme.primaryGreen, fontWeight: FontWeight.w600, fontSize: 13)),
+                child: Text(
+                  'Buka', 
+                  style: TextStyle(
+                    color: isDark ? AppTheme.primaryGreen : AppTheme.darkGreen, 
+                    fontWeight: FontWeight.w600, 
+                    fontSize: 13,
+                  ),
+                ),
               )
             else if (isPending)
               Container(
@@ -735,7 +780,12 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
                 decoration: BoxDecoration(
                   color: AppTheme.accentGold.withOpacity(0.12),
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: AppTheme.accentGold.withOpacity(0.4)),
+                  border: Border.all(
+                    color: isDark 
+                        ? AppTheme.accentGold.withOpacity(0.4) 
+                        : AppTheme.accentGold.withOpacity(0.25),
+                    width: 0.8,
+                  ),
                 ),
                 child: const Text('Menunggu...', style: TextStyle(color: AppTheme.accentGold, fontWeight: FontWeight.w600, fontSize: 12)),
               )
@@ -745,12 +795,28 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                   decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF6C63FF), Color(0xFF3F3D8B)],
-                    ),
+                    gradient: isDark
+                        ? const LinearGradient(
+                            colors: [Color(0xFF6C63FF), Color(0xFF3F3D8B)],
+                          )
+                        : null,
+                    color: isDark ? null : const Color(0xFF6C63FF).withOpacity(0.12),
+                    border: isDark 
+                        ? null 
+                        : Border.all(
+                            color: const Color(0xFF6C63FF).withOpacity(0.25),
+                            width: 0.8,
+                          ),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Text('Gabung', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13)),
+                  child: Text(
+                    'Gabung', 
+                    style: TextStyle(
+                      color: isDark ? Colors.white : const Color(0xFF3F3D8B), 
+                      fontWeight: FontWeight.w600, 
+                      fontSize: 13,
+                    ),
+                  ),
                 ),
               ),
           ],

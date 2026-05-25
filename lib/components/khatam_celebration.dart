@@ -144,39 +144,67 @@ class CongratulatoryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    final cardBgGradient = isDark
+        ? const LinearGradient(
+            colors: [Color(0xFFE5A93C), Color(0xFFC5891C), Color(0xFF9E680E)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          )
+        : const LinearGradient(
+            colors: [Color(0xFFFEF9E7), Color(0xFFFDF2D5)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          );
+
+    final borderColor = isDark ? Colors.white.withOpacity(0.2) : AppTheme.accentGold.withOpacity(0.25);
+    final titleColor = isDark ? Colors.white : const Color(0xFF5C4008);
+    final descriptionColor = isDark ? Colors.white70 : const Color(0xFF8B6508).withOpacity(0.85);
+
+    final shadow = [
+      BoxShadow(
+        color: isDark ? const Color(0xFFC5891C).withOpacity(0.3) : AppTheme.accentGold.withOpacity(0.06),
+        blurRadius: 15,
+        offset: const Offset(0, 5),
+      ),
+    ];
+
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFFE5A93C), Color(0xFFC5891C), Color(0xFF9E680E)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        gradient: cardBgGradient,
         borderRadius: BorderRadius.circular(18),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFFC5891C).withOpacity(0.3),
-            blurRadius: 15,
-            offset: const Offset(0, 5),
-          ),
-        ],
-        border: Border.all(color: Colors.white.withOpacity(0.2), width: 1),
+        boxShadow: shadow,
+        border: Border.all(color: borderColor, width: isDark ? 1 : 0.8),
       ),
       child: Column(
         children: [
-          const Icon(Icons.emoji_events_rounded, color: AppTheme.accentGold, size: 44),
+          Icon(
+            Icons.emoji_events_rounded, 
+            color: isDark ? AppTheme.accentGold : const Color(0xFF8B6508), 
+            size: 44,
+          ),
           const SizedBox(height: 12),
           Text(
             title,
             textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+            style: TextStyle(
+              fontSize: 18, 
+              fontWeight: FontWeight.bold, 
+              color: titleColor,
+            ),
           ),
           const SizedBox(height: 6),
           Text(
             description,
             textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 12, color: Colors.white70, height: 1.4),
+            style: TextStyle(
+              fontSize: 12, 
+              color: descriptionColor, 
+              height: 1.4,
+            ),
           ),
           const SizedBox(height: 16),
           Row(
@@ -184,10 +212,24 @@ class CongratulatoryCard extends StatelessWidget {
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: () => showDoaKhatamBottomSheet(context),
-                  icon: const Icon(Icons.menu_book_rounded, size: 16, color: Colors.white),
-                  label: const Text('Doa Khatam', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                  icon: Icon(
+                    Icons.menu_book_rounded, 
+                    size: 16, 
+                    color: isDark ? Colors.white : const Color(0xFF8B6508),
+                  ),
+                  label: Text(
+                    'Doa Khatam', 
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold, 
+                      color: isDark ? Colors.white : const Color(0xFF8B6508),
+                    ),
+                  ),
                   style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: Colors.white, width: 1.2),
+                    side: BorderSide(
+                      color: isDark ? Colors.white : AppTheme.accentGold.withOpacity(0.35), 
+                      width: 1.2,
+                    ),
+                    backgroundColor: isDark ? Colors.transparent : AppTheme.accentGold.withOpacity(0.12),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     padding: const EdgeInsets.symmetric(vertical: 12),
                   ),
@@ -201,8 +243,8 @@ class CongratulatoryCard extends StatelessWidget {
                     icon: const Icon(Icons.restart_alt_rounded, size: 16),
                     label: Text(resetLabel, style: const TextStyle(fontWeight: FontWeight.bold)),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: const Color(0xFF9E680E),
+                      backgroundColor: isDark ? Colors.white : const Color(0xFFC5891C),
+                      foregroundColor: isDark ? const Color(0xFF9E680E) : Colors.white,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       padding: const EdgeInsets.symmetric(vertical: 12),
                       elevation: 0,

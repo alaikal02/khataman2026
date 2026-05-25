@@ -48,24 +48,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (userId == null) return;
     
     final localMandiriKhatams = await PersonalHistoryService.getKhatamCount(userId);
-    int groupKhatamsCount = 0;
     
-    try {
-      final completedGroupSlots = await Supabase.instance.client
-          .from('slot_khataman')
-          .select('putaran_id, putaran_siklus!inner(status_aktif_selesai)')
-          .eq('user_id', userId)
-          .eq('putaran_siklus.status_aktif_selesai', 'SELESAI');
-
-      final slotsList = completedGroupSlots as List;
-      if (slotsList.isNotEmpty) {
-        final uniqueIds = slotsList.map((s) => s['putaran_id']).toSet();
-        groupKhatamsCount = uniqueIds.length;
-      }
-    } catch (e) {
-      debugPrint('Error loading group khatams on home: $e');
-    }
-
     // Periksa apakah ronde mandiri saat ini sudah 30 Juz selesai (tetapi belum di-reset)
     bool isCurrentMandiriKhatam = false;
     try {
@@ -83,7 +66,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       debugPrint('Error loading active mandiri count on home: $e');
     }
 
-    final totalCount = localMandiriKhatams + groupKhatamsCount + (isCurrentMandiriKhatam ? 1 : 0);
+    final totalCount = localMandiriKhatams + (isCurrentMandiriKhatam ? 1 : 0);
     if (mounted) {
       setState(() {
         _personalKhatamCount = totalCount;
@@ -171,9 +154,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         'Hamba Allah';
     final avatarUrl = user?.userMetadata?['avatar_url'] as String?;
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
+      backgroundColor: isDark ? const Color(0xFF161B22) : const Color(0xFFEEEEEE),
       body: Container(
-         decoration: BoxDecoration(gradient: Theme.of(context).brightness == Brightness.dark ? AppTheme.darkBgGradient : AppTheme.lightBgGradient),
+         decoration: BoxDecoration(gradient: isDark ? AppTheme.darkBgGradient : AppTheme.lightBgGradient),
         child: SafeArea(
           child: SingleChildScrollView(
             child: Padding(
@@ -244,19 +229,41 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        // Left Side: Avatar and Greeting Text
+        Row(
           children: [
-            Text(
-              'Assalamu\'alaikum,',
-              style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant),
+            GestureDetector(
+              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileScreen())),
+              child: Container(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: AppTheme.primaryGreen.withOpacity(0.6), width: 2),
+                ),
+                child: CircleAvatar(
+                  radius: 22,
+                  backgroundColor: Theme.of(context).colorScheme.surface,
+                  backgroundImage: avatarUrl != null ? NetworkImage(avatarUrl) : null,
+                  child: avatarUrl == null ? Icon(Icons.person, color: Theme.of(context).colorScheme.onSurfaceVariant) : null,
+                ),
+              ),
             ),
-            Text(
-              name,
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Theme.of(context).colorScheme.onSurface),
+            const SizedBox(width: 14),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Assalamu\'alaikum,',
+                  style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                ),
+                Text(
+                  name,
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Theme.of(context).colorScheme.onSurface),
+                ),
+              ],
             ),
           ],
         ),
+        // Right Side: Notification and Settings Buttons
         Row(
           children: [
             // Bell Icon for Notifications
@@ -306,27 +313,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen())),
               icon: Icon(Icons.settings_rounded, color: Theme.of(context).colorScheme.onSurfaceVariant),
               tooltip: 'Pengaturan',
-            ),
-            const SizedBox(width: 4),
-            GestureDetector(
-              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileScreen())),
-              child: Stack(
-                alignment: Alignment.bottomRight,
-                children: [
-                  Container(
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(color: AppTheme.primaryGreen.withOpacity(0.6), width: 2),
-                    ),
-                    child: CircleAvatar(
-                      radius: 22,
-                      backgroundColor: Theme.of(context).colorScheme.surface,
-                      backgroundImage: avatarUrl != null ? NetworkImage(avatarUrl) : null,
-                      child: avatarUrl == null ? Icon(Icons.person, color: Theme.of(context).colorScheme.onSurfaceVariant) : null,
-                    ),
-                  ),
-                ],
-              ),
             ),
           ],
         ),
@@ -415,6 +401,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     required LinearGradient gradient,
     required VoidCallback onTap,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -423,24 +410,41 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Theme.of(context).dividerColor),
+          border: Border.all(
+            color: isDark 
+                ? AppTheme.primaryGreen.withOpacity(0.3) 
+                : AppTheme.primaryGreen.withOpacity(0.2),
+          ),
         ),
         child: Row(
           children: [
             Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                gradient: gradient,
+                gradient: isDark ? gradient : null,
+                color: isDark ? null : gradient.colors.first.withOpacity(0.12),
+                border: isDark
+                    ? null
+                    : Border.all(
+                        color: gradient.colors.first.withOpacity(0.25),
+                        width: 0.8,
+                      ),
                 borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: gradient.colors.first.withOpacity(0.3),
-                    blurRadius: 15,
-                    spreadRadius: 1,
-                  ),
-                ],
+                boxShadow: isDark
+                    ? [
+                        BoxShadow(
+                          color: gradient.colors.first.withOpacity(0.3),
+                          blurRadius: 15,
+                          spreadRadius: 1,
+                        ),
+                      ]
+                    : null,
               ),
-              child: Icon(icon, color: Colors.white, size: 28),
+              child: Icon(
+                icon, 
+                color: isDark ? Colors.white : gradient.colors.last, 
+                size: 28,
+              ),
             ),
             const SizedBox(width: 18),
             Expanded(
@@ -473,12 +477,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Widget _statCard(BuildContext context, String value, String label, IconData icon, Color color) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Theme.of(context).dividerColor),
+        border: Border.all(
+          color: isDark 
+              ? AppTheme.primaryGreen.withOpacity(0.3) 
+              : AppTheme.primaryGreen.withOpacity(0.2),
+        ),
       ),
       child: Column(
         children: [
@@ -493,6 +502,35 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Widget _buildPersonalHistoryCard(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    final cardBgGradient = isDark
+        ? const LinearGradient(
+            colors: [Color(0xFFE5A93C), Color(0xFFC5891C)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          )
+        : const LinearGradient(
+            colors: [Color(0xFFFEF9E7), Color(0xFFFDF2D5)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          );
+          
+    final borderColor = isDark ? Colors.transparent : AppTheme.accentGold.withOpacity(0.25);
+    final shadow = isDark
+        ? [
+            BoxShadow(
+              color: const Color(0xFFC5891C).withOpacity(0.2),
+              blurRadius: 15,
+              offset: const Offset(0, 5),
+            ),
+          ]
+        : null;
+
+    final headerColor = isDark ? Colors.white70 : const Color(0xFF8B6508);
+    final titleColor = isDark ? Colors.white : const Color(0xFF5C4008);
+    final subtitleColor = isDark ? Colors.white70 : const Color(0xFF8B6508).withOpacity(0.85);
+
     return GestureDetector(
       onTap: () {
         Navigator.push(
@@ -504,41 +542,33 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         width: double.infinity,
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFFE5A93C), Color(0xFFC5891C)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
+          gradient: cardBgGradient,
           borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFFC5891C).withOpacity(0.2),
-              blurRadius: 15,
-              offset: const Offset(0, 5),
-            ),
-          ],
+          border: isDark ? null : Border.all(color: borderColor, width: 0.8),
+          boxShadow: shadow,
         ),
         child: Row(
           children: [
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.18),
+                color: isDark ? Colors.white.withOpacity(0.18) : AppTheme.accentGold.withOpacity(0.12),
+                border: isDark ? null : Border.all(color: AppTheme.accentGold.withOpacity(0.25), width: 0.8),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.emoji_events_rounded, color: Colors.white, size: 28),
+              child: Icon(Icons.emoji_events_rounded, color: isDark ? Colors.white : const Color(0xFF8B6508), size: 28),
             ),
             const SizedBox(width: 16),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
+                  Text(
                     '🏆  RIWAYAT & STATISTIK SAYA',
                     style: TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.bold,
-                      color: Colors.white70,
+                      color: headerColor,
                       letterSpacing: 1.2,
                     ),
                   ),
@@ -547,16 +577,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     _personalKhatamCount > 0
                         ? 'Alhamdulillah, $_personalKhatamCount Kali Khatam Al-Quran'
                         : 'Pantau Progres & Statistik Khataman Anda',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                      color: titleColor,
                     ),
                   ),
                   const SizedBox(height: 2),
-                  const Text(
+                  Text(
                     'Lihat riwayat membaca minggu ini, bulan ini, & tahun ini ➔',
-                    style: TextStyle(fontSize: 10, color: Colors.white70),
+                    style: TextStyle(fontSize: 10, color: subtitleColor),
                   ),
                 ],
               ),
