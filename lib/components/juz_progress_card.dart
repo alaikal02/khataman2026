@@ -225,22 +225,31 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
   void _ensureVisible() {
     if (!mounted || !_expanded) return;
     
-    final renderBox = context.findRenderObject() as RenderBox?;
-    if (renderBox == null) return;
-    
-    final position = renderBox.localToGlobal(Offset.zero);
-    final size = renderBox.size;
-    final screenHeight = MediaQuery.of(context).size.height;
-    
-    // Hanya lakukan scroll jika bagian bawah kartu berada di bawah 82% dari tinggi layar
-    if (position.dy + size.height > screenHeight * 0.82) {
-      Scrollable.ensureVisible(
-        context,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOut,
-        alignment: 0.65, // Diangkat lebih tinggi agar tombol terbawah tidak tertutup SnackBar melayang
-      );
-    }
+    // Tunggu 280ms agar animasi expand selesai sepenuhnya dan tinggi kartu terukur akurat
+    Future.delayed(const Duration(milliseconds: 280), () {
+      if (!mounted || !_expanded) return;
+      
+      final renderBox = context.findRenderObject() as RenderBox?;
+      if (renderBox == null) return;
+      
+      final position = renderBox.localToGlobal(Offset.zero);
+      final size = renderBox.size;
+      final screenHeight = MediaQuery.of(context).size.height;
+      
+      // Hitung posisi terbawah dari kartu yang sudah diexpand
+      final cardBottom = position.dy + size.height;
+      
+      // Batas aman: Jika bagian bawah kartu berada di bawah 80% dari tinggi layar,
+      // lakukan scroll otomatis agar kartu terangkat ke atas secara elegan.
+      if (cardBottom > screenHeight * 0.80) {
+        Scrollable.ensureVisible(
+          context,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOutCubic,
+          alignment: 0.82, // Nilai optimal agar tombol "Simpan Progres" terlihat jelas dan aman dari tombol navigasi HP
+        );
+      }
+    });
   }
 
   void _toggleExpand() {
@@ -250,11 +259,7 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
     setState(() => _expanded = !_expanded);
     if (_expanded) {
       _expandController.forward();
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        Future.delayed(const Duration(milliseconds: 150), () {
-          _ensureVisible();
-        });
-      });
+      _ensureVisible();
     } else {
       _expandController.reverse();
     }
@@ -848,22 +853,6 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
                   // Read Input & Buttons
                   if ((widget.isOwned || !widget.isGroupMode) && !isComplete) ...[
                     const SizedBox(height: 12),
-                    OutlinedButton.icon(
-                      onPressed: _confirmMarkFinished,
-                      icon: const Icon(Icons.check_circle_rounded, size: 20),
-                      label: const Text('Saya Sudah Membaca 1 Juz Penuh'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppTheme.primaryGreen,
-                        side: const BorderSide(color: AppTheme.primaryGreen, width: 1.5),
-                        padding: const EdgeInsets.symmetric(vertical: 13),
-                        minimumSize: const Size(double.infinity, 48),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    Divider(color: Theme.of(context).dividerColor.withOpacity(0.5), height: 1),
-                    const SizedBox(height: 14),
                     Text(
                       'Posisi terakhir: $lastPositionString',
                       style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 13),
@@ -974,6 +963,22 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
                           ),
                         ],
                       ],
+                    ),
+                    const SizedBox(height: 14),
+                    Divider(color: Theme.of(context).dividerColor.withOpacity(0.5), height: 1),
+                    const SizedBox(height: 14),
+                    OutlinedButton.icon(
+                      onPressed: _confirmMarkFinished,
+                      icon: const Icon(Icons.check_circle_rounded, size: 20),
+                      label: const Text('Saya Sudah Membaca 1 Juz Penuh'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppTheme.primaryGreen,
+                        side: const BorderSide(color: AppTheme.primaryGreen, width: 1.5),
+                        padding: const EdgeInsets.symmetric(vertical: 13),
+                        minimumSize: const Size(double.infinity, 48),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                      ),
                     ),
                   ] else if (widget.isGroupMode && !widget.isOwned) ...[
                     // Claimed by someone else in the group

@@ -59,6 +59,7 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
           .select('group_id, approval_status')
           .eq('user_id', userId);
 
+      print('Fetched myGroupsData: $myGroupsData');
       setState(() {
         _allGroups = List<Map<String, dynamic>>.from(allGroupsData);
         _myGroupIds = Set<String>.from(
@@ -68,6 +69,8 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
           for (final item in myGroupsData)
             item['group_id'].toString(): (item['approval_status'] ?? 'APPROVED') as String
         };
+        print('Updated _myGroupIds: $_myGroupIds');
+        print('Updated _myMemberStatus: $_myMemberStatus');
         _isLoading = false;
       });
     } catch (e) {
@@ -360,6 +363,65 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
     } catch (e) {
       _showSnackbar('Gagal bergabung: sudah terdaftar atau terjadi error', isError: true);
     }
+  }
+
+  Future<void> _cancelJoinRequest(String groupId, String groupName) async {
+    final userId = _supabase.auth.currentUser?.id;
+    if (userId == null) return;
+
+    try {
+      final res = await _supabase
+          .from('group_members')
+          .delete()
+          .eq('group_id', groupId)
+          .eq('user_id', userId)
+          .select();
+      print('Cancel Join Request result: $res');
+
+      _showSnackbar('Permintaan bergabung ke "$groupName" berhasil dibatalkan.');
+      await _fetchData();
+    } catch (e) {
+      _showSnackbar('Gagal membatalkan permintaan: $e', isError: true);
+    }
+  }
+
+  void _showCancelJoinDialog(String groupId, String groupName) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Batalkan Permintaan?',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        content: Text(
+          'Apakah Anda yakin ingin membatalkan permintaan bergabung dengan grup "$groupName"?',
+          style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              'Batal',
+              style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _cancelJoinRequest(groupId, groupName);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.redAccent,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              elevation: 0,
+            ),
+            child: const Text('Batalkan Permintaan'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showSnackbar(String message, {bool isError = false}) {
@@ -775,19 +837,36 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
                 ),
               )
             else if (isPending)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                decoration: BoxDecoration(
-                  color: AppTheme.accentGold.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: isDark 
-                        ? AppTheme.accentGold.withOpacity(0.4) 
-                        : AppTheme.accentGold.withOpacity(0.25),
-                    width: 0.8,
+              GestureDetector(
+                onTap: () => _showCancelJoinDialog(groupId, group['nama_grup'] ?? 'Grup'),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: AppTheme.accentGold.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: isDark 
+                          ? AppTheme.accentGold.withOpacity(0.4) 
+                          : AppTheme.accentGold.withOpacity(0.25),
+                      width: 0.8,
+                    ),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.hourglass_top_rounded, size: 12, color: AppTheme.accentGold),
+                      SizedBox(width: 4),
+                      Text(
+                        'Menunggu', 
+                        style: TextStyle(
+                          color: AppTheme.accentGold, 
+                          fontWeight: FontWeight.w600, 
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                child: const Text('Menunggu...', style: TextStyle(color: AppTheme.accentGold, fontWeight: FontWeight.w600, fontSize: 12)),
               )
             else
               GestureDetector(
