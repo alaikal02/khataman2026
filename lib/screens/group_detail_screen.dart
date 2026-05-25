@@ -2105,18 +2105,45 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text(code, style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, letterSpacing: 4, color: AppTheme.primaryGreen)),
-                  IconButton(
-                    icon: const Icon(Icons.copy_rounded, color: AppTheme.primaryGreen),
-                    onPressed: () {
+                  GestureDetector(
+                    onLongPress: () {
                       Clipboard.setData(ClipboardData(text: code));
-                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Kode disalin: $code')));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Kode berhasil disalin: $code 📋'),
+                          backgroundColor: AppTheme.primaryGreen,
+                        ),
+                      );
+                    },
+                    child: Tooltip(
+                      message: 'Tekan lama untuk menyalin',
+                      child: Text(
+                        code,
+                        style: const TextStyle(
+                          fontSize: 32,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 4,
+                          color: AppTheme.primaryGreen,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    icon: const Icon(Icons.share_rounded, color: AppTheme.primaryGreen),
+                    tooltip: 'Bagikan Kode Undangan',
+                    onPressed: () {
+                      final gName = widget.groupName ?? _group?['nama_grup'] ?? 'Grup';
+                      final inviteLink = 'https://khataman2026.web.app/join?code=$code';
+                      Share.share(
+                        'Assalamu\'alaikum! 🌙\n\nYuk gabung di grup khataman Al-Quran "$gName"!\n\nKlik link di bawah ini untuk langsung bergabung:\n🔗 $inviteLink\n\n📋 Atau masukkan Kode Grup berikut di aplikasi:\n*$code*\n\nBarakallahu fiikum! 🤲',
+                      );
                     },
                   )
                 ],
               ),
               const SizedBox(height: 8),
-              Text('Bagikan kode ini agar anggota lain dapat bergabung sebelum siklus dimulai.', textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant, height: 1.5)),
+              Text('Tekan lama kode untuk menyalin, atau ketuk ikon bagikan untuk menyebarkan.', textAlign: TextAlign.center, style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant, height: 1.5)),
             ],
           ),
         ),
@@ -2128,6 +2155,8 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
           final user = m['users'] ?? {};
           final name = user['username'] ?? 'User';
           final avatar = user['avatar_url'];
+          final isCreator = m['user_id'] == _group?['creator_id'];
+
           return ListTile(
             contentPadding: EdgeInsets.zero,
             leading: CircleAvatar(
@@ -2135,7 +2164,40 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
               backgroundImage: avatar != null ? NetworkImage(avatar) : null,
               child: avatar == null ? Icon(Icons.person, color: Theme.of(context).colorScheme.onSurfaceVariant) : null,
             ),
-            title: Text(name, style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontWeight: FontWeight.w500)),
+            title: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    name,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurface,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                if (isCreator) ...[
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppTheme.primaryGreen.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: AppTheme.primaryGreen.withOpacity(0.3), width: 0.5),
+                    ),
+                    child: const Text(
+                      'Admin',
+                      style: TextStyle(
+                        color: AppTheme.primaryGreen,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
           );
         }).toList(),
         const SizedBox(height: 24),
