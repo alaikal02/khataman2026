@@ -16,11 +16,33 @@ class _MandiriScreenState extends State<MandiriScreen> {
   final _supabase = Supabase.instance.client;
   List<Map<String, dynamic>> _progress = [];
   bool _isLoading = true;
+  late ScrollController _scrollController;
+  double _shrinkFactor = 0.0;
 
   @override
   void initState() {
     super.initState();
+    _scrollController = ScrollController();
+    _scrollController.addListener(_scrollListener);
     _loadProgress();
+  }
+
+  @override
+  void dispose() {
+    _scrollController.removeListener(_scrollListener);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _scrollListener() {
+    if (!_scrollController.hasClients) return;
+    final offset = _scrollController.offset;
+    final double newFactor = (offset / 80.0).clamp(0.0, 1.0);
+    if (newFactor != _shrinkFactor) {
+      setState(() {
+        _shrinkFactor = newFactor;
+      });
+    }
   }
 
   Future<void> _loadProgress() async {
@@ -117,20 +139,26 @@ class _MandiriScreenState extends State<MandiriScreen> {
       context: context,
       builder: (_) => AlertDialog(
         backgroundColor: Theme.of(context).colorScheme.surface,
-        title: Text('Reset Khataman?', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text('Mulai Khatam Baru?', style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontWeight: FontWeight.bold)),
         content: Text(
-          'Semua progres khataman mandiri Anda akan dihapus dan dimulai dari awal.\n\nApakah Anda yakin?',
+          'Progress bacaan saat ini akan dimulai kembali dari awal. Riwayat khatam sebelumnya tetap tersimpan.',
           style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, height: 1.5),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Batal'),
+            child: Text('Batal', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontWeight: FontWeight.w600)),
           ),
-          TextButton(
+          ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.redAccent),
-            child: const Text('Ya, Reset Semua'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.primaryGreen,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: const Text('Mulai Baru', style: TextStyle(fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -206,10 +234,14 @@ class _MandiriScreenState extends State<MandiriScreen> {
                 // Summary Card
                 _buildSummaryCard(completed, totalPercent),
                 if (completed == 30)
-                  CongratulatoryCard(onReset: _resetAllProgress),
+                  CongratulatoryCard(
+                    onReset: _resetAllProgress,
+                    resetLabel: 'Mulai Khataman Baru',
+                  ),
                 // Juz List
                 Expanded(
                   child: ListView.builder(
+                    controller: _scrollController,
                     padding: EdgeInsets.fromLTRB(16, 8, 16, 24 + MediaQuery.of(context).padding.bottom),
                     itemCount: 30,
                     itemBuilder: (context, index) {
@@ -250,9 +282,19 @@ class _MandiriScreenState extends State<MandiriScreen> {
     final progressBgColor = isDark ? Colors.white.withOpacity(0.12) : AppTheme.primaryGreen.withOpacity(0.15);
     final borderColor = isDark ? AppTheme.primaryGreen.withOpacity(0.3) : AppTheme.primaryGreen.withOpacity(0.2);
 
+    // Fluid scroll-linked morphing sizes and values
+    final double verticalPadding = 18.0 - (10.0 * _shrinkFactor); // 18.0 down to 8.0
+    final double labelOpacity = (1.0 - _shrinkFactor * 1.8).clamp(0.0, 1.0); // Fades out early/quickly for clean layout
+    final double labelHeight = 13.0 * labelOpacity;
+    final double completedFontSize = 26.0 - (11.0 * _shrinkFactor); // 26.0 down to 15.0
+    final double indicatorSize = 72.0 - (38.0 * _shrinkFactor); // 72.0 down to 34.0
+    final double percentFontSize = 16.0 - (6.0 * _shrinkFactor); // 16.0 down to 10.0
+    final double strokeWidth = 4.5 - (2.0 * _shrinkFactor); // 4.5 down to 2.5
+    final double spacerHeight = 4.0 * (1.0 - _shrinkFactor);
+
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+      padding: EdgeInsets.symmetric(horizontal: 20, vertical: verticalPadding),
       decoration: BoxDecoration(
         gradient: cardBgGradient,
         borderRadius: BorderRadius.circular(18),
@@ -261,36 +303,90 @@ class _MandiriScreenState extends State<MandiriScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Progres Khataman', style: TextStyle(color: titleTextColor, fontSize: 13)),
-              const SizedBox(height: 4),
-              Text(
-                '$completed / 30 Juz',
-                style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: valueTextColor),
-              ),
-            ],
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (labelOpacity > 0.0)
+                  SizedBox(
+                    height: labelHeight,
+                    child: Opacity(
+                      opacity: labelOpacity,
+                      child: Text(
+                        'Progres Khataman',
+                        style: TextStyle(
+                          color: titleTextColor,
+                          fontSize: 13,
+                          height: 1.0,
+                        ),
+                      ),
+                    ),
+                  ),
+                if (labelOpacity > 0.0) SizedBox(height: spacerHeight),
+                Stack(
+                  alignment: Alignment.centerLeft,
+                  children: [
+                    Opacity(
+                      opacity: (1.0 - _shrinkFactor / 0.5).clamp(0.0, 1.0),
+                      child: Text(
+                        '$completed / 30 Juz',
+                        style: TextStyle(
+                          fontSize: completedFontSize,
+                          fontWeight: FontWeight.bold,
+                          color: valueTextColor,
+                        ),
+                      ),
+                    ),
+                    Opacity(
+                      opacity: ((_shrinkFactor - 0.4) / 0.6).clamp(0.0, 1.0),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.menu_book_rounded,
+                            color: percentColor,
+                            size: 15,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Progres Mandiri: $completed/30 Juz',
+                            style: TextStyle(
+                              fontSize: completedFontSize,
+                              fontWeight: FontWeight.bold,
+                              color: valueTextColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
           SizedBox(
-            width: 72,
-            height: 72,
+            width: indicatorSize,
+            height: indicatorSize,
             child: Stack(
               alignment: Alignment.center,
               children: [
                 SizedBox(
-                  width: 72,
-                  height: 72,
+                  width: indicatorSize,
+                  height: indicatorSize,
                   child: CircularProgressIndicator(
                     value: completed / 30,
-                    strokeWidth: 4.5,
+                    strokeWidth: strokeWidth,
                     backgroundColor: progressBgColor,
                     valueColor: AlwaysStoppedAnimation<Color>(percentColor),
                   ),
                 ),
                 Text(
                   '$totalPercent%',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: percentColor),
+                  style: TextStyle(
+                    fontSize: percentFontSize,
+                    fontWeight: FontWeight.bold,
+                    color: percentColor,
+                  ),
                 ),
               ],
             ),

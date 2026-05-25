@@ -29,6 +29,8 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
   int _pendingCount = 0;
   int _completedCount = 0;
   late AnimationController _shimmerController;
+  late ScrollController _scrollController;
+  double _shrinkFactor = 0.0;
 
   @override
   void initState() {
@@ -38,6 +40,8 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
       vsync: this,
       duration: const Duration(milliseconds: 1200),
     )..repeat();
+    _scrollController = ScrollController();
+    _scrollController.addListener(_scrollListener);
     _fetchData();
     _setupRealtime();
   }
@@ -52,8 +56,21 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
         debugPrint('🔄 [Realtime Group] Error removing channel on dispose: $e');
       }
     }
+    _scrollController.removeListener(_scrollListener);
+    _scrollController.dispose();
     _shimmerController.dispose();
     super.dispose();
+  }
+
+  void _scrollListener() {
+    if (!_scrollController.hasClients) return;
+    final offset = _scrollController.offset;
+    final double newFactor = (offset / 80.0).clamp(0.0, 1.0);
+    if (newFactor != _shrinkFactor) {
+      setState(() {
+        _shrinkFactor = newFactor;
+      });
+    }
   }
 
   @override
@@ -2142,12 +2159,20 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
     final progressBgColor = isDark ? Colors.white.withOpacity(0.12) : AppTheme.primaryGreen.withOpacity(0.15);
     final borderColor = isDark ? AppTheme.primaryGreen.withOpacity(0.3) : AppTheme.primaryGreen.withOpacity(0.2);
 
+    // Fluid scroll-linked morphing sizes and values
+    final double verticalPadding = 18.0 - (10.0 * _shrinkFactor); // 18.0 down to 8.0
+    final double labelOpacity = (1.0 - _shrinkFactor * 1.8).clamp(0.0, 1.0); // Fades out early/quickly for clean layout
+    final double completedFontSize = 18.0 - (4.0 * _shrinkFactor); // 18.0 down to 14.0
+    final double indicatorSize = 88.0 - (48.0 * _shrinkFactor); // 88.0 down to 40.0
+    final double percentFontSize = 13.5 - (3.5 * _shrinkFactor); // 13.5 down to 10.0
+    final double strokeWidth = 5.5 - (2.5 * _shrinkFactor); // 5.5 down to 3.0
+
     return Column(
       children: [
         // Summary Card
         Container(
           margin: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-          padding: const EdgeInsets.all(18),
+          padding: EdgeInsets.symmetric(horizontal: 18, vertical: verticalPadding),
           decoration: BoxDecoration(
             gradient: cardBgGradient,
             borderRadius: BorderRadius.circular(18),
@@ -2156,124 +2181,169 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Text(
-                        'Putaran ${_putaran?['nomor_putaran'] ?? 1}${dateRangeText.isNotEmpty ? ' • $dateRangeText' : ''}',
-                        style: TextStyle(color: titleTextColor, fontSize: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (labelOpacity > 0.0)
+                      Opacity(
+                        opacity: labelOpacity,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Row(
+                              children: [
+                                Text(
+                                  'Putaran ${_putaran?['nomor_putaran'] ?? 1}${dateRangeText.isNotEmpty ? ' • $dateRangeText' : ''}',
+                                  style: TextStyle(color: titleTextColor, fontSize: 12),
+                                ),
+                                if (_completedCount > 0) ...[
+                                  const SizedBox(width: 8),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                                    decoration: BoxDecoration(
+                                      color: AppTheme.accentGold.withOpacity(0.2),
+                                      borderRadius: BorderRadius.circular(6),
+                                      border: Border.all(color: AppTheme.accentGold.withOpacity(0.5), width: 0.5),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Icon(Icons.emoji_events_rounded, size: 10, color: AppTheme.accentGold),
+                                        const SizedBox(width: 3),
+                                        Text(
+                                          '$_completedCount Khatam',
+                                          style: const TextStyle(color: AppTheme.accentGold, fontSize: 9, fontWeight: FontWeight.bold),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: isLimited 
+                                    ? AppTheme.accentGold.withOpacity(0.15) 
+                                    : AppTheme.primaryGreen.withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(
+                                  color: isLimited 
+                                      ? AppTheme.accentGold.withOpacity(0.4) 
+                                      : AppTheme.primaryGreen.withOpacity(0.4),
+                                  width: 0.5,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    isLimited ? Icons.lock_outline_rounded : Icons.lock_open_rounded,
+                                    size: 11,
+                                    color: isLimited ? AppTheme.accentGold : AppTheme.primaryGreen,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    isLimited 
+                                        ? 'Dibatasi: Maks $maxSlots Juz/orang' 
+                                        : 'Bebas mengambil Juz',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w600,
+                                      color: isLimited ? AppTheme.accentGold : AppTheme.primaryGreen,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                          ],
+                        ),
                       ),
-                      if (_completedCount > 0) ...[
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
-                          decoration: BoxDecoration(
-                            color: AppTheme.accentGold.withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(color: AppTheme.accentGold.withOpacity(0.5), width: 0.5),
+                    Stack(
+                      alignment: Alignment.centerLeft,
+                      children: [
+                        Opacity(
+                          opacity: (1.0 - _shrinkFactor / 0.5).clamp(0.0, 1.0),
+                          child: Text(
+                            '$completed / 30 Juz Selesai',
+                            style: TextStyle(
+                              fontSize: completedFontSize,
+                              fontWeight: FontWeight.bold,
+                              color: valueTextColor,
+                            ),
                           ),
+                        ),
+                        Opacity(
+                          opacity: ((_shrinkFactor - 0.4) / 0.6).clamp(0.0, 1.0),
                           child: Row(
-                            mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Icon(Icons.emoji_events_rounded, size: 10, color: AppTheme.accentGold),
-                              const SizedBox(width: 3),
+                              Icon(Icons.group_rounded, color: percentColor, size: 15),
+                              const SizedBox(width: 6),
                               Text(
-                                '$_completedCount Khatam',
-                                style: const TextStyle(color: AppTheme.accentGold, fontSize: 9, fontWeight: FontWeight.bold),
+                                'Putaran ${_putaran?['nomor_putaran'] ?? 1}: $completed/30 Juz Selesai',
+                                style: TextStyle(
+                                  fontSize: completedFontSize,
+                                  fontWeight: FontWeight.bold,
+                                  color: valueTextColor,
+                                ),
                               ),
                             ],
                           ),
                         ),
                       ],
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: isLimited 
-                          ? AppTheme.accentGold.withOpacity(0.15) 
-                          : AppTheme.primaryGreen.withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(
-                        color: isLimited 
-                            ? AppTheme.accentGold.withOpacity(0.4) 
-                            : AppTheme.primaryGreen.withOpacity(0.4),
-                        width: 0.5,
-                      ),
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          isLimited ? Icons.lock_outline_rounded : Icons.lock_open_rounded,
-                          size: 11,
-                          color: isLimited ? AppTheme.accentGold : AppTheme.primaryGreen,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          isLimited 
-                              ? 'Dibatasi: Maks $maxSlots Juz/orang' 
-                              : 'Bebas mengambil Juz',
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600,
-                            color: isLimited ? AppTheme.accentGold : AppTheme.primaryGreen,
+                    if (remainingText.isNotEmpty && labelOpacity > 0.0) ...[
+                      const SizedBox(height: 10),
+                      Opacity(
+                        opacity: labelOpacity,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: remainingText == 'Waktu habis'
+                                ? Colors.redAccent.withOpacity(0.15)
+                                : AppTheme.accentGold.withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: remainingText == 'Waktu habis'
+                                  ? Colors.redAccent.withOpacity(0.4)
+                                  : AppTheme.accentGold.withOpacity(0.4),
+                              width: 0.8,
+                            ),
+                          ),
+                          child: Text(
+                            remainingText,
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: remainingText == 'Waktu habis'
+                                  ? Colors.redAccent
+                                  : AppTheme.accentGold,
+                            ),
                           ),
                         ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    '$completed / 30 Juz Selesai',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: valueTextColor),
-                  ),
-                  if (remainingText.isNotEmpty) ...[
-                    const SizedBox(height: 10),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: remainingText == 'Waktu habis'
-                            ? Colors.redAccent.withOpacity(0.15)
-                            : AppTheme.accentGold.withOpacity(0.15),
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(
-                          color: remainingText == 'Waktu habis'
-                              ? Colors.redAccent.withOpacity(0.4)
-                              : AppTheme.accentGold.withOpacity(0.4),
-                          width: 0.8,
-                        ),
                       ),
-                      child: Text(
-                        remainingText,
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                          color: remainingText == 'Waktu habis'
-                              ? Colors.redAccent
-                              : AppTheme.accentGold,
-                        ),
-                      ),
-                    ),
+                    ],
                   ],
-                ],
+                ),
               ),
               SizedBox(
-                width: 88,
-                height: 88,
+                width: indicatorSize,
+                height: indicatorSize,
                 child: Stack(
                   alignment: Alignment.center,
                   children: [
                     // Lapisan 1: Pengambilan Juz (Gold)
                     SizedBox(
-                      width: 88,
-                      height: 88,
+                      width: indicatorSize,
+                      height: indicatorSize,
                       child: CircularProgressIndicator(
                         value: claimed / 30,
-                        strokeWidth: 5.5,
+                        strokeWidth: strokeWidth,
                         backgroundColor: progressBgColor,
                         valueColor: AlwaysStoppedAnimation<Color>(
                           isDark ? AppTheme.accentGold : AppTheme.accentGold.withOpacity(0.8),
@@ -2282,11 +2352,11 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                     ),
                     // Lapisan 2: Selesai Dibaca (Hijau Utama) - Ditumpuk di atas
                     SizedBox(
-                      width: 88,
-                      height: 88,
+                      width: indicatorSize,
+                      height: indicatorSize,
                       child: CircularProgressIndicator(
                         value: realProgressValue,
-                        strokeWidth: 5.5,
+                        strokeWidth: strokeWidth,
                         backgroundColor: Colors.transparent,
                         valueColor: AlwaysStoppedAnimation<Color>(percentColor),
                       ),
@@ -2296,25 +2366,30 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Text(
-                          '${(realProgressValue * 100).toStringAsFixed(2)}%',
+                          '${(realProgressValue * 100).toStringAsFixed(1)}%',
                           style: TextStyle(
-                            fontSize: 13.5, 
+                            fontSize: percentFontSize, 
                             fontWeight: FontWeight.bold, 
                             color: percentColor,
                             letterSpacing: -0.2,
                             height: 1.1,
                           ),
                         ),
-                        const SizedBox(height: 3),
-                        Text(
-                          '$claimed/30',
-                          style: TextStyle(
-                            fontSize: 10, 
-                            fontWeight: FontWeight.w700, 
-                            color: isDark ? Colors.white70 : AppTheme.darkGreen.withOpacity(0.7),
-                            height: 1.1,
+                        if (labelOpacity > 0.3) ...[
+                          const SizedBox(height: 3),
+                          Opacity(
+                            opacity: ((labelOpacity - 0.3) / 0.7).clamp(0.0, 1.0),
+                            child: Text(
+                              '$claimed/30',
+                              style: TextStyle(
+                                fontSize: 10, 
+                                fontWeight: FontWeight.w700, 
+                                color: isDark ? Colors.white70 : AppTheme.darkGreen.withOpacity(0.7),
+                                height: 1.1,
+                              ),
+                            ),
                           ),
-                        ),
+                        ],
                       ],
                     ),
                   ],
@@ -2337,6 +2412,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
             backgroundColor: Theme.of(context).colorScheme.surface,
             onRefresh: () => _fetchData(silent: true),
             child: ListView.builder(
+              controller: _scrollController,
               physics: const AlwaysScrollableScrollPhysics(),
               padding: EdgeInsets.fromLTRB(16, 4, 16, 24 + MediaQuery.of(context).padding.bottom),
               itemCount: _slots.length,

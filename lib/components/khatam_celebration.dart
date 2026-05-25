@@ -217,11 +217,16 @@ class CongratulatoryCard extends StatelessWidget {
                     size: 16, 
                     color: isDark ? Colors.white : const Color(0xFF8B6508),
                   ),
-                  label: Text(
-                    'Doa Khatam', 
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold, 
-                      color: isDark ? Colors.white : const Color(0xFF8B6508),
+                  label: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      'Doa Khatam', 
+                      maxLines: 1,
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold, 
+                        fontSize: 13,
+                        color: isDark ? Colors.white : const Color(0xFF8B6508),
+                      ),
                     ),
                   ),
                   style: OutlinedButton.styleFrom(
@@ -231,7 +236,7 @@ class CongratulatoryCard extends StatelessWidget {
                     ),
                     backgroundColor: isDark ? Colors.transparent : AppTheme.accentGold.withOpacity(0.12),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
                   ),
                 ),
               ),
@@ -241,12 +246,22 @@ class CongratulatoryCard extends StatelessWidget {
                   child: ElevatedButton.icon(
                     onPressed: onReset,
                     icon: const Icon(Icons.restart_alt_rounded, size: 16),
-                    label: Text(resetLabel, style: const TextStyle(fontWeight: FontWeight.bold)),
+                    label: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        resetLabel, 
+                        maxLines: 1,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: isDark ? Colors.white : const Color(0xFFC5891C),
                       foregroundColor: isDark ? const Color(0xFF9E680E) : Colors.white,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
                       elevation: 0,
                     ),
                   ),
