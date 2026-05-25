@@ -835,6 +835,28 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                                             icon: const Icon(Icons.cancel_outlined, color: Colors.redAccent),
                                             tooltip: 'Tolak',
                                             onPressed: () async {
+                                              final confirm = await showDialog<bool>(
+                                                context: context,
+                                                builder: (ctx) => AlertDialog(
+                                                  backgroundColor: Theme.of(context).colorScheme.surface,
+                                                  title: const Text('Tolak Permintaan?'),
+                                                  content: Text('Apakah Anda yakin ingin menolak permintaan bergabung dari ${user['username'] ?? 'pengguna ini'}?'),
+                                                  actions: [
+                                                    TextButton(
+                                                      onPressed: () => Navigator.pop(ctx, false),
+                                                      child: Text('Batal', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                                                    ),
+                                                    ElevatedButton(
+                                                      onPressed: () => Navigator.pop(ctx, true),
+                                                      style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+                                                      child: const Text('Tolak', style: TextStyle(color: Colors.white)),
+                                                    ),
+                                                  ],
+                                                ),
+                                              );
+
+                                              if (confirm != true) return;
+
                                               try {
                                                 await _supabase
                                                     .from('group_members')
@@ -843,7 +865,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                                                     .eq('group_id', widget.groupId);
                                                 setStateDialog(() => membersList.removeAt(i));
                                                 _fetchData(silent: true);
-
+ 
                                                 if (mounted) {
                                                   ScaffoldMessenger.of(context).showSnackBar(
                                                     SnackBar(
@@ -873,42 +895,67 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                                           final confirm = await showDialog<bool>(
                                             context: context,
                                             builder: (ctx) => AlertDialog(
+                                              backgroundColor: Theme.of(context).colorScheme.surface,
                                               title: const Text('Keluarkan Anggota?'),
-                                              content: Text('Apakah Anda yakin ingin mengeluarkan ${user['username'] ?? 'anggota ini'} dari grup?'),
+                                              content: Text('Apakah Anda yakin ingin mengeluarkan ${user['username'] ?? 'anggota ini'} dari grup? Semua slot yang dipegang yang bersangkutan akan dikosongkan kembali.'),
                                               actions: [
                                                 TextButton(
                                                   onPressed: () => Navigator.pop(ctx, false),
-                                                  child: const Text('Batal', style: TextStyle(color: AppTheme.textSecondary)),
+                                                  child: Text('Batal', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
                                                 ),
                                                 ElevatedButton(
                                                   onPressed: () => Navigator.pop(ctx, true),
                                                   style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
-                                                  child: const Text('Keluarkan'),
+                                                  child: const Text('Keluarkan', style: TextStyle(color: Colors.white)),
                                                 ),
                                               ],
                                             ),
                                           );
                                           if (confirm != true) return;
-
+ 
                                           try {
-                                            // Keluarkan anggota
+                                            final targetUserId = member['user_id'] as String;
+
+                                            // 1. Kirim notifikasi dikeluarkan dari grup (sebelum menghapus membership agar RLS aman)
+                                            try {
+                                              final gName = widget.groupName ?? _group?['nama_grup'] ?? 'Grup';
+                                              await NotificationService.send(
+                                                userId: targetUserId,
+                                                type: 'JOIN_APPROVED', // Gunakan tipe terdaftar agar ikon/warna indah
+                                                title: 'Dikeluarkan dari Grup 🚪',
+                                                body: 'Anda telah dikeluarkan dari grup "$gName" oleh admin.',
+                                                groupId: null, // Set null agar notifikasi tidak terhapus cascade
+                                              );
+                                            } catch (notifErr) {
+                                              debugPrint('Error sending removed notification: $notifErr');
+                                            }
+
+                                            // 2. Bersihkan slot yang sedang dia pegang di putaran grup ini jika ada (lakukan SEBELUM hapus keanggotaan)
+                                            if (_putaran != null) {
+                                              try {
+                                                await _supabase
+                                                    .from('slot_khataman')
+                                                    .update({'user_id': null, 'ayat_terakhir_input': 0, 'status_checklist': false})
+                                                    .eq('putaran_id', _putaran!['id_putaran'])
+                                                    .eq('user_id', targetUserId);
+                                                debugPrint('[RemoveMember] Slots released successfully');
+                                              } catch (slotErr) {
+                                                debugPrint('[RemoveMember] Slot release failed (non-fatal): $slotErr');
+                                              }
+                                            }
+ 
+                                            // 3. Hapus dari tabel group_members
                                             await _supabase
                                                 .from('group_members')
                                                 .delete()
-                                                .eq('user_id', member['user_id'])
+                                                .eq('user_id', targetUserId)
                                                 .eq('group_id', widget.groupId);
                                             
-                                            // Bersihkan slot yang sedang dia pegang jika ada
-                                            await _supabase
-                                                .from('slot_khataman')
-                                                .update({'user_id': null, 'ayat_terakhir_input': 0, 'status_checklist': false})
-                                                .eq('user_id', member['user_id']);
-
                                             setStateDialog(() {
                                               membersList.removeAt(i);
                                               // Kembalikan ke daftar sugesti
                                               final returnedUser = {
-                                                'id_user': member['user_id'],
+                                                'id_user': targetUserId,
                                                 'username': user['username'],
                                                 'email': user['email'],
                                                 'avatar_url': user['avatar_url']
@@ -917,7 +964,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                                               filteredAvailableUsers.add(returnedUser);
                                             });
                                             _fetchData(silent: true);
-
+ 
                                             if (mounted) {
                                               ScaffoldMessenger.of(context).showSnackBar(
                                                 SnackBar(
@@ -1789,7 +1836,39 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
   Future<void> _deleteGroup() async {
     setState(() => _isLoading = true);
     try {
-      // Hapus grup dari tabel groups dan kembalikan data yang dihapus
+      final gName = widget.groupName ?? _group?['nama_grup'] ?? 'Grup';
+
+      // 1. Kirim notifikasi ke semua anggota grup SEBELUM menghapus grupnya
+      //    (JANGAN sertakan group_id agar notifikasi TIDAK terhapus cascade saat grup dihapus)
+      try {
+        final members = await _supabase
+            .from('group_members')
+            .select('user_id')
+            .eq('group_id', widget.groupId)
+            .eq('approval_status', 'APPROVED');
+
+        final rows = <Map<String, dynamic>>[];
+        final currentUserId = _supabase.auth.currentUser?.id;
+        for (final m in members) {
+          final uid = m['user_id'] as String;
+          if (uid == currentUserId) continue;
+          rows.add({
+            'user_id': uid,
+            'type': 'KHATAMAN_COMPLETE', // Tipe terdaftar agar muncul ikon/warna menarik
+            'title': 'Grup Khataman Dihapus 🗑️',
+            'body': 'Grup "$gName" telah dihapus oleh admin.',
+          });
+        }
+
+        if (rows.isNotEmpty) {
+          await _supabase.from('notifications').insert(rows);
+          debugPrint('[DeleteGroup] Group deletion notifications sent successfully');
+        }
+      } catch (notifErr) {
+        debugPrint('[DeleteGroup] Failed to send notifications: $notifErr');
+      }
+
+      // 2. Hapus grup dari tabel groups dan kembalikan data yang dihapus
       final deletedData = await _supabase
           .from('groups')
           .delete()
