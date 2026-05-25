@@ -53,7 +53,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
         OAuthProvider.google,
         redirectTo: redirectTo,
         queryParams: {
-          'prompt': 'select_account',
+          'prompt': 'consent select_account',
         },
       );
     } catch (e) {
