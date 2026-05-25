@@ -56,7 +56,7 @@ void showDoaKhatamBottomSheet(BuildContext context) {
           const Divider(),
           Expanded(
             child: ListView(
-              padding: const EdgeInsets.all(24),
+              padding: EdgeInsets.fromLTRB(24, 24, 24, 24 + MediaQuery.of(context).padding.bottom),
               children: [
                 Container(
                   width: double.infinity,

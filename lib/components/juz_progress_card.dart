@@ -88,6 +88,12 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
       _localLastAyat = widget.lastAyat;
       _localIsComplete = widget.isComplete;
       _initQuranData();
+
+      // Auto-collapse jika juz ditandai selesai untuk mencegah race condition realtime rebuild
+      if (_localIsComplete && _expanded) {
+        _expanded = false;
+        _expandController.reverse();
+      }
     }
   }
 
@@ -950,6 +956,7 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
                         ],
                         Expanded(
                           child: ElevatedButton(
+                            key: const ValueKey('btn_save_progress'),
                             onPressed: _handleSave,
                             style: ElevatedButton.styleFrom(
                               backgroundColor: isDark ? const Color(0xFF1B8047) : AppTheme.primaryGreen,
@@ -968,6 +975,7 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
                     Divider(color: Theme.of(context).dividerColor.withOpacity(0.5), height: 1),
                     const SizedBox(height: 14),
                     OutlinedButton.icon(
+                      key: const ValueKey('btn_mark_finished'),
                       onPressed: _confirmMarkFinished,
                       icon: const Icon(Icons.check_circle_rounded, size: 20),
                       label: const Text('Saya Sudah Membaca 1 Juz Penuh'),
@@ -999,15 +1007,22 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
                     const Text('✅ Juz ini sudah Anda selesaikan. Alhamdulillah!',
                       style: TextStyle(color: AppTheme.primaryGreen, fontSize: 13)),
                     const SizedBox(height: 12),
-                    OutlinedButton.icon(
+                    OutlinedButton(
+                      key: const ValueKey('btn_undo_finished'),
                       onPressed: () => _markAsFinished(false),
-                      icon: const Icon(Icons.undo_rounded, size: 18),
-                      label: const Text('Batalkan Status Selesai'),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: Theme.of(context).colorScheme.onSurfaceVariant,
-                        side: BorderSide(color: Theme.of(context).dividerColor),
+                        side: BorderSide(color: Theme.of(context).colorScheme.outline),
                         minimumSize: const Size(double.infinity, 42),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.undo_rounded, size: 18),
+                          SizedBox(width: 8),
+                          Text('Batalkan Status Selesai'),
+                        ],
                       ),
                     ),
                   ],
