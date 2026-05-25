@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:quran/quran.dart' as quran;
+import 'package:share_plus/share_plus.dart';
 import '../components/juz_progress_card.dart';
 import '../components/khatam_celebration.dart';
 import '../theme/app_theme.dart';
@@ -378,7 +379,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
           groupId: widget.groupId,
           type: 'CYCLE_STARTED',
           title: '📖 Putaran Baru Dimulai!',
-          body: '$adminName memulai putaran baru di kelompok "$groupName" dengan tenggat waktu $formattedDate.',
+          body: '$adminName memulai putaran baru di grup "$groupName" dengan tenggat waktu $formattedDate.',
           excludeUserId: _supabase.auth.currentUser?.id,
         );
       } catch (e) {
@@ -402,7 +403,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
         backgroundColor: Theme.of(context).colorScheme.surface,
         title: Text('Mulai Putaran Baru?', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
         content: Text(
-          'Kelompok Anda telah menyelesaikan siklus khataman ini.\n\nSilakan pilih metode pembagian Juz untuk putaran berikutnya:',
+          'Grup Anda telah menyelesaikan siklus khataman ini.\n\nSilakan pilih metode pembagian Juz untuk putaran berikutnya:',
           style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, height: 1.5),
         ),
         actionsPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -1024,8 +1025,8 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
         await NotificationService.sendToGroup(
           groupId: widget.groupId,
           type: 'DEADLINE_CHANGED',
-          title: '⏰ Tenggat Kelompok Diperbarui',
-          body: '$adminName mengubah tenggat waktu kelompok "$groupName" menjadi $formattedDate.',
+          title: '⏰ Tenggat Grup Diperbarui',
+          body: '$adminName mengubah tenggat waktu grup "$groupName" menjadi $formattedDate.',
           excludeUserId: _supabase.auth.currentUser?.id,
         );
       } catch (e) {
@@ -1054,6 +1055,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
 
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -1065,9 +1067,14 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
           final memberCount = approvedMembersCount == 0 ? 1 : approvedMembersCount;
           final maxSlots = (30 / memberCount).ceil();
 
-          return SafeArea(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
+          return ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(ctx).size.height * 0.85,
+            ),
+            child: SafeArea(
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
               children: [
                 const SizedBox(height: 12),
                 Center(
@@ -1082,7 +1089,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  'Pengaturan Kelompok',
+                  'Pengaturan Grup',
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
@@ -1092,15 +1099,16 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                 const SizedBox(height: 12),
                 const Divider(),
                 ListTile(
-                  leading: const Icon(Icons.copy_rounded, color: AppTheme.primaryGreen),
-                  title: const Text('Salin Kode Undangan'),
+                  leading: const Icon(Icons.share_rounded, color: AppTheme.primaryGreen),
+                  title: const Text('Bagikan Kode Undangan'),
                   subtitle: Text(_group?['kode_gk_unik'] ?? ''),
                   onTap: () {
                     Navigator.pop(ctx);
                     if (_group != null) {
-                      Clipboard.setData(ClipboardData(text: _group!['kode_gk_unik']));
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Kode Grup disalin: ${_group!['kode_gk_unik']}')),
+                      final kode = _group!['kode_gk_unik'];
+                      final namaGrup = _group!['nama_grup'] ?? 'Khataman';
+                      Share.share(
+                        'Assalamu\'alaikum! 🌙\n\nYuk gabung di grup khataman Al-Quran "$namaGrup"!\n\nGunakan kode berikut di aplikasi Khataman Quran:\n\n📋 Kode Grup: *$kode*\n\nBarakallahu fiikum! 🤲',
                       );
                     }
                   },
@@ -1108,7 +1116,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                 ListTile(
                   leading: const Icon(Icons.history_rounded, color: AppTheme.accentGold),
                   title: const Text('Riwayat Khataman'),
-                  subtitle: const Text('Lihat pencapaian & sejarah khataman kelompok'),
+                  subtitle: const Text('Lihat pencapaian & sejarah khataman grup'),
                   onTap: () {
                     Navigator.pop(ctx);
                     _showKhatamHistorySheet();
@@ -1211,7 +1219,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                     ),
                   ListTile(
                     leading: const Icon(Icons.delete_forever_rounded, color: Colors.redAccent),
-                    title: const Text('Hapus Kelompok', style: TextStyle(color: Colors.redAccent)),
+                    title: const Text('Hapus Grup', style: TextStyle(color: Colors.redAccent)),
                     subtitle: const Text('Hapus grup ini secara permanen dari server'),
                     onTap: () {
                       Navigator.pop(ctx);
@@ -1222,7 +1230,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                   ListTile(
                     leading: const Icon(Icons.people_rounded, color: AppTheme.accentTeal),
                     title: const Text('Daftar Anggota'),
-                    subtitle: const Text('Lihat anggota kelompok saat ini'),
+                    subtitle: const Text('Lihat anggota grup saat ini'),
                     onTap: () {
                       Navigator.pop(ctx);
                       _showMembersListOnlyDialog();
@@ -1230,7 +1238,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                   ),
                   ListTile(
                     leading: const Icon(Icons.exit_to_app_rounded, color: Colors.redAccent),
-                    title: const Text('Keluar dari Kelompok', style: TextStyle(color: Colors.redAccent)),
+                    title: const Text('Keluar dari Grup', style: TextStyle(color: Colors.redAccent)),
                     subtitle: const Text('Keluar dan lepaskan semua juz yang Anda klaim'),
                     onTap: () {
                       Navigator.pop(ctx);
@@ -1240,6 +1248,8 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                 ],
                 const SizedBox(height: 16),
               ],
+            ),
+              ),
             ),
           );
         }
@@ -1389,7 +1399,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                                 ),
                               ),
                               Text(
-                                'Daftar putaran khataman kelompok yang selesai',
+                                'Daftar putaran khataman grup yang selesai',
                                 style: TextStyle(
                                   fontSize: 12,
                                   color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -1453,7 +1463,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                                   ),
                                   const SizedBox(height: 8),
                                   Text(
-                                    'Selesaikan target 30 Juz pada putaran aktif untuk mencatatkan riwayat khataman pertama kelompok Anda!',
+                                    'Selesaikan target 30 Juz pada putaran aktif untuk mencatatkan riwayat khataman pertama grup Anda!',
                                     textAlign: TextAlign.center,
                                     style: TextStyle(
                                       fontSize: 12,
@@ -1684,8 +1694,8 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: Theme.of(context).colorScheme.surface,
-        title: const Text('Keluar Kelompok'),
-        content: const Text('Apakah Anda yakin ingin keluar dari kelompok khataman ini? Semua juz yang telah Anda klaim akan dilepaskan kembali.'),
+        title: const Text('Keluar Grup'),
+        content: const Text('Apakah Anda yakin ingin keluar dari grup khataman ini? Semua juz yang telah Anda klaim akan dilepaskan kembali.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -1704,32 +1714,41 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
       try {
         final currentUserId = _supabase.auth.currentUser!.id;
 
-        // 1. Delete from group_members
+        // 1. Release slots FIRST (sebelum hapus membership, karena RLS mungkin
+        //    memerlukan membership aktif untuk mengizinkan update slot)
+        if (_putaran != null) {
+          try {
+            await _supabase
+                .from('slot_khataman')
+                .update({'user_id': null, 'ayat_terakhir_input': 0, 'status_checklist': false})
+                .eq('putaran_id', _putaran!['id_putaran'])
+                .eq('user_id', currentUserId);
+            debugPrint('[LeaveGroup] Slots released successfully');
+          } catch (slotErr) {
+            debugPrint('[LeaveGroup] Slot release error (non-fatal): $slotErr');
+            // Lanjutkan proses meskipun slot release gagal
+          }
+        }
+
+        // 2. Delete from group_members
         await _supabase
             .from('group_members')
             .delete()
             .eq('group_id', widget.groupId)
             .eq('user_id', currentUserId);
-
-        // 2. Release slots in current cycle
-        if (_putaran != null) {
-          await _supabase
-              .from('slot_khataman')
-              .update({'user_id': null, 'ayat_terakhir_input': 0, 'status_checklist': false})
-              .eq('putaran_id', _putaran!['id_putaran'])
-              .eq('user_id', currentUserId);
-        }
+        debugPrint('[LeaveGroup] Member deleted successfully from group ${widget.groupId}');
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Anda telah keluar dari kelompok.'), backgroundColor: AppTheme.primaryGreen),
+            const SnackBar(content: Text('Anda telah keluar dari grup.'), backgroundColor: AppTheme.primaryGreen),
           );
-          Navigator.pop(context); // Go back to groups list screen
+          Navigator.pop(context, true); // Go back to groups list screen with refresh signal
         }
       } catch (e) {
+        debugPrint('[LeaveGroup] Error: $e');
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Gagal keluar kelompok: $e'), backgroundColor: Colors.redAccent),
+            SnackBar(content: Text('Gagal keluar grup: $e'), backgroundColor: Colors.redAccent),
           );
         }
       }
@@ -1923,9 +1942,9 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                 isLabelVisible: currentUserId == _group!['creator_id'] && _pendingCount > 0,
                 label: Text('$_pendingCount'),
                 backgroundColor: Colors.redAccent,
-                child: Icon(Icons.settings_rounded, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                child: Icon(Icons.more_vert_rounded, color: Theme.of(context).colorScheme.onSurfaceVariant),
               ),
-              tooltip: 'Pengaturan Kelompok',
+              tooltip: 'Pengaturan Grup',
               onPressed: _showGroupSettings,
             ),
         ],
@@ -1969,7 +1988,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
-                        'Pencapaian Kelompok',
+                        'Pencapaian Grup',
                         style: TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 2),
@@ -2400,8 +2419,8 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
         ),
         if (completed == 30)
           CongratulatoryCard(
-            title: 'Maa Syaa Allah, Kelompok Anda Khatam! 🎉',
-            description: 'Alhamdulillah! Kelompok "${_group?['nama_grup'] ?? 'Grup'}" telah menyelesaikan siklus khataman 30 Juz Al-Quran.',
+            title: 'Maa Syaa Allah, Grup Anda Khatam! 🎉',
+            description: 'Alhamdulillah! Grup "${_group?['nama_grup'] ?? 'Grup'}" telah menyelesaikan siklus khataman 30 Juz Al-Quran.',
             resetLabel: 'Putaran Baru',
             showResetButton: isCreator,
             onReset: _showNewPutaranDialog,
