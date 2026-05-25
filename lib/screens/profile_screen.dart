@@ -139,6 +139,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final avatarUrl = user?.userMetadata?['avatar_url'] as String?;
     final email = user?.email ?? '';
     final username = _profile?['username'] ?? '';
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -159,32 +160,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   const SizedBox(height: 12),
 
                   // ── Avatar ──────────────────────────────────
-                  Stack(
-                    alignment: Alignment.bottomRight,
-                    children: [
-                      Container(
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(color: AppTheme.primaryGreen, width: 3),
-                        ),
-                        child: CircleAvatar(
-                          radius: 54,
-                          backgroundColor: Theme.of(context).colorScheme.surface,
-                          backgroundImage: avatarUrl != null ? NetworkImage(avatarUrl) : null,
-                          child: avatarUrl == null
-                              ? Icon(Icons.person_rounded, size: 50, color: Theme.of(context).colorScheme.onSurfaceVariant)
-                              : null,
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: const BoxDecoration(
-                          color: AppTheme.primaryGreen,
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(Icons.camera_alt_rounded, size: 16, color: Colors.white),
-                      ),
-                    ],
+                  Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(color: AppTheme.primaryGreen, width: 3),
+                    ),
+                    child: CircleAvatar(
+                      radius: 54,
+                      backgroundColor: Theme.of(context).colorScheme.surface,
+                      backgroundImage: avatarUrl != null ? NetworkImage(avatarUrl) : null,
+                      child: avatarUrl == null
+                          ? Icon(Icons.person_rounded, size: 50, color: Theme.of(context).colorScheme.onSurfaceVariant)
+                          : null,
+                    ),
                   ),
                   const SizedBox(height: 12),
 
@@ -208,7 +196,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     decoration: BoxDecoration(
                       color: Theme.of(context).colorScheme.surface,
                       borderRadius: BorderRadius.circular(18),
-                      border: Border.all(color: Theme.of(context).dividerColor),
+                      border: Border.all(
+                        color: isDark 
+                            ? AppTheme.primaryGreen.withOpacity(0.3) 
+                            : AppTheme.primaryGreen.withOpacity(0.2),
+                      ),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -216,23 +208,43 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text('Username', style: TextStyle(
-                              color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 13, fontWeight: FontWeight.w600,
-                            )),
+                            Row(
+                              children: [
+                                Text('Username', style: TextStyle(
+                                  color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 13, fontWeight: FontWeight.w600,
+                                )),
+                                const SizedBox(width: 6),
+                                Tooltip(
+                                  message: 'Aturan Username:\n• Minimal 3 karakter\n• Hanya huruf (a-z), angka (0-9), & underscore (_)',
+                                  textStyle: const TextStyle(color: Colors.white, fontSize: 11, height: 1.4),
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey[850],
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  padding: const EdgeInsets.all(8),
+                                  triggerMode: TooltipTriggerMode.tap,
+                                  child: Icon(
+                                    Icons.info_outline_rounded,
+                                    size: 14,
+                                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              ],
+                            ),
                             if (!_isEditing)
                               GestureDetector(
                                 onTap: () => setState(() => _isEditing = true),
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                                   decoration: BoxDecoration(
-                                    color: AppTheme.primaryGreen.withOpacity(0.15),
+                                    color: AppTheme.primaryGreen.withOpacity(0.12),
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: const Row(
                                     children: [
                                       Icon(Icons.edit_rounded, size: 14, color: AppTheme.primaryGreen),
                                       SizedBox(width: 4),
-                                      Text('Ubah', style: TextStyle(color: AppTheme.primaryGreen, fontSize: 13)),
+                                      Text('Ubah', style: TextStyle(color: AppTheme.primaryGreen, fontSize: 13, fontWeight: FontWeight.w600)),
                                     ],
                                   ),
                                 ),
@@ -244,16 +256,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           TextField(
                             controller: _usernameController,
                             style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontSize: 16),
-                            decoration: InputDecoration(
+                            decoration: const InputDecoration(
                               hintText: 'Masukkan username baru',
                               prefixText: '@',
-                              prefixStyle: const TextStyle(color: AppTheme.primaryGreen, fontWeight: FontWeight.w600),
-                              helperText: 'Hanya huruf, angka, dan underscore. Min. 3 karakter.',
-                              helperStyle: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 11),
+                              prefixStyle: TextStyle(color: AppTheme.primaryGreen, fontWeight: FontWeight.w600),
                             ),
                             autofocus: true,
                           ),
-                          const SizedBox(height: 14),
+                          const SizedBox(height: 10),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _buildGuidelineRow(context, 'Minimal 3 karakter'),
+                              const SizedBox(height: 4),
+                              _buildGuidelineRow(context, 'Hanya huruf, angka, dan underscore (_)'),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
                           Row(
                             children: [
                               Expanded(
@@ -265,11 +284,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                           setState(() => _isEditing = false);
                                         },
                                   style: OutlinedButton.styleFrom(
-                                    side: BorderSide(color: Theme.of(context).dividerColor),
+                                    foregroundColor: Theme.of(context).colorScheme.onSurface,
+                                    side: BorderSide(
+                                      color: isDark 
+                                          ? AppTheme.primaryGreen.withOpacity(0.5) 
+                                          : AppTheme.primaryGreen.withOpacity(0.4),
+                                      width: 1.5,
+                                    ),
                                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                    padding: const EdgeInsets.symmetric(vertical: 13),
+                                    minimumSize: const Size.fromHeight(48),
                                   ),
-                                  child: Text('Batal', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                                  child: const Text('Batal', style: TextStyle(fontWeight: FontWeight.w600)),
                                 ),
                               ),
                               const SizedBox(width: 10),
@@ -277,14 +302,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 child: ElevatedButton(
                                   onPressed: _isSaving ? null : _saveUsername,
                                   style: ElevatedButton.styleFrom(
-                                    padding: const EdgeInsets.symmetric(vertical: 13),
+                                    backgroundColor: isDark ? const Color(0xFF1B8047) : AppTheme.primaryGreen,
+                                    foregroundColor: Colors.white,
+                                    disabledBackgroundColor: Colors.grey.withOpacity(0.3),
+                                    elevation: 0,
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                    minimumSize: const Size.fromHeight(48),
                                   ),
                                   child: _isSaving
                                       ? const SizedBox(
-                                          width: 18, height: 18,
+                                          width: 20, height: 20,
                                           child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                                         )
-                                      : const Text('Simpan'),
+                                      : const Text('Simpan', style: TextStyle(fontWeight: FontWeight.bold)),
                                 ),
                               ),
                             ],
@@ -293,9 +323,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           Row(
                             children: [
                               const Text('@', style: TextStyle(color: AppTheme.primaryGreen, fontSize: 18, fontWeight: FontWeight.w600)),
-                              Text(
-                                username,
-                                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: Theme.of(context).colorScheme.onSurface),
+                              Expanded(
+                                child: Text(
+                                  username,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: Theme.of(context).colorScheme.onSurface),
+                                ),
                               ),
                             ],
                           ),
@@ -311,12 +344,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     decoration: BoxDecoration(
                       color: Theme.of(context).colorScheme.surface,
                       borderRadius: BorderRadius.circular(18),
-                      border: Border.all(color: Theme.of(context).dividerColor),
+                      border: Border.all(
+                        color: isDark 
+                            ? AppTheme.primaryGreen.withOpacity(0.3) 
+                            : AppTheme.primaryGreen.withOpacity(0.2),
+                      ),
                     ),
                     child: Column(
                       children: [
                         _buildInfoRow(Icons.email_rounded, 'Email', email),
-                        Divider(color: Theme.of(context).dividerColor, height: 24),
+                        Divider(
+                          color: isDark 
+                              ? AppTheme.primaryGreen.withOpacity(0.15) 
+                              : AppTheme.primaryGreen.withOpacity(0.12),
+                          height: 24,
+                          indent: 38,
+                        ),
                         _buildInfoRow(
                           Icons.login_rounded,
                           'Login dengan',
@@ -327,7 +370,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             errorBuilder: (_, __, ___) => const Icon(Icons.g_mobiledata_rounded, color: Colors.red),
                           ),
                         ),
-                        Divider(color: Theme.of(context).dividerColor, height: 24),
+                        Divider(
+                          color: isDark 
+                              ? AppTheme.primaryGreen.withOpacity(0.15) 
+                              : AppTheme.primaryGreen.withOpacity(0.12),
+                          height: 24,
+                          indent: 38,
+                        ),
                         _buildInfoRow(
                           Icons.calendar_today_rounded,
                           'Bergabung sejak',
@@ -345,12 +394,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     width: double.infinity,
                     child: OutlinedButton.icon(
                       onPressed: () => _confirmLogout(authProvider),
-                      icon: const Icon(Icons.logout_rounded, color: Colors.redAccent),
-                      label: const Text('Keluar dari Akun', style: TextStyle(color: Colors.redAccent)),
+                      icon: const Icon(Icons.logout_rounded, color: Colors.redAccent, size: 20),
+                      label: const Text('Keluar dari Akun', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
                       style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: Colors.redAccent),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        foregroundColor: Colors.redAccent,
+                        side: const BorderSide(color: Colors.redAccent, width: 1.5),
+                        minimumSize: const Size.fromHeight(48),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
                     ),
                   ),
@@ -396,5 +446,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
     } catch (_) {
       return isoDate;
     }
+  }
+
+  Widget _buildGuidelineRow(BuildContext context, String text) {
+    return Row(
+      children: [
+        const Icon(Icons.check_circle_outline_rounded, size: 12, color: AppTheme.primaryGreen),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            text,
+            style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 11),
+          ),
+        ),
+      ],
+    );
   }
 }
