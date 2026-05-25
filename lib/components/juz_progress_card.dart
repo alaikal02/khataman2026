@@ -933,6 +933,21 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
                     const SizedBox(height: 12),
                     Row(
                       children: [
+                        if (widget.isGroupMode) ...[
+                          OutlinedButton(
+                            onPressed: _confirmRelease,
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.redAccent,
+                              side: const BorderSide(color: Colors.redAccent, width: 1.5),
+                              minimumSize: const Size(0, 48),
+                              padding: const EdgeInsets.symmetric(horizontal: 16),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                            ),
+                            child: const Text('Lepas'),
+                          ),
+                          const SizedBox(width: 8),
+                        ],
                         Expanded(
                           child: ElevatedButton(
                             onPressed: _handleSave,
@@ -947,21 +962,6 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
                             child: const Text('Simpan Progres'),
                           ),
                         ),
-                        if (widget.isGroupMode) ...[
-                          const SizedBox(width: 8),
-                          OutlinedButton(
-                            onPressed: _confirmRelease,
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: Colors.redAccent,
-                              side: const BorderSide(color: Colors.redAccent, width: 1.5),
-                              minimumSize: const Size(0, 48),
-                              padding: const EdgeInsets.symmetric(horizontal: 16),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                              textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-                            ),
-                            child: const Text('Lepas'),
-                          ),
-                        ],
                       ],
                     ),
                     const SizedBox(height: 14),
