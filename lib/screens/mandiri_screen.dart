@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:quran/quran.dart' as quran;
 import '../components/juz_progress_card.dart';
 import '../components/khatam_celebration.dart';
 import '../theme/app_theme.dart';
@@ -207,8 +208,31 @@ class _MandiriScreenState extends State<MandiriScreen> {
 
   @override
   Widget build(BuildContext context) {
+    double totalProgressSum = 0.0;
+    for (int juzNum = 1; juzNum <= 30; juzNum++) {
+      final progress = _getProgressForJuz(juzNum);
+      if (progress != null) {
+        if (progress['selesai'] == true) {
+          totalProgressSum += 1.0;
+        } else {
+          final lastAyat = progress['ayat_terakhir'] as int? ?? 0;
+          if (lastAyat > 0) {
+            final surahsInJuz = quran.getSurahAndVersesFromJuz(juzNum);
+            int totalAyatInJuz = 0;
+            surahsInJuz.forEach((surah, bounds) {
+              totalAyatInJuz += (bounds[1] - bounds[0] + 1);
+            });
+            if (totalAyatInJuz > 0) {
+              double fraction = lastAyat / totalAyatInJuz;
+              totalProgressSum += fraction > 1.0 ? 1.0 : fraction;
+            }
+          }
+        }
+      }
+    }
+    final double realProgressValue = totalProgressSum / 30.0;
+    final String totalPercent = (realProgressValue * 100).toStringAsFixed(2);
     final completed = _completedCount();
-    final totalPercent = (completed / 30 * 100).round();
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -232,7 +256,7 @@ class _MandiriScreenState extends State<MandiriScreen> {
           : Column(
               children: [
                 // Summary Card
-                _buildSummaryCard(completed, totalPercent),
+                _buildSummaryCard(completed, realProgressValue, totalPercent),
                 if (completed == 30)
                   CongratulatoryCard(
                     onReset: _resetAllProgress,
@@ -263,7 +287,7 @@ class _MandiriScreenState extends State<MandiriScreen> {
     );
   }
 
-  Widget _buildSummaryCard(int completed, int totalPercent) {
+  Widget _buildSummaryCard(int completed, double realProgressValue, String totalPercent) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardBgGradient = isDark
         ? const LinearGradient(
@@ -287,8 +311,8 @@ class _MandiriScreenState extends State<MandiriScreen> {
     final double labelOpacity = (1.0 - _shrinkFactor * 1.8).clamp(0.0, 1.0); // Fades out early/quickly for clean layout
     final double labelHeight = 13.0 * labelOpacity;
     final double completedFontSize = 26.0 - (11.0 * _shrinkFactor); // 26.0 down to 15.0
-    final double indicatorSize = 72.0 - (38.0 * _shrinkFactor); // 72.0 down to 34.0
-    final double percentFontSize = 16.0 - (6.0 * _shrinkFactor); // 16.0 down to 10.0
+    final double indicatorSize = 88.0 - (48.0 * _shrinkFactor); // 88.0 down to 40.0 (slightly larger to accommodate "100.00%")
+    final double percentFontSize = 14.0 - (4.0 * _shrinkFactor); // 14.0 down to 10.0
     final double strokeWidth = 4.5 - (2.0 * _shrinkFactor); // 4.5 down to 2.5
     final double spacerHeight = 4.0 * (1.0 - _shrinkFactor);
 
@@ -330,7 +354,7 @@ class _MandiriScreenState extends State<MandiriScreen> {
                     Opacity(
                       opacity: (1.0 - _shrinkFactor / 0.5).clamp(0.0, 1.0),
                       child: Text(
-                        '$completed / 30 Juz',
+                        '$completed / 30 Juz Selesai',
                         style: TextStyle(
                           fontSize: completedFontSize,
                           fontWeight: FontWeight.bold,
@@ -374,7 +398,7 @@ class _MandiriScreenState extends State<MandiriScreen> {
                   width: indicatorSize,
                   height: indicatorSize,
                   child: CircularProgressIndicator(
-                    value: completed / 30,
+                    value: realProgressValue,
                     strokeWidth: strokeWidth,
                     backgroundColor: progressBgColor,
                     valueColor: AlwaysStoppedAnimation<Color>(percentColor),
@@ -386,6 +410,7 @@ class _MandiriScreenState extends State<MandiriScreen> {
                     fontSize: percentFontSize,
                     fontWeight: FontWeight.bold,
                     color: percentColor,
+                    letterSpacing: -0.5,
                   ),
                 ),
               ],

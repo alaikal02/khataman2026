@@ -255,7 +255,7 @@ class SettingsScreen extends StatelessWidget {
               style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12, height: 1.6),
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 48),
         ],
       ),
     );
