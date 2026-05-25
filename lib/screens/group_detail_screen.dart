@@ -1342,7 +1342,14 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                         ),
                         title: Row(
                           children: [
-                            Text(user['username'] ?? 'User', style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontSize: 14)),
+                            Expanded(
+                              child: Text(
+                                user['username'] ?? 'User',
+                                style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontSize: 14),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
                             if (isCreator) ...[
                               const SizedBox(width: 8),
                               Container(
@@ -1356,7 +1363,12 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                             ],
                           ],
                         ),
-                        subtitle: Text(user['email'] ?? '', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 11)),
+                        subtitle: Text(
+                          user['email'] ?? '',
+                          style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 11),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       );
                     },
                   ),
