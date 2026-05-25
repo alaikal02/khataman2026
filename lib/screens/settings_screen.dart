@@ -209,7 +209,7 @@ class SettingsScreen extends StatelessWidget {
               icon: Icons.info_outline_rounded,
               iconColor: const Color(0xFF2196F3),
               title: 'Tentang Aplikasi',
-              subtitle: 'Khataman Quran v1.0.0',
+              subtitle: 'Khataman Quran v1.1.0',
               trailing: Icon(Icons.chevron_right_rounded, color: Theme.of(context).colorScheme.onSurfaceVariant),
               onTap: () => _showAboutDialog(context),
             ),
@@ -220,6 +220,16 @@ class SettingsScreen extends StatelessWidget {
               title: 'Kebijakan Privasi',
               subtitle: 'Cara kami melindungi data Anda',
               trailing: Icon(Icons.chevron_right_rounded, color: Theme.of(context).colorScheme.onSurfaceVariant),
+              onTap: () => _showPrivacyPolicyDialog(context),
+            ),
+            _divider(context),
+            _buildTileLeading(context, 
+              icon: Icons.history_rounded,
+              iconColor: const Color(0xFFE91E63),
+              title: 'Catatan Perubahan (Changelog)',
+              subtitle: 'Riwayat pembaruan & versi aplikasi',
+              trailing: Icon(Icons.chevron_right_rounded, color: Theme.of(context).colorScheme.onSurfaceVariant),
+              onTap: () => _showChangelogDialog(context),
             ),
           ]),
 
@@ -240,7 +250,7 @@ class SettingsScreen extends StatelessWidget {
           const SizedBox(height: 32),
           Center(
             child: Text(
-              'Khataman Quran • v1.0.0\nDibuat dengan ❤️ untuk umat',
+              'Khataman Quran • v1.1.0\nDibuat dengan ❤️ untuk umat',
               textAlign: TextAlign.center,
               style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12, height: 1.6),
             ),
@@ -360,7 +370,7 @@ class SettingsScreen extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Versi: 1.0.0', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+            Text('Versi: 1.1.0', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
             const SizedBox(height: 8),
             Text(
               'Aplikasi untuk melacak progres Khataman Al-Quran secara mandiri maupun bersama dalam grup.',
@@ -380,6 +390,159 @@ class SettingsScreen extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+
+  void _showPrivacyPolicyDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.privacy_tip_rounded, color: Color(0xFF9C27B0), size: 28),
+            SizedBox(width: 8),
+            Text('Kebijakan Privasi', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+          ],
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Kami sangat menghargai privasi dan perlindungan data Anda. Aplikasi Khataman Quran dirancang dengan asas transparansi penuh:',
+                  style: TextStyle(color: Theme.of(context).colorScheme.onSurface, height: 1.5, fontSize: 13),
+                ),
+                const SizedBox(height: 16),
+                _policySection(context, '1. Pengumpulan Data', 
+                  'Aplikasi menyinkronkan data progres membaca Anda (Juz yang diklaim/selesai, riwayat khataman) ke database Supabase Cloud yang aman demi kelancaran akses lintas perangkat Anda.'),
+                _policySection(context, '2. Autentikasi Pengguna', 
+                  'Kami menggunakan email Anda (melalui Google Sign-In atau Email Auth) semata-mata untuk keperluan keamanan akun, kepemilikan grup, dan sinkronisasi riwayat Anda.'),
+                _policySection(context, '3. Kerahasiaan Penuh', 
+                  'Data pribadi dan progres Anda tidak akan pernah dijual, dibagikan, atau disalahgunakan kepada pihak ketiga mana pun.'),
+                _policySection(context, '4. Hak Penghapusan Akun', 
+                  'Anda memiliki hak mutlak untuk menghapus seluruh data Anda kapan saja. Melalui tombol "Hapus Akun", seluruh profil, data grup milik sendiri, riwayat, dan relasi data Anda di database server kami akan dihapus secara instan dan permanen tanpa sisa.'),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Saya Mengerti', style: TextStyle(color: AppTheme.primaryGreen, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _policySection(BuildContext context, String title, String body) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Theme.of(context).colorScheme.onSurface)),
+          const SizedBox(height: 4),
+          Text(
+            body,
+            style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12, height: 1.5),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showChangelogDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.history_rounded, color: Color(0xFFE91E63), size: 28),
+            SizedBox(width: 8),
+            Text('Catatan Perubahan', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+          ],
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _changelogVersion(
+                  context,
+                  version: 'v1.1.0 (Mei 2026)',
+                  changes: [
+                    '✨ Estetika Premium: Penyelarasan tinggi (48px), kebulatan (circular 12), dan pewarnaan cerdas tombol "Saya Sudah Membaca", "Simpan Progres", dan "Lepas" (Light & Dark Mode).',
+                    '👑 Hapus Akun Mandiri & Interaktif: Dukungan transfer kepemimpinan grup (admin) melalui dialog pemilihan anggota secara manual sebelum akun dihapus.',
+                    '🔒 Preservasi Cerdas (Snapshot): Juz yang telah 100% selesai dibaca dipertahankan sebagai snapshot sejarah grup, sedangkan juz inkomplit otomatis dilepas untuk anggota lain.',
+                    '🔔 Pengingat Lintas Platform: Dukungan notifikasi browser Web (HTML5 Notification API) di Chrome serta kueri izin otomatis untuk Android 13+ & iOS.',
+                    '📜 Catatan Perubahan & Privasi: Penambahan dialog Kebijakan Privasi transparan dan menu Changelog interaktif pada halaman pengaturan.',
+                  ],
+                ),
+                const SizedBox(height: 16),
+                _changelogVersion(
+                  context,
+                  version: 'v1.0.0 (Awal 2026)',
+                  changes: [
+                    '📖 Khataman Mandiri: Melacak membaca Al-Quran mandiri Juz 1 - 30 dengan visual progres yang interaktif.',
+                    '👥 Khataman Grup: Bergabung atau membuat grup bersama rekan-rekan untuk mengkhatamkan 30 Juz secara kooperatif.',
+                    '☁️ Supabase Cloud Sync: Sinkronisasi instan dua arah seluruh riwayat dan progres membaca secara real-time.',
+                    '🌗 Tema Dinamis: Dukungan Tema Gelap & Terang yang nyaman bagi mata saat membaca.',
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Tutup', style: TextStyle(color: AppTheme.primaryGreen, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _changelogVersion(BuildContext context, {required String version, required List<String> changes}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            color: AppTheme.primaryGreen.withOpacity(0.12),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Text(
+            version,
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.primaryGreen),
+          ),
+        ),
+        const SizedBox(height: 8),
+        ...changes.map((c) => Padding(
+              padding: const EdgeInsets.only(bottom: 6, left: 4),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('• ', style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontWeight: FontWeight.bold)),
+                  Expanded(
+                    child: Text(
+                      c,
+                      style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12, height: 1.5),
+                    ),
+                  ),
+                ],
+              ),
+            )),
+      ],
     );
   }
 

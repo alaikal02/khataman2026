@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import '../services/notification_helper.dart';
 
 class SettingsProvider extends ChangeNotifier {
   static const _keyTheme = 'theme_mode';
@@ -59,9 +61,32 @@ class SettingsProvider extends ChangeNotifier {
   }
 
   Future<void> _initNotifications() async {
-    const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
-    const initSettings = InitializationSettings(android: androidInit);
-    await _notifPlugin.initialize(initSettings);
+    if (kIsWeb) return;
+    try {
+      const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
+      const initSettings = InitializationSettings(android: androidInit);
+      await _notifPlugin.initialize(initSettings);
+
+      final androidImplementation =
+          _notifPlugin.resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>();
+      if (androidImplementation != null) {
+        await androidImplementation.requestNotificationsPermission();
+      }
+
+      final iosImplementation =
+          _notifPlugin.resolvePlatformSpecificImplementation<
+              IOSFlutterLocalNotificationsPlugin>();
+      if (iosImplementation != null) {
+        await iosImplementation.requestPermissions(
+          alert: true,
+          badge: true,
+          sound: true,
+        );
+      }
+    } catch (e) {
+      debugPrint('Local Notifications Init Error: $e');
+    }
   }
 
   Future<void> _load() async {
@@ -135,23 +160,34 @@ class SettingsProvider extends ChangeNotifier {
   }
 
   Future<void> _scheduleReminder() async {
-    await _notifPlugin.cancelAll();
+    const title = '📖 Waktunya Membaca Al-Quran';
+    final body = 'Target harian Anda hari ini: Membaca $dailyTargetJuzLabel. Semangat! Bismillah!';
 
-    const androidDetails = AndroidNotificationDetails(
-      'khataman_reminder',
-      'Pengingat Khataman',
-      channelDescription: 'Pengingat harian untuk membaca Al-Quran',
-      importance: Importance.high,
-      priority: Priority.high,
-      icon: '@mipmap/ic_launcher',
-    );
+    if (kIsWeb) {
+      await NotificationHelper.showWebNotification(title, body);
+      return;
+    }
 
-    // Show immediate test notification with personalized target and page equivalents
-    await _notifPlugin.show(
-      0,
-      '📖 Waktunya Membaca Al-Quran',
-      'Target harian Anda hari ini: Membaca $dailyTargetJuzLabel. Semangat! Bismillah!',
-      const NotificationDetails(android: androidDetails),
-    );
+    try {
+      await _notifPlugin.cancelAll();
+
+      const androidDetails = AndroidNotificationDetails(
+        'khataman_reminder',
+        'Pengingat Khataman',
+        channelDescription: 'Pengingat harian untuk membaca Al-Quran',
+        importance: Importance.high,
+        priority: Priority.high,
+        icon: '@mipmap/ic_launcher',
+      );
+
+      await _notifPlugin.show(
+        0,
+        title,
+        body,
+        const NotificationDetails(android: androidDetails),
+      );
+    } catch (e) {
+      debugPrint('Local Notification Show Error: $e');
+    }
   }
 }
