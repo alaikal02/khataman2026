@@ -47,10 +47,10 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
     if (userId == null) return;
 
     try {
-      // Ambil SEMUA grup beserta kolom visibility
+      // Ambil SEMUA grup beserta kolom visibility dan nama admin
       final allGroupsData = await _supabase
           .from('groups')
-          .select('id_group, nama_grup, kode_gk_unik, creator_id, created_at, visibility')
+          .select('id_group, nama_grup, kode_gk_unik, creator_id, created_at, visibility, users!creator_id(username)')
           .order('created_at', ascending: false);
 
       // Ambil status keanggotaan user ini (group_id + approval_status)
@@ -786,7 +786,7 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
                     ],
                   ),
                   const SizedBox(height: 4),
-                  Row(
+                   Row(
                     children: [
                       Icon(Icons.tag_rounded, size: 13, color: Theme.of(context).colorScheme.onSurfaceVariant),
                       const SizedBox(width: 3),
@@ -805,6 +805,29 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
                           child: const Text('Admin', style: TextStyle(color: AppTheme.accentGold, fontSize: 10)),
                         ),
                       ],
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Icon(Icons.person_rounded, size: 13, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                      const SizedBox(width: 3),
+                      Text(
+                        'Admin: ',
+                        style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12),
+                      ),
+                      Expanded(
+                        child: Text(
+                          isCreator ? 'Anda' : (group['users']?['username'] ?? '...'),
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.onSurface,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
                     ],
                   ),
                 ],
