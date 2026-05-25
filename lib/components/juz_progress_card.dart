@@ -845,9 +845,24 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
                       ],
                     ),
                   ),
-                  
                   // Read Input & Buttons
                   if ((widget.isOwned || !widget.isGroupMode) && !isComplete) ...[
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      onPressed: _confirmMarkFinished,
+                      icon: const Icon(Icons.check_circle_rounded, size: 20),
+                      label: const Text('Saya Sudah Membaca 1 Juz Penuh'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppTheme.primaryGreen,
+                        side: const BorderSide(color: AppTheme.primaryGreen, width: 1.5),
+                        padding: const EdgeInsets.symmetric(vertical: 13),
+                        minimumSize: const Size(double.infinity, 48),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Divider(color: Theme.of(context).dividerColor.withOpacity(0.5), height: 1),
                     const SizedBox(height: 14),
                     Text(
                       'Posisi terakhir: $lastPositionString',
@@ -933,10 +948,14 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
                           child: ElevatedButton(
                             onPressed: _handleSave,
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: AppTheme.primaryGreen,
-                              padding: const EdgeInsets.symmetric(vertical: 13),
+                              backgroundColor: isDark ? const Color(0xFF1B8047) : AppTheme.primaryGreen,
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              minimumSize: const Size(double.infinity, 48),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
                             ),
-                            child: const Text('Simpan Progres', style: TextStyle(fontWeight: FontWeight.w600)),
+                            child: const Text('Simpan Progres'),
                           ),
                         ),
                         if (widget.isGroupMode) ...[
@@ -944,27 +963,17 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
                           OutlinedButton(
                             onPressed: _confirmRelease,
                             style: OutlinedButton.styleFrom(
-                              side: const BorderSide(color: Colors.redAccent),
-                              padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 14),
+                              foregroundColor: Colors.redAccent,
+                              side: const BorderSide(color: Colors.redAccent, width: 1.5),
+                              minimumSize: const Size(0, 48),
+                              padding: const EdgeInsets.symmetric(horizontal: 16),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
                             ),
-                            child: const Text('Lepas', style: TextStyle(color: Colors.redAccent)),
+                            child: const Text('Lepas'),
                           ),
                         ],
                       ],
-                    ),
-                    const SizedBox(height: 12),
-                    ElevatedButton.icon(
-                      onPressed: _confirmMarkFinished,
-                      icon: const Icon(Icons.check_circle_rounded),
-                      label: const Text('Saya Sudah Membaca 1 Juz Penuh'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppTheme.primaryGreen.withAlpha(38),
-                        foregroundColor: AppTheme.primaryGreen,
-                        elevation: 0,
-                        minimumSize: const Size(double.infinity, 48),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
                     ),
                   ] else if (widget.isGroupMode && !widget.isOwned) ...[
                     // Claimed by someone else in the group

@@ -46,6 +46,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Future<void> _loadPersonalStats() async {
     final userId = Supabase.instance.client.auth.currentUser?.id;
     if (userId == null) return;
+
+    // Trigger Sinkronisasi Awal & Pemulihan (Self-Healing) Riwayat dari Cloud ke Lokal
+    await PersonalHistoryService.getHistory(userId);
     
     final localMandiriKhatams = await PersonalHistoryService.getKhatamCount(userId);
     

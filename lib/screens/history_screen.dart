@@ -266,9 +266,16 @@ class _HistoryScreenState extends State<HistoryScreen> {
     int count = 0;
 
     for (var item in _history) {
-      if (item['isJuzCompletion'] == true && item['isKhatamCompletion'] != true) {
-        final date = DateTime.tryParse(item['timestamp'] ?? '');
-        if (date != null && date.isAfter(limit)) {
+      final date = DateTime.tryParse(item['timestamp'] ?? '');
+      if (date != null && date.isAfter(limit)) {
+        if (item['isGroupKhatam'] == true) {
+          // Parse the juz field (e.g. "1, 2, 3") to count completed Juz in this group cycle
+          final juzStr = item['juz']?.toString() ?? '';
+          if (juzStr.isNotEmpty) {
+            final juzs = juzStr.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty);
+            count += juzs.length;
+          }
+        } else if (item['isJuzCompletion'] == true && item['isKhatamCompletion'] != true) {
           count++;
         }
       }
@@ -625,7 +632,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                     ),
                                     const SizedBox(height: 6),
                                     Text(
-                                      log['isGroupKhatam'] == true ? 'Khatam 30 Juz' : 'Juz ${log['juz']}',
+                                      log['isKhatamCompletion'] == true ? 'Khatam 30 Juz' : 'Juz ${log['juz']}',
                                       style: TextStyle(
                                         fontSize: 13,
                                         fontWeight: FontWeight.bold,
