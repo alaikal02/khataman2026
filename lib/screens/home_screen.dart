@@ -90,7 +90,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final userId = Supabase.instance.client.auth.currentUser?.id;
     if (userId == null) return;
 
-    debugPrint('🔔 [Realtime] Menghubungkan ke channel notifications...');
+    // debugPrint('🔔 [Realtime] Menghubungkan ke channel notifications...');
 
     // Hapus channel lama terlebih dahulu jika ada untuk menghindari duplikasi listener
     if (_notificationChannel != null) {
@@ -119,13 +119,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         );
     
     _notificationChannel?.subscribe((status, [error]) {
-      debugPrint('🔔 [Realtime] Status channel notifications: $status${error != null ? ', Error: $error' : ''}');
+      // debugPrint('🔔 [Realtime] Status channel notifications: $status${error != null ? ', Error: $error' : ''}');
       
       // Jika koneksi terputus, error, atau timeout di Android/mobile, coba hubungkan kembali setelah delay kecil
       if (status == RealtimeSubscribeStatus.channelError || 
           status == RealtimeSubscribeStatus.closed ||
           status == RealtimeSubscribeStatus.timedOut) {
-        debugPrint('🔔 [Realtime] Saluran terputus/error. Mencoba re-koneksi otomatis dalam 3 detik...');
+        // debugPrint('🔔 [Realtime] Saluran terputus/error. Mencoba re-koneksi otomatis dalam 3 detik...');
         Future.delayed(const Duration(seconds: 3), () {
           if (mounted) {
             _subscribeToNotifications();

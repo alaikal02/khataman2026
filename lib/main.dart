@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter/scheduler.dart' show timeDilation;
 
 // Screens
 import 'screens/auth_screen.dart';
@@ -38,6 +39,9 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Memaksa durasi animasi berjalan 100% normal (mencegah lag / slow-motion debug)
+    timeDilation = 1.0;
+
     final settings = Provider.of<SettingsProvider>(context);
 
     return MaterialApp(
@@ -47,11 +51,13 @@ class MyApp extends StatelessWidget {
       theme: AppTheme.lightTheme,    // tema terang
       darkTheme: AppTheme.darkTheme, // tema gelap
       builder: (context, child) {
-        final mediaQuery = MediaQuery.of(context);
+        // Optimasi Kinerja: Menggunakan MediaQueryData.fromView agar tidak memicu
+        // rebuild global seluruh aplikasi setiap kali keyboard bergeser (perubahan viewInsets).
+        final data = MediaQueryData.fromView(View.of(context)).copyWith(
+          textScaler: TextScaler.linear(settings.fontSize),
+        );
         return MediaQuery(
-          data: mediaQuery.copyWith(
-            textScaler: TextScaler.linear(settings.fontSize),
-          ),
+          data: data,
           child: child!,
         );
       },

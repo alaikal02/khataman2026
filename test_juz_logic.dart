@@ -61,6 +61,9 @@ void main() {
             }
           }
         }
+        if (absoluteIndex == 10) {
+          print('Sample index 10: $ayatText, lastPosition: $lastPositionString');
+        }
       } catch (e, stack) {
         print('FAILED on Juz $juz, absoluteIndex $absoluteIndex!');
         print('Error: $e');

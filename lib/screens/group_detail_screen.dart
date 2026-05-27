@@ -85,7 +85,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
 
   void _setupRealtime() {
     final channelName = 'group_detail_${widget.groupId}';
-    debugPrint('🔄 [Realtime Group] Menghubungkan ke channel: $channelName...');
+    // debugPrint('🔄 [Realtime Group] Menghubungkan ke channel: $channelName...');
 
     // Bersihkan subscription lama jika ada
     if (_subscription != null) {
@@ -135,13 +135,13 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
         );
 
     _subscription?.subscribe((status, [error]) {
-      debugPrint('🔄 [Realtime Group] Status: $status${error != null ? ', Error: $error' : ''}');
+      // debugPrint('🔄 [Realtime Group] Status: $status${error != null ? ', Error: $error' : ''}');
       
       // Re-koneksi otomatis jika terjadi error atau timeout
       if (status == RealtimeSubscribeStatus.channelError || 
           status == RealtimeSubscribeStatus.closed ||
           status == RealtimeSubscribeStatus.timedOut) {
-        debugPrint('🔄 [Realtime Group] Terputus. Menghubungkan kembali dalam 3 detik...');
+        // debugPrint('🔄 [Realtime Group] Terputus. Menghubungkan kembali dalam 3 detik...');
         Future.delayed(const Duration(seconds: 3), () {
           if (mounted) {
             _setupRealtime();
