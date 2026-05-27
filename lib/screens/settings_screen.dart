@@ -34,9 +34,9 @@ class SettingsScreen extends StatelessWidget {
               icon: Icons.dark_mode_rounded,
               iconColor: const Color(0xFF6C63FF),
               title: 'Tema Aplikasi',
-              subtitle: settings.themeMode == ThemeMode.dark ? 'Gelap' : 'Terang',
+              subtitle: Theme.of(context).brightness == Brightness.dark ? 'Gelap' : 'Terang',
               trailing: Switch(
-                value: settings.themeMode == ThemeMode.dark,
+                value: Theme.of(context).brightness == Brightness.dark,
                 activeThumbColor: AppTheme.primaryGreen,
                 onChanged: (val) => settings.setThemeMode(
                   val ? ThemeMode.dark : ThemeMode.light,
@@ -758,173 +758,200 @@ class SettingsScreen extends StatelessWidget {
                       });
                     },
                   ),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(dialogCtx),
-                  child: Text(
-                    'Batal',
-                    style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontWeight: FontWeight.w600),
-                  ),
-                ),
-                ElevatedButton(
-                  onPressed: isValid
-                      ? () async {
-                          Navigator.pop(dialogCtx); // Close warning dialog
-                          _showLoadingDialog(context); // Show loading dialog
-                          
-                          try {
-                            final userId = supabase.auth.currentUser?.id;
-                            if (userId == null) {
-                              Navigator.pop(context); // Dismiss loading dialog
-                              return;
-                            }
+                  const SizedBox(height: 24),
+                  Row(
+                    children: [
+                      // Tombol Batal (Secondary Button)
+                      Expanded(
+                        child: TextButton(
+                          onPressed: () => Navigator.pop(dialogCtx),
+                          style: TextButton.styleFrom(
+                            backgroundColor: Theme.of(context).brightness == Brightness.dark
+                                ? Colors.white.withOpacity(0.08)
+                                : Colors.grey.shade100,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: Text(
+                            'Batal',
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      // Tombol Ya, Hapus (Primary Destructive Button)
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: isValid
+                              ? () async {
+                                  Navigator.pop(dialogCtx); // Close warning dialog
+                                  _showLoadingDialog(context); // Show loading dialog
+                                  
+                                  try {
+                                    final userId = supabase.auth.currentUser?.id;
+                                    if (userId == null) {
+                                      Navigator.pop(context); // Dismiss loading dialog
+                                      return;
+                                    }
 
-                            // 1. Dapatkan semua grup di mana user adalah CREATOR/ADMIN
-                            final myGroupsAsAdmin = await supabase
-                                .from('groups')
-                                .select('id_group, nama_grup')
-                                .eq('creator_id', userId);
+                                    // 1. Dapatkan semua grup di mana user adalah CREATOR/ADMIN
+                                    final myGroupsAsAdmin = await supabase
+                                        .from('groups')
+                                        .select('id_group, nama_grup')
+                                        .eq('creator_id', userId);
 
-                            final adminGroupsList = myGroupsAsAdmin as List;
-                            
-                            // Hide loading dialog before showing chooser dialogs
-                            Navigator.pop(context);
+                                    final adminGroupsList = myGroupsAsAdmin as List;
+                                    
+                                    // Hide loading dialog before showing chooser dialogs
+                                    Navigator.pop(context);
 
-                            Map<String, String> selectedNewAdmins = {};
+                                    Map<String, String> selectedNewAdmins = {};
 
-                            for (var group in adminGroupsList) {
-                              final String groupId = group['id_group'].toString();
-                              final String groupName = group['nama_grup'] ?? 'Grup';
+                                    for (var group in adminGroupsList) {
+                                      final String groupId = group['id_group'].toString();
+                                      final String groupName = group['nama_grup'] ?? 'Grup';
 
-                              // Query anggota APPROVED lainnya
-                              final otherMembersRes = await supabase
-                                  .from('group_members')
-                                  .select('user_id, users(id_user, username, email, avatar_url)')
-                                  .eq('group_id', groupId)
-                                  .eq('approval_status', 'APPROVED')
-                                  .neq('user_id', userId);
+                                      // Query anggota APPROVED lainnya
+                                      final otherMembersRes = await supabase
+                                          .from('group_members')
+                                          .select('user_id, users(id_user, username, email, avatar_url)')
+                                          .eq('group_id', groupId)
+                                          .eq('approval_status', 'APPROVED')
+                                          .neq('user_id', userId);
 
-                              final otherMembers = otherMembersRes as List;
+                                      final otherMembers = otherMembersRes as List;
 
-                              if (otherMembers.isNotEmpty) {
-                                if (context.mounted) {
-                                  final selectedAdminId = await _showChooseNewAdminDialog(
-                                    context,
-                                    groupName,
-                                    List<Map<String, dynamic>>.from(otherMembers),
-                                  );
+                                      if (otherMembers.isNotEmpty) {
+                                        if (context.mounted) {
+                                          final selectedAdminId = await _showChooseNewAdminDialog(
+                                            context,
+                                            groupName,
+                                            List<Map<String, dynamic>>.from(otherMembers),
+                                          );
 
-                                  if (selectedAdminId == null) {
-                                    // User cancelled choice, abort entire process!
+                                          if (selectedAdminId == null) {
+                                            // User cancelled choice, abort entire process!
+                                            if (context.mounted) {
+                                              ScaffoldMessenger.of(context).showSnackBar(
+                                                const SnackBar(
+                                                  content: Text('Hapus akun dibatalkan.'),
+                                                  backgroundColor: Colors.redAccent,
+                                                ),
+                                              );
+                                            }
+                                            return;
+                                          }
+                                          selectedNewAdmins[groupId] = selectedAdminId;
+                                        }
+                                      }
+                                    }
+
+                                    // Show loading dialog again for final execution
                                     if (context.mounted) {
+                                      _showLoadingDialog(context);
+                                    }
+
+                                    // 2. Terapkan pemindahan admin
+                                    for (var entry in selectedNewAdmins.entries) {
+                                      await supabase
+                                          .from('groups')
+                                          .update({'creator_id': entry.value})
+                                          .eq('id_group', entry.key);
+                                    }
+
+                                    // 3. Hapus grup-grup kosong di mana user adalah creator dan tidak ada anggota lain
+                                    for (var group in adminGroupsList) {
+                                      final String groupId = group['id_group'].toString();
+                                      if (!selectedNewAdmins.containsKey(groupId)) {
+                                        await supabase.from('groups').delete().eq('id_group', groupId);
+                                      }
+                                    }
+
+                                    // 4. Hapus dari keanggotaan grup (`group_members`)
+                                    await supabase.from('group_members').delete().eq('user_id', userId);
+
+                                    // 5. Tangani Slot Membaca Grup (slot_khataman)
+                                    // A. Selesai 100% -> Dipertahankan sebagai snapshot (set user_id ke null)
+                                    await supabase
+                                        .from('slot_khataman')
+                                        .update({'user_id': null})
+                                        .eq('user_id', userId)
+                                        .eq('status_checklist', true);
+
+                                    // B. Belum selesai 100% -> Reset & Lepas ke grup (status = false, input = 0, user = null)
+                                    await supabase
+                                        .from('slot_khataman')
+                                        .update({
+                                          'user_id': null,
+                                          'ayat_terakhir_input': 0,
+                                          'status_checklist': false,
+                                        })
+                                        .eq('user_id', userId)
+                                        .eq('status_checklist', false);
+
+                                    // 6. Hapus data pribadi
+                                    await supabase.from('notifications').delete().eq('user_id', userId);
+                                    await supabase.from('riwayat_personal').delete().eq('user_id', userId);
+                                    await supabase.from('khataman_mandiri').delete().eq('user_id', userId);
+
+                                    // 7. Hapus user profile
+                                    await supabase.from('users').delete().eq('id_user', userId);
+
+                                    // 7.5 Hapus dari auth.users menggunakan RPC (jika sudah dikonfigurasi di Supabase)
+                                    try {
+                                      await supabase.rpc('delete_user');
+                                    } catch (rpcError) {
+                                      debugPrint('Info: RPC delete_user tidak ditemukan atau gagal: $rpcError. Melanjutkan logout.');
+                                    }
+
+                                    // 8. Bersihkan SharedPreferences lokal
+                                    final prefs = await SharedPreferences.getInstance();
+                                    await prefs.clear();
+
+                                    // 9. Sign out Supabase auth
+                                    await supabase.auth.signOut();
+
+                                    // Dismiss loading dialog
+                                    if (context.mounted) {
+                                      Navigator.pop(context);
+                                      Navigator.of(context).popUntil((route) => route.isFirst);
+                                    }
+                                  } catch (e) {
+                                    debugPrint('Error deleting account: $e');
+                                    // In case of error, make sure loading dialog is closed
+                                    if (context.mounted) {
+                                      Navigator.pop(context); // Close loading dialog
                                       ScaffoldMessenger.of(context).showSnackBar(
-                                        const SnackBar(
-                                          content: Text('Hapus akun dibatalkan.'),
-                                          backgroundColor: Colors.redAccent,
-                                        ),
+                                        SnackBar(content: Text('Gagal menghapus akun: $e'), backgroundColor: Colors.redAccent),
                                       );
                                     }
-                                    return;
                                   }
-                                  selectedNewAdmins[groupId] = selectedAdminId;
                                 }
-                              }
-                            }
-
-                            // Show loading dialog again for final execution
-                            if (context.mounted) {
-                              _showLoadingDialog(context);
-                            }
-
-                            // 2. Terapkan pemindahan admin
-                            for (var entry in selectedNewAdmins.entries) {
-                              await supabase
-                                  .from('groups')
-                                  .update({'creator_id': entry.value})
-                                  .eq('id_group', entry.key);
-                            }
-
-                            // 3. Hapus grup-grup kosong di mana user adalah creator dan tidak ada anggota lain
-                            for (var group in adminGroupsList) {
-                              final String groupId = group['id_group'].toString();
-                              if (!selectedNewAdmins.containsKey(groupId)) {
-                                await supabase.from('groups').delete().eq('id_group', groupId);
-                              }
-                            }
-
-                            // 4. Hapus dari keanggotaan grup (`group_members`)
-                            await supabase.from('group_members').delete().eq('user_id', userId);
-
-                            // 5. Tangani Slot Membaca Grup (slot_khataman)
-                            // A. Selesai 100% -> Dipertahankan sebagai snapshot (set user_id ke null)
-                            await supabase
-                                .from('slot_khataman')
-                                .update({'user_id': null})
-                                .eq('user_id', userId)
-                                .eq('status_checklist', true);
-
-                            // B. Belum selesai 100% -> Reset & Lepas ke grup (status = false, input = 0, user = null)
-                            await supabase
-                                .from('slot_khataman')
-                                .update({
-                                  'user_id': null,
-                                  'ayat_terakhir_input': 0,
-                                  'status_checklist': false,
-                                })
-                                .eq('user_id', userId)
-                                .eq('status_checklist', false);
-
-                            // 6. Hapus data pribadi
-                            await supabase.from('notifications').delete().eq('user_id', userId);
-                            await supabase.from('riwayat_personal').delete().eq('user_id', userId);
-                            await supabase.from('khataman_mandiri').delete().eq('user_id', userId);
-
-                            // 7. Hapus user profile
-                            await supabase.from('users').delete().eq('id_user', userId);
-
-                            // 7.5 Hapus dari auth.users menggunakan RPC (jika sudah dikonfigurasi di Supabase)
-                            try {
-                              await supabase.rpc('delete_user');
-                            } catch (rpcError) {
-                              debugPrint('Info: RPC delete_user tidak ditemukan atau gagal: $rpcError. Melanjutkan logout.');
-                            }
-
-                            // 8. Bersihkan SharedPreferences lokal
-                            final prefs = await SharedPreferences.getInstance();
-                            await prefs.clear();
-
-                            // 9. Sign out Supabase auth
-                            await supabase.auth.signOut();
-
-                            // Dismiss loading dialog
-                            if (context.mounted) {
-                              Navigator.pop(context);
-                              Navigator.of(context).popUntil((route) => route.isFirst);
-                            }
-                          } catch (e) {
-                            debugPrint('Error deleting account: $e');
-                            // In case of error, make sure loading dialog is closed
-                            if (context.mounted) {
-                              Navigator.pop(context); // Close loading dialog
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('Gagal menghapus akun: $e'), backgroundColor: Colors.redAccent),
-                              );
-                            }
-                          }
-                        }
-                      : null,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.redAccent,
-                    foregroundColor: Colors.white,
-                    disabledBackgroundColor: Colors.redAccent.withOpacity(0.3),
-                    disabledForegroundColor: Colors.white.withOpacity(0.6),
-                    elevation: 0,
+                              : null,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.redAccent,
+                            foregroundColor: Colors.white,
+                            disabledBackgroundColor: Colors.redAccent.withOpacity(0.3),
+                            disabledForegroundColor: Colors.white.withOpacity(0.6),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: const Text('Ya, Hapus', style: TextStyle(fontWeight: FontWeight.bold)),
+                        ),
+                      ),
+                    ],
                   ),
-                  child: const Text('Ya, Hapus', style: TextStyle(fontWeight: FontWeight.bold)),
-                ),
-              ],
+                ],
+              ),
             );
           },
         );
