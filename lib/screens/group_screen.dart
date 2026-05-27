@@ -189,169 +189,473 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      backgroundColor: Colors.transparent,
       builder: (BuildContext sheetContext) {
         return FutureBuilder<List<Map<String, dynamic>>>(
           future: usersFuture,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return const SizedBox(
-                height: 300,
-                child: Center(child: CircularProgressIndicator(color: AppTheme.primaryGreen)),
+              final isDark = Theme.of(context).brightness == Brightness.dark;
+              final surfaceColor = isDark ? const Color(0xFF161B22) : const Color(0xFFFAFCFA);
+              return Container(
+                height: 350,
+                decoration: BoxDecoration(
+                  color: surfaceColor,
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+                ),
+                child: const Center(child: CircularProgressIndicator(color: AppTheme.primaryGreen)),
               );
             }
             
             final users = snapshot.data ?? [];
+            String searchQuery = '';
             
             return StatefulBuilder(
-              builder: (context, setStateSheet) {
+              builder: (modalContext, setModalState) {
+                final isDark = Theme.of(modalContext).brightness == Brightness.dark;
+                final surfaceColor = isDark ? const Color(0xFF161B22) : const Color(0xFFFAFCFA);
+                final inputBgColor = isDark ? const Color(0xFF1F2937) : const Color(0xFFEDF2ED);
+                final borderColor = isDark ? const Color(0xFF30363D) : const Color(0xFFD4DDD6);
+                final onSurfaceColor = isDark ? const Color(0xFFE6EDF3) : const Color(0xFF1D2A22);
+                final onSurfaceVariantColor = isDark ? const Color(0xFF8B949E) : const Color(0xFF5F6E65);
+
+                // Filter users based on search query
+                final filteredUsers = users.where((u) {
+                  final name = (u['username'] ?? '').toString().toLowerCase();
+                  final email = (u['email'] ?? '').toString().toLowerCase();
+                  final q = searchQuery.toLowerCase();
+                  return name.contains(q) || email.contains(q);
+                }).toList();
+
                 return DraggableScrollableSheet(
-                  initialChildSize: 0.7,
-                  minChildSize: 0.5,
-                  maxChildSize: 0.9,
+                  initialChildSize: 0.85,
+                  minChildSize: 0.6,
+                  maxChildSize: 0.95,
                   expand: false,
                   builder: (_, scrollController) {
-                    return Column(
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.all(20),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Center(
-                                child: Container(
-                                  width: 40, height: 4,
-                                  decoration: BoxDecoration(color: Colors.grey.withOpacity(0.3), borderRadius: BorderRadius.circular(10)),
-                                ),
-                              ),
-                              const SizedBox(height: 20),
-                              Text('Tambahkan Anggota', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSurface)),
-                              const SizedBox(height: 8),
-                              Text('Pilih pengguna yang ingin Anda undang ke dalam grup ini.', style: TextStyle(fontSize: 14, color: Theme.of(context).colorScheme.onSurfaceVariant)),
-                            ],
+                    return Container(
+                      decoration: BoxDecoration(
+                        color: surfaceColor,
+                        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(isDark ? 0.4 : 0.1),
+                            blurRadius: 20,
+                            offset: const Offset(0, -4),
                           ),
-                        ),
-                        Expanded(
-                          child: users.isEmpty
-                              ? Center(child: Text('Tidak ada pengguna lain', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)))
-                              : ListView.builder(
-                                  controller: scrollController,
-                                  itemCount: users.length,
-                                  itemBuilder: (context, index) {
-                                    final u = users[index];
-                                    final isSelected = _selectedUsersForInvite.contains(u['id_user']);
-                                    return ListTile(
-                                      leading: CircleAvatar(
-                                        backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
-                                        backgroundImage: u['avatar_url'] != null ? NetworkImage(u['avatar_url']) : null,
-                                        child: u['avatar_url'] == null ? Icon(Icons.person, color: Theme.of(context).colorScheme.onSurfaceVariant) : null,
+                        ],
+                      ),
+                      child: Column(
+                        children: [
+                          // ── Drag Handle & Header ──
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(24, 12, 24, 8),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  width: 40,
+                                  height: 4.5,
+                                  margin: const EdgeInsets.only(bottom: 20),
+                                  decoration: BoxDecoration(
+                                    color: isDark ? Colors.grey.shade700 : Colors.grey.shade300,
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                ),
+                                Row(
+                                  children: [
+                                    Container(
+                                      width: 44,
+                                      height: 44,
+                                      decoration: BoxDecoration(
+                                        color: AppTheme.primaryGreen.withOpacity(0.12),
+                                        borderRadius: BorderRadius.circular(14),
+                                        border: Border.all(
+                                          color: AppTheme.primaryGreen.withOpacity(0.2),
+                                          width: 1,
+                                        ),
                                       ),
-                                      title: Text(u['username'] ?? 'User', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
-                                      subtitle: Text(u['email'] ?? '', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12)),
-                                      trailing: Checkbox(
-                                        value: isSelected,
-                                        activeColor: AppTheme.primaryGreen,
-                                        onChanged: (val) {
-                                          setStateSheet(() {
-                                            if (val == true) {
-                                              _selectedUsersForInvite.add(u['id_user']);
-                                            } else {
-                                              _selectedUsersForInvite.remove(u['id_user']);
-                                            }
+                                      child: const Icon(Icons.person_add_alt_1_rounded, color: AppTheme.primaryGreen, size: 22),
+                                    ),
+                                    const SizedBox(width: 14),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            'Undang Anggota',
+                                            style: TextStyle(
+                                              color: onSurfaceColor,
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 18,
+                                              letterSpacing: -0.3,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            'Pilih teman untuk diajak mengaji bersama',
+                                            style: TextStyle(
+                                              color: onSurfaceVariantColor,
+                                              fontSize: 12,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    GestureDetector(
+                                      onTap: () {
+                                        Navigator.pop(modalContext);
+                                      },
+                                      child: Container(
+                                        width: 32,
+                                        height: 32,
+                                        decoration: BoxDecoration(
+                                          color: isDark ? Colors.white.withOpacity(0.08) : Colors.grey.shade100,
+                                          borderRadius: BorderRadius.circular(10),
+                                        ),
+                                        child: Icon(Icons.close_rounded, size: 18, color: onSurfaceVariantColor),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          // ── Search Bar ──
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                            child: TextField(
+                              style: TextStyle(color: onSurfaceColor, fontSize: 14),
+                              decoration: InputDecoration(
+                                hintText: 'Cari username atau email...',
+                                filled: true,
+                                fillColor: inputBgColor,
+                                prefixIcon: Icon(Icons.search_rounded, size: 20, color: onSurfaceVariantColor),
+                                suffixIcon: searchQuery.isNotEmpty
+                                    ? IconButton(
+                                        icon: Icon(Icons.clear_rounded, size: 18, color: onSurfaceVariantColor),
+                                        onPressed: () {
+                                          setModalState(() {
+                                            searchQuery = '';
                                           });
                                         },
-                                      ),
-                                      onTap: () {
-                                        setStateSheet(() {
-                                          if (isSelected) {
-                                            _selectedUsersForInvite.remove(u['id_user']);
-                                          } else {
-                                            _selectedUsersForInvite.add(u['id_user']);
-                                          }
-                                        });
-                                      },
-                                    );
-                                  },
+                                      )
+                                    : null,
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                  borderSide: BorderSide(color: borderColor),
                                 ),
-                        ),
-                        SafeArea(
-                          top: false,
-                          child: Container(
-                            padding: const EdgeInsets.all(20),
-                            decoration: BoxDecoration(
-                              color: Theme.of(context).colorScheme.surface,
-                              boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, -2))],
-                            ),
-                            child: Row(
-                            children: [
-                              Expanded(
-                                child: OutlinedButton(
-                                  onPressed: () {
-                                    Navigator.pop(sheetContext); // Close sheet
-                                    _selectedUsersForInvite.clear();
-                                    navigateToDetail();
-                                  },
-                                  style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
-                                  child: const Text('Lewati'),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                  borderSide: const BorderSide(color: AppTheme.primaryGreen, width: 1.5),
                                 ),
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                               ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                flex: 2,
-                                child: ElevatedButton(
-                                  onPressed: _selectedUsersForInvite.isEmpty ? null : () async {
-                                    // Close sheet first so any error dialog or snackbar is visible
-                                    Navigator.pop(sheetContext);
-                                    
-                                    try {
-                                      List<Map<String, dynamic>> inserts = _selectedUsersForInvite.map((uid) => {
-                                        'group_id': groupId,
-                                        'user_id': uid,
-                                      }).toList();
-                                      
-                                      await _supabase.from('group_members').insert(inserts);
-                                      
-                                      if (mounted) {
-                                        _showSnackbar('${_selectedUsersForInvite.length} anggota berhasil ditambahkan!');
+                              onChanged: (val) {
+                                setModalState(() {
+                                  searchQuery = val;
+                                });
+                              },
+                            ),
+                          ),
+
+                          // ── Horizontal Scroll for Selected Users ──
+                          if (_selectedUsersForInvite.isNotEmpty)
+                            Container(
+                              height: 84,
+                              padding: const EdgeInsets.symmetric(vertical: 4),
+                              child: ListView.builder(
+                                scrollDirection: Axis.horizontal,
+                                padding: const EdgeInsets.symmetric(horizontal: 20),
+                                itemCount: _selectedUsersForInvite.length,
+                                itemBuilder: (context, idx) {
+                                  final uid = _selectedUsersForInvite.toList()[idx];
+                                  final u = users.firstWhere((user) => user['id_user'] == uid, orElse: () => {});
+                                  if (u.isEmpty) return const SizedBox.shrink();
+                                  final name = u['username'] ?? 'User';
+                                  final avatarUrl = u['avatar_url'] as String?;
+
+                                  return Padding(
+                                    padding: const EdgeInsets.only(right: 16),
+                                    child: Stack(
+                                      clipBehavior: Clip.none,
+                                      children: [
+                                        Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            CircleAvatar(
+                                              radius: 22,
+                                              backgroundColor: AppTheme.primaryGreen.withOpacity(0.1),
+                                              backgroundImage: avatarUrl != null ? NetworkImage(avatarUrl) : null,
+                                              child: avatarUrl == null
+                                                  ? Text(
+                                                      name.isNotEmpty ? name[0].toUpperCase() : '?',
+                                                      style: const TextStyle(
+                                                        color: AppTheme.primaryGreen,
+                                                        fontWeight: FontWeight.bold,
+                                                        fontSize: 14,
+                                                      ),
+                                                    )
+                                                  : null,
+                                            ),
+                                            const SizedBox(height: 4),
+                                            SizedBox(
+                                              width: 50,
+                                              child: Text(
+                                                name,
+                                                style: TextStyle(color: onSurfaceColor, fontSize: 10, fontWeight: FontWeight.w500),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                textAlign: TextAlign.center,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        Positioned(
+                                          top: -2,
+                                          right: -2,
+                                          child: GestureDetector(
+                                            onTap: () {
+                                              setModalState(() {
+                                                _selectedUsersForInvite.remove(uid);
+                                              });
+                                            },
+                                            child: Container(
+                                              decoration: const BoxDecoration(
+                                                color: Colors.redAccent,
+                                                shape: BoxShape.circle,
+                                              ),
+                                              padding: const EdgeInsets.all(3),
+                                              child: const Icon(Icons.close_rounded, size: 10, color: Colors.white),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+
+                          // ── Users List ──
+                          Expanded(
+                            child: filteredUsers.isEmpty
+                                ? Center(
+                                    child: Text(
+                                      searchQuery.isEmpty ? 'Tidak ada pengguna lain' : 'Tidak ada hasil cocok',
+                                      style: TextStyle(color: onSurfaceVariantColor, fontSize: 14),
+                                    ),
+                                  )
+                                : ListView.builder(
+                                    controller: scrollController,
+                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                    itemCount: filteredUsers.length,
+                                    itemBuilder: (context, index) {
+                                      final u = filteredUsers[index];
+                                      final uid = u['id_user'];
+                                      final isSelected = _selectedUsersForInvite.contains(uid);
+                                      final name = u['username'] ?? 'User';
+                                      final email = u['email'] ?? '';
+                                      final avatarUrl = u['avatar_url'] as String?;
+
+                                      return AnimatedContainer(
+                                        duration: const Duration(milliseconds: 150),
+                                        margin: const EdgeInsets.only(bottom: 8),
+                                        decoration: BoxDecoration(
+                                          color: isSelected
+                                              ? AppTheme.primaryGreen.withOpacity(0.06)
+                                              : Colors.transparent,
+                                          borderRadius: BorderRadius.circular(16),
+                                          border: Border.all(
+                                            color: isSelected
+                                                ? AppTheme.primaryGreen.withOpacity(0.3)
+                                                : Colors.transparent,
+                                            width: 1,
+                                          ),
+                                        ),
+                                        child: ListTile(
+                                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                          leading: CircleAvatar(
+                                            radius: 20,
+                                            backgroundColor: isDark ? const Color(0xFF30363D) : const Color(0xFFEDF2ED),
+                                            backgroundImage: avatarUrl != null ? NetworkImage(avatarUrl) : null,
+                                            child: avatarUrl == null
+                                                ? Text(
+                                                    name.isNotEmpty ? name[0].toUpperCase() : '?',
+                                                    style: TextStyle(
+                                                      color: onSurfaceColor,
+                                                      fontWeight: FontWeight.bold,
+                                                      fontSize: 14,
+                                                    ),
+                                                  )
+                                                : null,
+                                          ),
+                                          title: Text(
+                                            name,
+                                            style: TextStyle(
+                                              color: onSurfaceColor,
+                                              fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                                              fontSize: 14,
+                                            ),
+                                          ),
+                                          subtitle: Text(
+                                            email,
+                                            style: TextStyle(color: onSurfaceVariantColor, fontSize: 11),
+                                          ),
+                                          trailing: isSelected
+                                              ? Container(
+                                                  decoration: const BoxDecoration(
+                                                    color: AppTheme.primaryGreen,
+                                                    shape: BoxShape.circle,
+                                                  ),
+                                                  padding: const EdgeInsets.all(4),
+                                                  child: const Icon(Icons.check_rounded, size: 14, color: Colors.white),
+                                                )
+                                              : Container(
+                                                  decoration: BoxDecoration(
+                                                    shape: BoxShape.circle,
+                                                    border: Border.all(color: borderColor, width: 1.5),
+                                                  ),
+                                                  width: 22,
+                                                  height: 22,
+                                                ),
+                                          onTap: () {
+                                            setModalState(() {
+                                              if (isSelected) {
+                                                _selectedUsersForInvite.remove(uid);
+                                              } else {
+                                                _selectedUsersForInvite.add(uid);
+                                              }
+                                            });
+                                          },
+                                        ),
+                                      );
+                                    },
+                                  ),
+                          ),
+
+                          // ── Action Buttons Footer ──
+                          SafeArea(
+                            top: false,
+                            child: Container(
+                              padding: const EdgeInsets.all(20),
+                              decoration: BoxDecoration(
+                                color: surfaceColor,
+                                border: Border(top: BorderSide(color: borderColor.withOpacity(0.5), width: 0.5)),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(isDark ? 0.2 : 0.04),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, -2),
+                                  ),
+                                ],
+                              ),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: OutlinedButton(
+                                      onPressed: () {
+                                        Navigator.pop(modalContext); // Close sheet
                                         _selectedUsersForInvite.clear();
                                         navigateToDetail();
-                                      }
-                                    } catch (e) {
-                                      if (mounted) {
-                                        _selectedUsersForInvite.clear();
-                                        showDialog(
-                                          context: this.context,
-                                          builder: (_) => AlertDialog(
-                                            title: const Text('Gagal Menambahkan'),
-                                            content: Text('Supabase Error: $e\n\nKemungkinan besar database (Row Level Security) melarang Anda menambahkan akun orang lain secara langsung.'),
-                                            actions: [
-                                              TextButton(
-                                                onPressed: () {
-                                                  Navigator.pop(_);
-                                                  navigateToDetail();
-                                                },
-                                                child: const Text('Lanjutkan ke Grup'),
-                                              )
-                                            ],
-                                          )
-                                        );
-                                      }
-                                    }
-                                  },
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: AppTheme.primaryGreen,
-                                    foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(vertical: 16),
+                                      },
+                                      style: OutlinedButton.styleFrom(
+                                        padding: const EdgeInsets.symmetric(vertical: 14),
+                                        side: BorderSide(color: borderColor),
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                      ),
+                                      child: Text(
+                                        'Lewati',
+                                        style: TextStyle(color: onSurfaceVariantColor, fontWeight: FontWeight.bold),
+                                      ),
+                                    ),
                                   ),
-                                  child: Text('Tambahkan (${_selectedUsersForInvite.length})'),
-                                ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    flex: 2,
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        gradient: const LinearGradient(
+                                          colors: [Color(0xFF2ECC71), Color(0xFF1A8A4A)],
+                                          begin: Alignment.centerLeft,
+                                          end: Alignment.centerRight,
+                                        ),
+                                        borderRadius: BorderRadius.circular(12),
+                                        boxShadow: _selectedUsersForInvite.isEmpty
+                                            ? null
+                                            : [
+                                                BoxShadow(
+                                                  color: AppTheme.primaryGreen.withOpacity(0.3),
+                                                  blurRadius: 8,
+                                                  offset: const Offset(0, 3),
+                                                ),
+                                              ],
+                                      ),
+                                      child: ElevatedButton(
+                                        onPressed: _selectedUsersForInvite.isEmpty
+                                            ? null
+                                            : () async {
+                                                // Close sheet first so any error dialog or snackbar is visible
+                                                Navigator.pop(modalContext);
+                                                
+                                                try {
+                                                  List<Map<String, dynamic>> inserts = _selectedUsersForInvite.map((uid) => {
+                                                    'group_id': groupId,
+                                                    'user_id': uid,
+                                                  }).toList();
+                                                  
+                                                  await _supabase.from('group_members').insert(inserts);
+                                                  
+                                                  if (mounted) {
+                                                    _showSnackbar('${_selectedUsersForInvite.length} anggota berhasil ditambahkan!');
+                                                    _selectedUsersForInvite.clear();
+                                                    navigateToDetail();
+                                                  }
+                                                } catch (e) {
+                                                  if (mounted) {
+                                                    _selectedUsersForInvite.clear();
+                                                    showDialog(
+                                                      context: this.context,
+                                                      builder: (_) => AlertDialog(
+                                                        title: const Text('Gagal Menambahkan'),
+                                                        content: Text('Supabase Error: $e\n\nKemungkinan besar database (Row Level Security) melarang Anda menambahkan akun orang lain secara langsung.'),
+                                                        actions: [
+                                                          TextButton(
+                                                            onPressed: () {
+                                                              Navigator.pop(_);
+                                                              navigateToDetail();
+                                                            },
+                                                            child: const Text('Lanjutkan ke Grup'),
+                                                          )
+                                                        ],
+                                                      )
+                                                    );
+                                                  }
+                                                }
+                                              },
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Colors.transparent,
+                                          shadowColor: Colors.transparent,
+                                          padding: const EdgeInsets.symmetric(vertical: 14),
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                        ),
+                                        child: Text(
+                                          _selectedUsersForInvite.isEmpty
+                                              ? 'Tambahkan'
+                                              : 'Tambahkan (${_selectedUsersForInvite.length})',
+                                          style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ],
+                            ),
                           ),
-                          ),
-                        ),
-                      ],
+                        ],
+                      ),
                     );
                   },
                 );
