@@ -295,13 +295,14 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
 
   Future<void> _startNewPutaran(bool isAutoAssign) async {
     try {
+      final now = DateUtils.dateOnly(DateTime.now());
       final DateTimeRange? picked = await showDateRangePicker(
         context: context,
-        firstDate: DateTime.now().subtract(const Duration(days: 1)),
-        lastDate: DateTime.now().add(const Duration(days: 365)),
+        firstDate: now.subtract(const Duration(days: 1)),
+        lastDate: now.add(const Duration(days: 365)),
         initialDateRange: DateTimeRange(
-          start: DateTime.now(),
-          end: DateTime.now().add(const Duration(days: 7)),
+          start: now,
+          end: now.add(const Duration(days: 7)),
         ),
         helpText: 'Pilih Periode Khataman',
         cancelText: 'Batal',

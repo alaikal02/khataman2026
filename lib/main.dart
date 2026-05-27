@@ -51,9 +51,8 @@ class MyApp extends StatelessWidget {
       theme: AppTheme.lightTheme,    // tema terang
       darkTheme: AppTheme.darkTheme, // tema gelap
       builder: (context, child) {
-        // Optimasi Kinerja: Menggunakan MediaQueryData.fromView agar tidak memicu
-        // rebuild global seluruh aplikasi setiap kali keyboard bergeser (perubahan viewInsets).
-        final data = MediaQueryData.fromView(View.of(context)).copyWith(
+        // Menggunakan MediaQuery.of(context) agar data padding (Safe Area) dan dimensi layar terwarisi serta terupdate dengan benar.
+        final data = MediaQuery.of(context).copyWith(
           textScaler: TextScaler.linear(settings.fontSize),
         );
         return MediaQuery(

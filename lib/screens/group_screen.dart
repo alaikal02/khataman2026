@@ -178,6 +178,13 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
 
   void _showAddMembersDialog(String groupId) {
     final usersFuture = _supabase.from('users').select().neq('id_user', _supabase.auth.currentUser!.id);
+    bool hasNavigated = false;
+
+    void navigateToDetail() {
+      if (hasNavigated) return;
+      hasNavigated = true;
+      Navigator.push(context, MaterialPageRoute(builder: (_) => GroupDetailScreen(groupId: groupId)));
+    }
     
     showModalBottomSheet(
       context: context,
@@ -283,7 +290,7 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
                                   onPressed: () {
                                     Navigator.pop(sheetContext); // Close sheet
                                     _selectedUsersForInvite.clear();
-                                    Navigator.push(this.context, MaterialPageRoute(builder: (_) => GroupDetailScreen(groupId: groupId)));
+                                    navigateToDetail();
                                   },
                                   style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
                                   child: const Text('Lewati'),
@@ -308,7 +315,7 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
                                       if (mounted) {
                                         _showSnackbar('${_selectedUsersForInvite.length} anggota berhasil ditambahkan!');
                                         _selectedUsersForInvite.clear();
-                                        Navigator.push(this.context, MaterialPageRoute(builder: (_) => GroupDetailScreen(groupId: groupId)));
+                                        navigateToDetail();
                                       }
                                     } catch (e) {
                                       if (mounted) {
@@ -322,7 +329,7 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
                                               TextButton(
                                                 onPressed: () {
                                                   Navigator.pop(_);
-                                                  Navigator.push(this.context, MaterialPageRoute(builder: (_) => GroupDetailScreen(groupId: groupId)));
+                                                  navigateToDetail();
                                                 },
                                                 child: const Text('Lanjutkan ke Grup'),
                                               )
@@ -356,7 +363,7 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
     ).whenComplete(() {
       // In case they swiped down to dismiss instead of clicking "Lewati"
       if (_selectedUsersForInvite.isEmpty) {
-        Navigator.push(context, MaterialPageRoute(builder: (_) => GroupDetailScreen(groupId: groupId)));
+        navigateToDetail();
       }
     });
   }
@@ -919,10 +926,15 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
                                 ),
                                 child: ElevatedButton.icon(
                                   onPressed: () async {
-                                    await _createGroup();
+                                    final namaGrup = _namaGrupController.text.trim();
+                                    if (namaGrup.isEmpty) {
+                                      _showSnackbar('Nama grup tidak boleh kosong', isError: true);
+                                      return;
+                                    }
                                     if (modalContext.mounted) {
                                       Navigator.pop(modalContext);
                                     }
+                                    await _createGroup();
                                   },
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: Colors.transparent,
