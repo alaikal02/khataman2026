@@ -23,6 +23,8 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
   // Map groupId -> approval_status ('APPROVED','PENDING','REJECTED')
   Map<String, String> _myMemberStatus = {};
   bool _isLoading = true;
+  final Set<String> _expandedGroupIds = {};
+  final Map<String, String> _selectedMemberNamePerGroup = {};
   bool _showCreateForm = false;
   String _groupVisibility = 'PUBLIC'; // untuk form buat grup
   late TabController _tabController;
@@ -48,10 +50,28 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
     if (userId == null) return;
 
     try {
-      // Ambil SEMUA grup beserta kolom visibility dan nama admin
       final allGroupsData = await _supabase
           .from('groups')
-          .select('id_group, nama_grup, kode_gk_unik, creator_id, created_at, visibility, users!creator_id(username)')
+          .select('''
+            id_group, nama_grup, kode_gk_unik, creator_id, created_at, visibility,
+            users!creator_id(username),
+            putaran_siklus(
+              id_putaran,
+              status_aktif_selesai,
+              slot_khataman(
+                status_checklist,
+                user_id
+              )
+            ),
+            group_members(
+              approval_status,
+              users(
+                id_user,
+                username,
+                avatar_url
+              )
+            )
+          ''')
           .order('created_at', ascending: false);
 
       // Ambil status keanggotaan user ini (group_id + approval_status)
@@ -748,16 +768,58 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
     final isPending = memberStatus == 'PENDING';
     final isApproved = memberStatus == 'APPROVED';
     final canOpen = isJoined && isApproved;
+    final isExpanded = _expandedGroupIds.contains(groupId);
+
+    // Calculate group active round reading progress
+    final cycles = group['putaran_siklus'] as List<dynamic>? ?? [];
+    Map<String, dynamic>? activeCycle;
+    for (var c in cycles) {
+      if (c['status_aktif_selesai'] == 'AKTIF') {
+        activeCycle = c as Map<String, dynamic>;
+        break;
+      }
+    }
+    if (activeCycle == null && visibility == 'ARCHIVED') {
+      for (var c in cycles) {
+        if (c['status_aktif_selesai'] == 'SELESAI') {
+          activeCycle = c as Map<String, dynamic>;
+          break;
+        }
+      }
+    }
+
+    int completedCount = 0;
+    int claimedCount = 0;
+    double progress = 0.0;
+    double claimedProgress = 0.0;
+    if (activeCycle != null) {
+      final slots = activeCycle['slot_khataman'] as List<dynamic>? ?? [];
+      completedCount = slots.where((s) => s['status_checklist'] == true).length;
+      progress = completedCount / 30.0;
+      claimedCount = slots.where((s) => s['user_id'] != null).length;
+      claimedProgress = claimedCount / 30.0;
+    }
+
+    // Extract approved members list
+    final rawMembers = group['group_members'] as List<dynamic>? ?? [];
+    final approvedMembers = rawMembers.where((m) => m['approval_status'] == 'APPROVED').toList();
 
     return GestureDetector(
       onTap: canOpen
-          ? () async {
-              await Navigator.push(context, MaterialPageRoute(
-                  builder: (_) => GroupDetailScreen(groupId: group['id_group'])));
-              if (mounted) _fetchData();
+          ? () {
+              setState(() {
+                if (isExpanded) {
+                  _expandedGroupIds.remove(groupId);
+                  _selectedMemberNamePerGroup.remove(groupId);
+                } else {
+                  _expandedGroupIds.add(groupId);
+                }
+              });
             }
           : null,
-      child: Container(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeInOut,
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
@@ -774,217 +836,473 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
                         ? const Color(0xFF6C63FF).withOpacity(0.3)
                         : const Color(0xFF6C63FF).withOpacity(0.15)),
           ),
+          boxShadow: isExpanded
+              ? [
+                  BoxShadow(
+                    color: (isDark ? Colors.black : Colors.grey.shade200).withOpacity(isDark ? 0.3 : 0.5),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ]
+              : null,
         ),
-        child: Row(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            // Icon
-            Container(
-              width: 52,
-              height: 52,
-              decoration: BoxDecoration(
-                gradient: isDark
-                    ? LinearGradient(
-                        colors: canOpen
-                            ? [const Color(0xFF2ECC71), const Color(0xFF1A8A4A)]
+            Row(
+              children: [
+                // Icon
+                Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    gradient: isDark
+                        ? LinearGradient(
+                            colors: canOpen
+                                ? [const Color(0xFF2ECC71), const Color(0xFF1A8A4A)]
+                                : isPending
+                                    ? [const Color(0xFFB8860B), const Color(0xFF8B6508)]
+                                    : [const Color(0xFF6C63FF), const Color(0xFF3F3D8B)],
+                          )
+                        : null,
+                    color: isDark
+                        ? null
+                        : canOpen
+                            ? AppTheme.primaryGreen.withOpacity(0.12)
                             : isPending
-                                ? [const Color(0xFFB8860B), const Color(0xFF8B6508)]
-                                : [const Color(0xFF6C63FF), const Color(0xFF3F3D8B)],
-                      )
-                    : null,
-                color: isDark
-                    ? null
-                    : canOpen
-                        ? AppTheme.primaryGreen.withOpacity(0.12)
+                                ? AppTheme.accentGold.withOpacity(0.12)
+                                : const Color(0xFF6C63FF).withOpacity(0.12),
+                    border: isDark
+                        ? null
+                        : Border.all(
+                            color: canOpen
+                                ? AppTheme.primaryGreen.withOpacity(0.25)
+                                : isPending
+                                    ? AppTheme.accentGold.withOpacity(0.25)
+                                    : const Color(0xFF6C63FF).withOpacity(0.25),
+                            width: 0.8,
+                          ),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(
+                    canOpen
+                        ? Icons.group_rounded
                         : isPending
-                            ? AppTheme.accentGold.withOpacity(0.12)
-                            : const Color(0xFF6C63FF).withOpacity(0.12),
-                border: isDark
-                    ? null
-                    : Border.all(
-                        color: canOpen
-                            ? AppTheme.primaryGreen.withOpacity(0.25)
+                            ? Icons.hourglass_top_rounded
+                            : Icons.group_add_rounded,
+                    color: isDark
+                        ? Colors.white
+                        : canOpen
+                            ? AppTheme.darkGreen
                             : isPending
-                                ? AppTheme.accentGold.withOpacity(0.25)
-                                : const Color(0xFF6C63FF).withOpacity(0.25),
-                        width: 0.8,
+                                ? const Color(0xFF8B6508)
+                                : const Color(0xFF3F3D8B),
+                    size: 26,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                // Info
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              group['nama_grup'] ?? 'Grup',
+                              style: TextStyle(
+                                fontSize: 16, fontWeight: FontWeight.w600, color: Theme.of(context).colorScheme.onSurface,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (isPrivate) ...[
+                            const SizedBox(width: 6),
+                            const Icon(Icons.lock_rounded, size: 13, color: AppTheme.accentGold),
+                          ],
+                        ],
                       ),
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Icon(
-                canOpen
-                    ? Icons.group_rounded
-                    : isPending
-                        ? Icons.hourglass_top_rounded
-                        : Icons.group_add_rounded,
-                color: isDark
-                    ? Colors.white
-                    : canOpen
-                        ? AppTheme.darkGreen
-                        : isPending
-                            ? const Color(0xFF8B6508)
-                            : const Color(0xFF3F3D8B),
-                size: 26,
-              ),
+                      const SizedBox(height: 4),
+                       Row(
+                        children: [
+                          Icon(Icons.tag_rounded, size: 13, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                          const SizedBox(width: 3),
+                          Text(
+                            group['kode_gk_unik'] ?? '',
+                            style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12),
+                          ),
+                          if (isCreator) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: AppTheme.accentGold.withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: const Text('Admin', style: TextStyle(color: AppTheme.accentGold, fontSize: 10)),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                // Action Button
+                if (canOpen)
+                Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      GestureDetector(
+                        onTap: () async {
+                          await Navigator.push(context, MaterialPageRoute(
+                              builder: (_) => GroupDetailScreen(groupId: group['id_group'])));
+                          if (mounted) _fetchData();
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                          decoration: BoxDecoration(
+                            color: isDark 
+                                ? AppTheme.primaryGreen.withOpacity(0.15) 
+                                : AppTheme.primaryGreen.withOpacity(0.12),
+                            border: isDark 
+                                ? null 
+                                : Border.all(
+                                    color: AppTheme.primaryGreen.withOpacity(0.25),
+                                    width: 0.8,
+                                  ),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            'Buka', 
+                            style: TextStyle(
+                              color: isDark ? AppTheme.primaryGreen : AppTheme.darkGreen, 
+                              fontWeight: FontWeight.w600, 
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Icon(
+                        isExpanded
+                            ? Icons.keyboard_arrow_up_rounded
+                            : Icons.keyboard_arrow_down_rounded,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.5),
+                        size: 22,
+                      ),
+                    ],
+                  )
+                else if (isPending)
+                  GestureDetector(
+                    onTap: () => _showCancelJoinDialog(groupId, group['nama_grup'] ?? 'Grup'),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                      decoration: BoxDecoration(
+                        color: AppTheme.accentGold.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: isDark 
+                              ? AppTheme.accentGold.withOpacity(0.4) 
+                              : AppTheme.accentGold.withOpacity(0.25),
+                          width: 0.8,
+                        ),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.hourglass_top_rounded, size: 12, color: AppTheme.accentGold),
+                          SizedBox(width: 4),
+                          Text(
+                            'Menunggu', 
+                            style: TextStyle(
+                              color: AppTheme.accentGold, 
+                              fontWeight: FontWeight.w600, 
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                else
+                  GestureDetector(
+                    onTap: () => _joinGroup(group['id_group'], group['nama_grup'] ?? 'Grup', visibility),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                      decoration: BoxDecoration(
+                        gradient: isDark
+                            ? const LinearGradient(
+                                colors: [Color(0xFF6C63FF), Color(0xFF3F3D8B)],
+                              )
+                            : null,
+                        color: isDark ? null : const Color(0xFF6C63FF).withOpacity(0.12),
+                        border: isDark 
+                            ? null 
+                            : Border.all(
+                                color: const Color(0xFF6C63FF).withOpacity(0.25),
+                                width: 0.8,
+                              ),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        'Gabung', 
+                        style: TextStyle(
+                          color: isDark ? Colors.white : const Color(0xFF3F3D8B), 
+                          fontWeight: FontWeight.w600, 
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
-            const SizedBox(width: 14),
-            // Info
-            Expanded(
-              child: Column(
+            AnimatedCrossFade(
+              duration: const Duration(milliseconds: 250),
+              firstCurve: Curves.easeInOut,
+              secondCurve: Curves.easeInOut,
+              crossFadeState: (canOpen && isExpanded)
+                  ? CrossFadeState.showSecond
+                  : CrossFadeState.showFirst,
+              firstChild: const SizedBox.shrink(),
+              secondChild: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      Flexible(
-                        child: Text(
-                          group['nama_grup'] ?? 'Grup',
-                          style: TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.w600, color: Theme.of(context).colorScheme.onSurface,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      if (isPrivate) ...[
-                        const SizedBox(width: 6),
-                        const Icon(Icons.lock_rounded, size: 13, color: AppTheme.accentGold),
-                      ],
-                    ],
+                  const SizedBox(height: 12),
+                  Divider(
+                    color: isDark ? Colors.white.withOpacity(0.08) : Colors.grey.shade200,
+                    height: 1,
                   ),
-                  const SizedBox(height: 4),
-                   Row(
-                    children: [
-                      Icon(Icons.tag_rounded, size: 13, color: Theme.of(context).colorScheme.onSurfaceVariant),
-                      const SizedBox(width: 3),
-                      Text(
-                        group['kode_gk_unik'] ?? '',
-                        style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12),
-                      ),
-                      if (isCreator) ...[
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: AppTheme.accentGold.withOpacity(0.15),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: const Text('Admin', style: TextStyle(color: AppTheme.accentGold, fontSize: 10)),
-                        ),
-                      ],
-                    ],
-                  ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 12),
+                  // Admin Info (Only visible when expanded!)
                   Row(
                     children: [
                       Icon(Icons.person_rounded, size: 13, color: Theme.of(context).colorScheme.onSurfaceVariant),
                       const SizedBox(width: 3),
                       Text(
                         'Admin: ',
-                        style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12),
-                      ),
-                      Expanded(
-                        child: Text(
-                          isCreator ? 'Anda' : (group['users']?['username'] ?? '...'),
-                          style: TextStyle(
-                            color: Theme.of(context).colorScheme.onSurface,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            // Action Button
-            if (canOpen)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                decoration: BoxDecoration(
-                  color: isDark 
-                      ? AppTheme.primaryGreen.withOpacity(0.15) 
-                      : AppTheme.primaryGreen.withOpacity(0.12),
-                  border: isDark 
-                      ? null 
-                      : Border.all(
-                          color: AppTheme.primaryGreen.withOpacity(0.25),
-                          width: 0.8,
-                        ),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(
-                  'Buka', 
-                  style: TextStyle(
-                    color: isDark ? AppTheme.primaryGreen : AppTheme.darkGreen, 
-                    fontWeight: FontWeight.w600, 
-                    fontSize: 13,
-                  ),
-                ),
-              )
-            else if (isPending)
-              GestureDetector(
-                onTap: () => _showCancelJoinDialog(groupId, group['nama_grup'] ?? 'Grup'),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                  decoration: BoxDecoration(
-                    color: AppTheme.accentGold.withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                      color: isDark 
-                          ? AppTheme.accentGold.withOpacity(0.4) 
-                          : AppTheme.accentGold.withOpacity(0.25),
-                      width: 0.8,
-                    ),
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.hourglass_top_rounded, size: 12, color: AppTheme.accentGold),
-                      SizedBox(width: 4),
-                      Text(
-                        'Menunggu', 
                         style: TextStyle(
-                          color: AppTheme.accentGold, 
-                          fontWeight: FontWeight.w600, 
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                           fontSize: 12,
                         ),
                       ),
+                      Text(
+                        isCreator ? 'Anda' : (group['users']?['username'] ?? '...'),
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurface,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     ],
                   ),
-                ),
-              )
-            else
-              GestureDetector(
-                onTap: () => _joinGroup(group['id_group'], group['nama_grup'] ?? 'Grup', visibility),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                  decoration: BoxDecoration(
-                    gradient: isDark
-                        ? const LinearGradient(
-                            colors: [Color(0xFF6C63FF), Color(0xFF3F3D8B)],
-                          )
-                        : null,
-                    color: isDark ? null : const Color(0xFF6C63FF).withOpacity(0.12),
-                    border: isDark 
-                        ? null 
-                        : Border.all(
-                            color: const Color(0xFF6C63FF).withOpacity(0.25),
-                            width: 0.8,
+                  const SizedBox(height: 10),
+                  // Progress Bar Section
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Progres Grup',
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // 1. Label Claimed (Ambil) in Gold/Amber
+                          Text(
+                            '$claimedCount Diambil',
+                            style: TextStyle(
+                              color: isDark ? AppTheme.accentGold : Colors.amber.shade800,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
-                    borderRadius: BorderRadius.circular(10),
+                          Text(
+                            ' • ',
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.5),
+                              fontSize: 10,
+                            ),
+                          ),
+                          // 2. Label Completed (Selesai) in Green
+                          Text(
+                            '$completedCount Selesai (${(progress * 100).toInt()}%)',
+                            style: TextStyle(
+                              color: isDark ? AppTheme.primaryGreen : AppTheme.darkGreen,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
-                  child: Text(
-                    'Gabung', 
-                    style: TextStyle(
-                      color: isDark ? Colors.white : const Color(0xFF3F3D8B), 
-                      fontWeight: FontWeight.w600, 
-                      fontSize: 13,
+                  const SizedBox(height: 6),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(3),
+                    child: SizedBox(
+                      height: 6,
+                      child: Stack(
+                        children: [
+                          // Lapisan 1: Pengambilan Juz (Gold) - Ditumpuk di bawah
+                          LinearProgressIndicator(
+                            value: claimedProgress,
+                            minHeight: 6,
+                            backgroundColor: isDark
+                                ? Colors.white.withOpacity(0.08)
+                                : Colors.grey.shade100,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              isDark ? AppTheme.accentGold : AppTheme.accentGold.withOpacity(0.8),
+                            ),
+                          ),
+                          // Lapisan 2: Selesai Dibaca (Hijau) - Ditumpuk di atas dengan latar belakang transparan
+                          LinearProgressIndicator(
+                            value: progress,
+                            minHeight: 6,
+                            backgroundColor: Colors.transparent,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              isDark ? AppTheme.primaryGreen : AppTheme.darkGreen,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
+                  const SizedBox(height: 14),
+                  // Group Members Section
+                  Row(
+                    children: [
+                      Text(
+                        'Anggota Grup ',
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                        decoration: BoxDecoration(
+                          color: (isDark ? AppTheme.primaryGreen : AppTheme.darkGreen).withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          '${approvedMembers.length} Orang',
+                          style: TextStyle(
+                            color: isDark ? AppTheme.primaryGreen : AppTheme.darkGreen,
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  if (approvedMembers.isEmpty)
+                    Text(
+                      'Belum ada anggota.',
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        fontSize: 11,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    )
+                  else
+                    SizedBox(
+                      height: 32,
+                      child: ListView.builder(
+                        scrollDirection: Axis.horizontal,
+                        physics: const BouncingScrollPhysics(),
+                        clipBehavior: Clip.none, // Allow tooltips to overlap elements above without pushing layout!
+                        itemCount: approvedMembers.length,
+                        itemBuilder: (context, idx) {
+                          final m = approvedMembers[idx];
+                          final avatarUrl = m['users']?['avatar_url'] as String?;
+                          final name = m['users']?['username'] as String? ?? '...';
+                          final isSelected = _selectedMemberNamePerGroup[groupId] == name;
+
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: GestureDetector(
+                              // Prevent tap bubbling/propagation to parent GestureDetector!
+                              onTap: () {
+                                setState(() {
+                                  if (isSelected) {
+                                    _selectedMemberNamePerGroup.remove(groupId);
+                                  } else {
+                                    _selectedMemberNamePerGroup[groupId] = name;
+                                  }
+                                });
+                              },
+                              child: SizedBox(
+                                width: 28,
+                                child: Stack(
+                                  alignment: Alignment.bottomCenter,
+                                  clipBehavior: Clip.none,
+                                  children: [
+                                    // 1. Avatar Container
+                                    Container(
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        border: Border.all(
+                                          color: (isDark ? AppTheme.primaryGreen : AppTheme.darkGreen).withOpacity(0.15),
+                                          width: 1,
+                                        ),
+                                      ),
+                                      child: CircleAvatar(
+                                        radius: 14,
+                                        backgroundColor: (isDark ? AppTheme.primaryGreen : AppTheme.darkGreen).withOpacity(0.08),
+                                        backgroundImage: avatarUrl != null && avatarUrl.isNotEmpty
+                                            ? NetworkImage(avatarUrl)
+                                            : null,
+                                        child: avatarUrl == null || avatarUrl.isEmpty
+                                            ? Text(
+                                                name.isNotEmpty ? name[0].toUpperCase() : '?',
+                                                style: TextStyle(
+                                                  fontSize: 10,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: isDark ? AppTheme.primaryGreen : AppTheme.darkGreen,
+                                                ),
+                                              )
+                                            : null,
+                                      ),
+                                    ),
+                                    // 2. Custom Float Tooltip Box (Centered directly above!)
+                                    if (isSelected)
+                                      Positioned(
+                                        bottom: 34, // Sits perfectly 6px above the 28px avatar
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                          decoration: BoxDecoration(
+                                            color: Colors.black.withOpacity(0.85),
+                                            borderRadius: BorderRadius.circular(4),
+                                          ),
+                                          child: Text(
+                                            name,
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                ],
               ),
+            ),
           ],
         ),
       ),
