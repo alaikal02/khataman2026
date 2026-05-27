@@ -13,7 +13,7 @@ class GroupScreen extends StatefulWidget {
   State<GroupScreen> createState() => _GroupScreenState();
 }
 
-class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStateMixin {
+class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   final Set<String> _selectedUsersForInvite = {};
   final _supabase = Supabase.instance.client;
   final _namaGrupController = TextEditingController();
@@ -25,13 +25,14 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
   bool _isLoading = true;
   final Set<String> _expandedGroupIds = {};
   final Map<String, String> _selectedMemberNamePerGroup = {};
-  bool _showCreateForm = false;
   String _groupVisibility = 'PUBLIC'; // untuk form buat grup
   late TabController _tabController;
+  StateSetter? _sheetSetState;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _tabController = TabController(length: 3, vsync: this);
     _fetchData();
     _searchController.addListener(() => setState(() {}));
@@ -39,10 +40,25 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _tabController.dispose();
     _namaGrupController.dispose();
     _searchController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeMetrics() {
+    super.didChangeMetrics();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _sheetSetState?.call(() {});
+    });
+  }
+
+  /// Get keyboard height directly from the platform View, bypassing MediaQuery overrides.
+  double get _keyboardHeight {
+    final view = View.of(context);
+    return view.viewInsets.bottom / view.devicePixelRatio;
   }
 
   Future<void> _fetchData() async {
@@ -148,10 +164,7 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
       });
 
       _namaGrupController.clear();
-      setState(() {
-        _showCreateForm = false;
-        _groupVisibility = 'PUBLIC';
-      });
+      _groupVisibility = 'PUBLIC';
       _showSnackbar('Grup "$namaGrup" berhasil dibuat! Kode: $uniqueCode');
       await _fetchData();
 
@@ -540,140 +553,406 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
         ),
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => setState(() => _showCreateForm = !_showCreateForm),
+        onPressed: _showCreateGroupBottomSheet,
         backgroundColor: AppTheme.primaryGreen,
-        icon: Icon(_showCreateForm ? Icons.close_rounded : Icons.add_rounded),
-        label: Text(_showCreateForm ? 'Tutup' : 'Buat Grup'),
+        icon: const Icon(Icons.add_rounded),
+        label: const Text('Buat Grup'),
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator(color: AppTheme.primaryGreen))
-          : Column(
+          : TabBarView(
+              controller: _tabController,
               children: [
-                // Create Form
-                if (_showCreateForm) _buildCreateForm(),
-                // Tab Content
-                Expanded(
-                  child: TabBarView(
-                    controller: _tabController,
-                    children: [
-                      _buildAllGroupsTab(),
-                      _buildMyGroupsTab(),
-                      _buildArchivedGroupsTab(),
-                    ],
-                  ),
-                ),
+                _buildAllGroupsTab(),
+                _buildMyGroupsTab(),
+                _buildArchivedGroupsTab(),
               ],
             ),
     );
   }
 
-  Widget _buildCreateForm() {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 200),
-      color: Theme.of(context).colorScheme.surface,
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Buat Grup Khataman Baru', style: TextStyle(
-            color: Theme.of(context).colorScheme.onSurface, fontWeight: FontWeight.w600, fontSize: 15,
-          )),
-          const SizedBox(height: 10),
-          TextField(
-            controller: _namaGrupController,
-            style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
-            decoration: const InputDecoration(hintText: 'Nama grup (misal: Khataman Keluarga)'),
-          ),
-          const SizedBox(height: 12),
-          // Toggle Public / Private
-          Row(
-            children: [
-              Expanded(
-                child: GestureDetector(
-                  onTap: () => setState(() => _groupVisibility = 'PUBLIC'),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 150),
-                    padding: const EdgeInsets.symmetric(vertical: 10),
+  void _showCreateGroupBottomSheet() {
+    _groupVisibility = 'PUBLIC';
+    _namaGrupController.clear();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (modalContext, setModalState) {
+            _sheetSetState = setModalState;
+            final isDark = Theme.of(modalContext).brightness == Brightness.dark;
+            final surfaceColor = isDark ? const Color(0xFF161B22) : const Color(0xFFFAFCFA);
+            final inputBgColor = isDark ? const Color(0xFF1F2937) : const Color(0xFFEDF2ED);
+            final borderColor = isDark ? const Color(0xFF30363D) : const Color(0xFFD4DDD6);
+            final onSurfaceColor = isDark ? const Color(0xFFE6EDF3) : const Color(0xFF1D2A22);
+            final onSurfaceVariantColor = isDark ? const Color(0xFF8B949E) : const Color(0xFF5F6E65);
+
+            return Padding(
+              padding: EdgeInsets.only(bottom: _keyboardHeight),
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => FocusScope.of(modalContext).unfocus(),
+                child: SingleChildScrollView(
+                  child: Container(
                     decoration: BoxDecoration(
-                      color: _groupVisibility == 'PUBLIC'
-                          ? AppTheme.primaryGreen
-                          : Theme.of(context).colorScheme.surfaceContainerHighest,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.lock_open_rounded,
-                            size: 16,
-                            color: _groupVisibility == 'PUBLIC'
-                                ? Colors.white
-                                : Theme.of(context).colorScheme.onSurfaceVariant),
-                        const SizedBox(width: 6),
-                        Text('Publik',
-                            style: TextStyle(
-                                fontWeight: FontWeight.w600,
-                                color: _groupVisibility == 'PUBLIC'
-                                    ? Colors.white
-                                    : Theme.of(context).colorScheme.onSurfaceVariant)),
+                      color: surfaceColor,
+                      borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(isDark ? 0.4 : 0.12),
+                          blurRadius: 20,
+                          offset: const Offset(0, -4),
+                        ),
                       ],
+                    ),
+                    child: SafeArea(
+                      top: false,
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // ── Drag Handle ──
+                            Container(
+                              width: 40,
+                              height: 4.5,
+                              margin: const EdgeInsets.only(bottom: 20),
+                              decoration: BoxDecoration(
+                                color: isDark ? Colors.grey.shade700 : Colors.grey.shade300,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+
+                            // ── Header Row ──
+                            Row(
+                              children: [
+                                Container(
+                                  width: 44,
+                                  height: 44,
+                                  decoration: BoxDecoration(
+                                    gradient: const LinearGradient(
+                                      colors: [Color(0xFF2ECC71), Color(0xFF1A8A4A)],
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                    ),
+                                    borderRadius: BorderRadius.circular(14),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: AppTheme.primaryGreen.withOpacity(0.3),
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ],
+                                  ),
+                                  child: const Icon(Icons.group_add_rounded, color: Colors.white, size: 22),
+                                ),
+                                const SizedBox(width: 14),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Buat Grup Baru',
+                                        style: TextStyle(
+                                          color: onSurfaceColor,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 18,
+                                          letterSpacing: -0.3,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        'Khataman Al-Quran bersama',
+                                        style: TextStyle(
+                                          color: onSurfaceVariantColor,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                GestureDetector(
+                                  onTap: () => Navigator.pop(modalContext),
+                                  child: Container(
+                                    width: 32,
+                                    height: 32,
+                                    decoration: BoxDecoration(
+                                      color: isDark ? Colors.white.withOpacity(0.08) : Colors.grey.shade100,
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: Icon(Icons.close_rounded, size: 18, color: onSurfaceVariantColor),
+                                  ),
+                                ),
+                              ],
+                            ),
+
+                            const SizedBox(height: 24),
+
+                            // ── Label ──
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                'Nama Grup',
+                                style: TextStyle(
+                                  color: onSurfaceVariantColor,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: 0.3,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+
+                            // ── Text Field ──
+                            TextField(
+                              controller: _namaGrupController,
+                              style: TextStyle(color: onSurfaceColor),
+                              textCapitalization: TextCapitalization.words,
+                              decoration: InputDecoration(
+                                hintText: 'Contoh: Khataman Keluarga',
+                                filled: true,
+                                fillColor: inputBgColor,
+                                prefixIcon: Icon(Icons.edit_rounded, size: 18, color: onSurfaceVariantColor),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                  borderSide: BorderSide(color: borderColor),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                  borderSide: const BorderSide(color: AppTheme.primaryGreen, width: 1.5),
+                                ),
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                              ),
+                            ),
+
+                            const SizedBox(height: 20),
+
+                            // ── Visibility Label ──
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                'Visibilitas Grup',
+                                style: TextStyle(
+                                  color: onSurfaceVariantColor,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: 0.3,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+
+                            // ── Toggle Public / Private ──
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: GestureDetector(
+                                    onTap: () => setModalState(() => _groupVisibility = 'PUBLIC'),
+                                    child: AnimatedContainer(
+                                      duration: const Duration(milliseconds: 200),
+                                      padding: const EdgeInsets.symmetric(vertical: 13),
+                                      decoration: BoxDecoration(
+                                        color: _groupVisibility == 'PUBLIC'
+                                            ? AppTheme.primaryGreen
+                                            : inputBgColor,
+                                        borderRadius: BorderRadius.circular(14),
+                                        border: Border.all(
+                                          color: _groupVisibility == 'PUBLIC'
+                                              ? AppTheme.primaryGreen
+                                              : borderColor,
+                                          width: _groupVisibility == 'PUBLIC' ? 1.5 : 1,
+                                        ),
+                                        boxShadow: _groupVisibility == 'PUBLIC'
+                                            ? [
+                                                BoxShadow(
+                                                  color: AppTheme.primaryGreen.withOpacity(0.25),
+                                                  blurRadius: 8,
+                                                  offset: const Offset(0, 2),
+                                                ),
+                                              ]
+                                            : null,
+                                      ),
+                                      child: Row(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          Icon(
+                                            Icons.public_rounded,
+                                            size: 17,
+                                            color: _groupVisibility == 'PUBLIC'
+                                                ? Colors.white
+                                                : onSurfaceVariantColor,
+                                          ),
+                                          const SizedBox(width: 6),
+                                          Text(
+                                            'Publik',
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.w600,
+                                              fontSize: 13,
+                                              color: _groupVisibility == 'PUBLIC'
+                                                  ? Colors.white
+                                                  : onSurfaceVariantColor,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: GestureDetector(
+                                    onTap: () => setModalState(() => _groupVisibility = 'PRIVATE'),
+                                    child: AnimatedContainer(
+                                      duration: const Duration(milliseconds: 200),
+                                      padding: const EdgeInsets.symmetric(vertical: 13),
+                                      decoration: BoxDecoration(
+                                        color: _groupVisibility == 'PRIVATE'
+                                            ? AppTheme.accentGold
+                                            : inputBgColor,
+                                        borderRadius: BorderRadius.circular(14),
+                                        border: Border.all(
+                                          color: _groupVisibility == 'PRIVATE'
+                                              ? AppTheme.accentGold
+                                              : borderColor,
+                                          width: _groupVisibility == 'PRIVATE' ? 1.5 : 1,
+                                        ),
+                                        boxShadow: _groupVisibility == 'PRIVATE'
+                                            ? [
+                                                BoxShadow(
+                                                  color: AppTheme.accentGold.withOpacity(0.25),
+                                                  blurRadius: 8,
+                                                  offset: const Offset(0, 2),
+                                                ),
+                                              ]
+                                            : null,
+                                      ),
+                                      child: Row(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          Icon(
+                                            Icons.lock_rounded,
+                                            size: 17,
+                                            color: _groupVisibility == 'PRIVATE'
+                                                ? Colors.white
+                                                : onSurfaceVariantColor,
+                                          ),
+                                          const SizedBox(width: 6),
+                                          Text(
+                                            'Privat',
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.w600,
+                                              fontSize: 13,
+                                              color: _groupVisibility == 'PRIVATE'
+                                                  ? Colors.white
+                                                  : onSurfaceVariantColor,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+
+                            // ── Private Info Note ──
+                            AnimatedSize(
+                              duration: const Duration(milliseconds: 200),
+                              curve: Curves.easeInOut,
+                              child: _groupVisibility == 'PRIVATE'
+                                  ? Padding(
+                                      padding: const EdgeInsets.only(top: 10),
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                        decoration: BoxDecoration(
+                                          color: AppTheme.accentGold.withOpacity(isDark ? 0.12 : 0.08),
+                                          borderRadius: BorderRadius.circular(10),
+                                          border: Border.all(
+                                            color: AppTheme.accentGold.withOpacity(0.2),
+                                          ),
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            const Icon(Icons.info_outline_rounded, size: 15, color: AppTheme.accentGold),
+                                            const SizedBox(width: 8),
+                                            Expanded(
+                                              child: Text(
+                                                'Anggota harus disetujui Admin sebelum bergabung.',
+                                                style: TextStyle(
+                                                  fontSize: 11.5,
+                                                  color: isDark ? AppTheme.accentGold : Colors.amber.shade800,
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    )
+                                  : const SizedBox.shrink(),
+                            ),
+
+                            const SizedBox(height: 24),
+
+                            // ── Submit Button ──
+                            SizedBox(
+                              width: double.infinity,
+                              height: 50,
+                              child: DecoratedBox(
+                                decoration: BoxDecoration(
+                                  gradient: const LinearGradient(
+                                    colors: [Color(0xFF2ECC71), Color(0xFF1A8A4A)],
+                                    begin: Alignment.centerLeft,
+                                    end: Alignment.centerRight,
+                                  ),
+                                  borderRadius: BorderRadius.circular(14),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: AppTheme.primaryGreen.withOpacity(0.3),
+                                      blurRadius: 12,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ],
+                                ),
+                                child: ElevatedButton.icon(
+                                  onPressed: () async {
+                                    await _createGroup();
+                                    if (modalContext.mounted) {
+                                      Navigator.pop(modalContext);
+                                    }
+                                  },
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.transparent,
+                                    shadowColor: Colors.transparent,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(14),
+                                    ),
+                                  ),
+                                  icon: const Icon(Icons.rocket_launch_rounded, size: 18),
+                                  label: const Text(
+                                    'Buat Grup Sekarang',
+                                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
                 ),
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: GestureDetector(
-                  onTap: () => setState(() => _groupVisibility = 'PRIVATE'),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 150),
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    decoration: BoxDecoration(
-                      color: _groupVisibility == 'PRIVATE'
-                          ? AppTheme.accentGold
-                          : Theme.of(context).colorScheme.surfaceContainerHighest,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.lock_rounded,
-                            size: 16,
-                            color: _groupVisibility == 'PRIVATE'
-                                ? Colors.white
-                                : Theme.of(context).colorScheme.onSurfaceVariant),
-                        const SizedBox(width: 6),
-                        Text('Privat',
-                            style: TextStyle(
-                                fontWeight: FontWeight.w600,
-                                color: _groupVisibility == 'PRIVATE'
-                                    ? Colors.white
-                                    : Theme.of(context).colorScheme.onSurfaceVariant)),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          if (_groupVisibility == 'PRIVATE')
-            const Padding(
-              padding: EdgeInsets.only(top: 6),
-              child: Text(
-                '🔒 Anggota harus mendapat persetujuan Admin sebelum bisa masuk.',
-                style: TextStyle(fontSize: 11, color: AppTheme.accentGold),
-              ),
-            ),
-          const SizedBox(height: 10),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: _createGroup,
-              child: const Text('Buat Grup Sekarang'),
-            ),
-          ),
-        ],
-      ),
-    );
+            );
+          },
+        );
+      },
+    ).then((_) {
+      _sheetSetState = null;
+    });
   }
 
   Widget _buildAllGroupsTab() {
