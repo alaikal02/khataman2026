@@ -3,7 +3,7 @@ import '../theme/app_theme.dart';
 
 /// Membuka bottom sheet premium doa khatam Al-Quran.
 /// Komponen ini reusable dan dapat dipanggil dari mana saja.
-void showDoaKhatamBottomSheet(BuildContext context) {
+void showDoaKhatamBottomSheet(BuildContext context, {VoidCallback? onConfirmCompletion}) {
   showModalBottomSheet(
     context: context,
     isScrollControlled: true,
@@ -56,7 +56,14 @@ void showDoaKhatamBottomSheet(BuildContext context) {
           const Divider(),
           Expanded(
             child: ListView(
-              padding: EdgeInsets.fromLTRB(24, 24, 24, 24 + MediaQuery.of(context).padding.bottom),
+              padding: EdgeInsets.fromLTRB(
+                24,
+                24,
+                24,
+                onConfirmCompletion != null
+                    ? 24
+                    : 24 + MediaQuery.of(context).padding.bottom,
+              ),
               children: [
                 Container(
                   width: double.infinity,
@@ -119,6 +126,33 @@ void showDoaKhatamBottomSheet(BuildContext context) {
               ],
             ),
           ),
+          if (onConfirmCompletion != null) ...[
+            const Divider(height: 1),
+            Padding(
+              padding: EdgeInsets.fromLTRB(24, 12, 24, 12 + MediaQuery.of(context).padding.bottom),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    onConfirmCompletion();
+                  },
+                  icon: const Icon(Icons.check_circle_rounded, size: 18),
+                  label: const Text(
+                    'Saya Telah Membaca Doa',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.primaryGreen,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     ),
@@ -132,6 +166,7 @@ class CongratulatoryCard extends StatelessWidget {
   final String description;
   final String resetLabel;
   final bool showResetButton;
+  final VoidCallback? onDoaKhatam;
 
   const CongratulatoryCard({
     Key? key,
@@ -140,6 +175,7 @@ class CongratulatoryCard extends StatelessWidget {
     this.description = 'Selamat! Anda telah menyelesaikan khataman 30 Juz Al-Quran.',
     this.resetLabel = 'Reset Progres',
     this.showResetButton = true,
+    this.onDoaKhatam,
   }) : super(key: key);
 
   @override
@@ -211,7 +247,13 @@ class CongratulatoryCard extends StatelessWidget {
             children: [
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: () => showDoaKhatamBottomSheet(context),
+                  onPressed: () {
+                    if (onDoaKhatam != null) {
+                      onDoaKhatam!();
+                    } else {
+                      showDoaKhatamBottomSheet(context);
+                    }
+                  },
                   icon: Icon(
                     Icons.menu_book_rounded, 
                     size: 16, 

@@ -168,18 +168,6 @@ class _MandiriScreenState extends State<MandiriScreen> {
     if (confirmed != true) return;
 
     try {
-      final completed = _completedCount();
-      if (completed == 30) {
-        await PersonalHistoryService.logReading(
-          userId: userId,
-          juz: 30,
-          description: '🏆 Menyelesaikan Khataman Mandiri 30 Juz! Alhamdulillah!',
-          type: 'Mandiri',
-          isJuzCompletion: true,
-          isKhatamCompletion: true,
-        );
-      }
-
       await _supabase
           .from('khataman_mandiri')
           .delete()
@@ -192,7 +180,7 @@ class _MandiriScreenState extends State<MandiriScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Progres berhasil direset. Bismillah, mulai lagi! 🌙'),
+            content: Text('Progres berhasil direset. Bismillah, mulai lagi! \uD83C\uDF19'),
             backgroundColor: AppTheme.primaryGreen,
           ),
         );
@@ -200,7 +188,116 @@ class _MandiriScreenState extends State<MandiriScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Gagal reset: $e'), backgroundColor: Colors.redAccent),
+          const SnackBar(content: Text('Gagal reset: \$e'), backgroundColor: Colors.redAccent),
+        );
+      }
+    }
+  }
+
+  /// Menampilkan dialog konfirmasi Doa Khatam Al-Quran untuk Khataman Mandiri.
+  /// Jika user sudah membaca doa, progres dicatat ke riwayat dan di-reset.
+  void _showDoaKhatamConfirmation() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        icon: const Icon(
+          Icons.menu_book_rounded,
+          color: AppTheme.accentGold,
+          size: 40,
+        ),
+        title: Text(
+          'Konfirmasi Khataman',
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurface,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        content: Text(
+          'Apakah Anda sudah selesai membaca Doa Khatam Al-Quran?\n\n'
+          'Jika sudah, progres khataman akan dicatat ke dalam riwayat '
+          'dan di-reset kembali ke Juz 1.',
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+            height: 1.6,
+          ),
+        ),
+        actionsAlignment: MainAxisAlignment.spaceBetween,
+        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        actions: [
+          OutlinedButton.icon(
+            onPressed: () {
+              Navigator.pop(ctx);
+              showDoaKhatamBottomSheet(context, onConfirmCompletion: _showDoaKhatamConfirmation);
+            },
+            icon: const Icon(Icons.auto_stories_rounded, size: 16),
+            label: const Text('Belum, Baca Doa', style: TextStyle(fontWeight: FontWeight.w600)),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppTheme.accentGold,
+              side: BorderSide(color: AppTheme.accentGold.withOpacity(0.5)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            ),
+          ),
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _confirmDoaKhatamMandiri();
+            },
+            icon: const Icon(Icons.check_circle_rounded, size: 16),
+            label: const Text('Ya, Sudah', style: TextStyle(fontWeight: FontWeight.bold)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.primaryGreen,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Mencatat khataman mandiri ke riwayat dan mereset seluruh progres.
+  Future<void> _confirmDoaKhatamMandiri() async {
+    final userId = _supabase.auth.currentUser?.id;
+    if (userId == null) return;
+
+    try {
+      // 1. Catat khatam completion ke riwayat personal
+      await PersonalHistoryService.logReading(
+        userId: userId,
+        juz: 30,
+        description: '\uD83C\uDFC6 Menyelesaikan Khataman Mandiri 30 Juz! Alhamdulillah!',
+        type: 'Mandiri',
+        isJuzCompletion: true,
+        isKhatamCompletion: true,
+      );
+
+      // 2. Reset seluruh progres mandiri
+      await _supabase
+          .from('khataman_mandiri')
+          .delete()
+          .eq('user_id', userId);
+
+      setState(() {
+        _progress = [];
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('\uD83C\uDFC6 Khataman berhasil dicatat! Bismillah, mulai lagi!'),
+            backgroundColor: AppTheme.primaryGreen,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Gagal mencatat khataman: \$e'), backgroundColor: Colors.redAccent),
         );
       }
     }
@@ -261,6 +358,7 @@ class _MandiriScreenState extends State<MandiriScreen> {
                   CongratulatoryCard(
                     onReset: _resetAllProgress,
                     resetLabel: 'Mulai Khataman Baru',
+                    onDoaKhatam: _showDoaKhatamConfirmation,
                   ),
                 // Juz List
                 Expanded(

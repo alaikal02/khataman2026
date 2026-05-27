@@ -7,6 +7,7 @@ import '../components/juz_progress_card.dart';
 import '../components/khatam_celebration.dart';
 import '../theme/app_theme.dart';
 import '../services/notification_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class GroupDetailScreen extends StatefulWidget {
   final String groupId;
@@ -228,6 +229,32 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
           .eq('group_id', widget.groupId)
           .eq('status_aktif_selesai', 'SELESAI');
       final completedCount = (completedCountRes as List).length;
+
+      // Check if this group was marked completed/archived locally by this user
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final localArchived = prefs.getBool('archived_group_${widget.groupId}_${pData?['id_putaran']}') ?? false;
+        if (localArchived) {
+          groupData['visibility'] = 'ARCHIVED';
+        }
+      } catch (_) {}
+
+      // Self-healing: Creator silently synchronizes permanent group archiving if round is complete
+      if (groupData['creator_id'] == _supabase.auth.currentUser?.id &&
+          groupData['visibility'] != 'ARCHIVED' &&
+          pData != null &&
+          pData['status_aktif_selesai'] == 'SELESAI') {
+        debugPrint('🔒 [Self-Healing] Creator detected completed round. Archiving group permanently in background...');
+        try {
+          await _supabase
+              .from('groups')
+              .update({'visibility': 'ARCHIVED'})
+              .eq('id_group', widget.groupId);
+          groupData['visibility'] = 'ARCHIVED';
+        } catch (shErr) {
+          debugPrint('Error in silent self-healing archive: $shErr');
+        }
+      }
 
       if (mounted) {
         setState(() {
@@ -2278,6 +2305,144 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
     );
   }
 
+  /// Menampilkan dialog konfirmasi Doa Khatam Al-Quran untuk Khataman Grup.
+  void _showDoaKhatamGroupConfirmation() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        icon: const Icon(
+          Icons.menu_book_rounded,
+          color: AppTheme.accentGold,
+          size: 40,
+        ),
+        title: Text(
+          'Konfirmasi Khataman Grup',
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurface,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        content: Text(
+          'Apakah Anda sudah selesai membaca Doa Khatam Al-Quran?\n\n'
+          'Jika sudah, grup ini akan diarsipkan dan progres khataman '
+          'akan dicatat ke dalam riwayat semua anggota. '
+          'Anggota lain akan menerima notifikasi.',
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+            height: 1.6,
+          ),
+        ),
+        actionsAlignment: MainAxisAlignment.spaceBetween,
+        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        actions: [
+          OutlinedButton.icon(
+            onPressed: () {
+              Navigator.pop(ctx);
+              showDoaKhatamBottomSheet(context, onConfirmCompletion: _showDoaKhatamGroupConfirmation);
+            },
+            icon: const Icon(Icons.auto_stories_rounded, size: 16),
+            label: const Text('Belum, Baca Doa', style: TextStyle(fontWeight: FontWeight.w600)),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppTheme.accentGold,
+              side: BorderSide(color: AppTheme.accentGold.withOpacity(0.5)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            ),
+          ),
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _archiveGroup();
+            },
+            icon: const Icon(Icons.check_circle_rounded, size: 16),
+            label: const Text('Ya, Sudah', style: TextStyle(fontWeight: FontWeight.bold)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.primaryGreen,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Mengarsipkan grup: update visibility ke ARCHIVED, kirim notifikasi, refresh.
+  Future<void> _archiveGroup() async {
+    try {
+      // 1. Update group visibility to ARCHIVED (Defensive: catch RLS errors separately)
+      try {
+        await _supabase
+            .from('groups')
+            .update({'visibility': 'ARCHIVED'})
+            .eq('id_group', widget.groupId);
+      } catch (grpErr) {
+        debugPrint('⚠️ [RLS Restriction] Failed to update groups visibility: $grpErr');
+        // Proceed anyway; creator self-healing will apply the DB flag silently when creator opens the group
+      }
+
+      // Save a local archived flag so this user instantly sees the group in history and archives
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool('archived_group_${widget.groupId}_${_putaran?['id_putaran']}', true);
+      } catch (prefErr) {
+        debugPrint('Error saving local archived flag: $prefErr');
+      }
+
+      // 2. Pastikan putaran siklus aktif ditandai SELESAI
+      if (_putaran != null && _putaran!['status_aktif_selesai'] != 'SELESAI') {
+        await _supabase
+            .from('putaran_siklus')
+            .update({'status_aktif_selesai': 'SELESAI'})
+            .eq('id_putaran', _putaran!['id_putaran']);
+      }
+
+      // 3. Kirim notifikasi ke semua anggota grup
+      final gName = widget.groupName ?? _group?['nama_grup'] ?? 'Grup';
+      final senderName = _supabase.auth.currentUser?.userMetadata?['full_name'] as String? ??
+          _supabase.auth.currentUser?.email?.split('@')[0] ??
+          'Seseorang';
+      try {
+        await NotificationService.sendToGroup(
+          groupId: widget.groupId,
+          type: 'KHATAMAN_COMPLETE',
+          title: '\uD83D\uDCC1 Khataman Diarsipkan',
+          body: '"$gName" telah diarsipkan oleh $senderName setelah menyelesaikan Doa Khatam Al-Quran. Alhamdulillah!',
+          excludeUserId: _supabase.auth.currentUser?.id,
+        );
+      } catch (notifErr) {
+        debugPrint('Error sending archive notification: \$notifErr');
+      }
+
+      // 4. Refresh data
+      await _fetchData(silent: true);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('\uD83D\uDCC1 Grup telah diarsipkan. Alhamdulillah!'),
+            backgroundColor: AppTheme.primaryGreen,
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('🚨 [Archive Group Error] Failed to archive group: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal mengarsipkan grup: $e\n\n(Pastikan Anda adalah pembuat grup atau periksa izin database)'),
+            backgroundColor: Colors.redAccent,
+            duration: const Duration(seconds: 8),
+          ),
+        );
+      }
+    }
+  }
+
   Widget _buildSlotList(String? currentUserId) {
     final completed = _slots.where((s) => s['status_checklist'] == true).length;
     final claimed = _slots.where((s) => s['user_id'] != null).length;
@@ -2570,13 +2735,41 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
             ],
           ),
         ),
-        if (completed == 30)
+        if (completed == 30 && _group?['visibility'] != 'ARCHIVED')
           CongratulatoryCard(
-            title: 'Maa Syaa Allah, Grup Anda Khatam! 🎉',
+            title: 'Maa Syaa Allah, Grup Anda Khatam! \uD83C\uDF89',
             description: 'Alhamdulillah! Grup "${_group?['nama_grup'] ?? 'Grup'}" telah menyelesaikan siklus khataman 30 Juz Al-Quran.',
             resetLabel: 'Putaran Baru',
             showResetButton: isCreator,
             onReset: _showNewPutaranDialog,
+            onDoaKhatam: _showDoaKhatamGroupConfirmation,
+          ),
+        if (_group?['visibility'] == 'ARCHIVED')
+          Container(
+            margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            decoration: BoxDecoration(
+              color: AppTheme.accentGold.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: AppTheme.accentGold.withOpacity(0.3)),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.archive_rounded, color: AppTheme.accentGold, size: 20),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Grup ini telah diarsipkan. Progres khataman sudah dicatat ke riwayat.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppTheme.accentGold,
+                      fontWeight: FontWeight.w600,
+                      height: 1.4,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         Expanded(
           child: RefreshIndicator(

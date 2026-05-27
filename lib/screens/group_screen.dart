@@ -4,6 +4,7 @@ import 'group_detail_screen.dart';
 import '../theme/app_theme.dart';
 import '../services/notification_service.dart';
 import 'dart:math';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class GroupScreen extends StatefulWidget {
   const GroupScreen({Key? key}) : super(key: key);
@@ -29,7 +30,7 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
     _fetchData();
     _searchController.addListener(() => setState(() {}));
   }
@@ -60,8 +61,33 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
           .eq('user_id', userId);
 
       print('Fetched myGroupsData: $myGroupsData');
+      final List<Map<String, dynamic>> processedAllGroups = [];
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final keys = prefs.getKeys();
+        for (var group in List<Map<String, dynamic>>.from(allGroupsData)) {
+          final prefix = 'archived_group_${group['id_group']}_';
+          bool isLocallyArchived = false;
+          for (var key in keys) {
+            if (key.startsWith(prefix) && prefs.getBool(key) == true) {
+              isLocallyArchived = true;
+              break;
+            }
+          }
+          if (isLocallyArchived) {
+            final mutableGroup = Map<String, dynamic>.from(group);
+            mutableGroup['visibility'] = 'ARCHIVED';
+            processedAllGroups.add(mutableGroup);
+          } else {
+            processedAllGroups.add(group);
+          }
+        }
+      } catch (_) {
+        processedAllGroups.addAll(List<Map<String, dynamic>>.from(allGroupsData));
+      }
+
       setState(() {
-        _allGroups = List<Map<String, dynamic>>.from(allGroupsData);
+        _allGroups = processedAllGroups;
         _myGroupIds = Set<String>.from(
           myGroupsData.map((item) => item['group_id'].toString()),
         );
@@ -69,8 +95,6 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
           for (final item in myGroupsData)
             item['group_id'].toString(): (item['approval_status'] ?? 'APPROVED') as String
         };
-        print('Updated _myGroupIds: $_myGroupIds');
-        print('Updated _myMemberStatus: $_myMemberStatus');
         _isLoading = false;
       });
     } catch (e) {
@@ -434,15 +458,25 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
 
   List<Map<String, dynamic>> get _filteredAllGroups {
     final query = _searchController.text.toLowerCase();
-    if (query.isEmpty) return _allGroups;
-    return _allGroups.where((g) =>
-      (g['nama_grup'] ?? '').toLowerCase().contains(query) ||
-      (g['kode_gk_unik'] ?? '').toLowerCase().contains(query)
-    ).toList();
+    return _allGroups.where((g) {
+      if ((g['visibility'] ?? '') == 'ARCHIVED') return false;
+      if (query.isEmpty) return true;
+      return (g['nama_grup'] ?? '').toLowerCase().contains(query) ||
+          (g['kode_gk_unik'] ?? '').toLowerCase().contains(query);
+    }).toList();
   }
 
   List<Map<String, dynamic>> get _myGroups =>
-      _allGroups.where((g) => _myGroupIds.contains(g['id_group'].toString())).toList();
+      _allGroups.where((g) =>
+        _myGroupIds.contains(g['id_group'].toString()) &&
+        (g['visibility'] ?? '') != 'ARCHIVED'
+      ).toList();
+
+  List<Map<String, dynamic>> get _archivedGroups =>
+      _allGroups.where((g) =>
+        _myGroupIds.contains(g['id_group'].toString()) &&
+        (g['visibility'] ?? '') == 'ARCHIVED'
+      ).toList();
 
   @override
   Widget build(BuildContext context) {
@@ -470,8 +504,18 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
           labelColor: AppTheme.primaryGreen,
           unselectedLabelColor: Theme.of(context).colorScheme.onSurfaceVariant,
           tabs: [
-            Tab(text: 'Semua Grup (${_allGroups.length})'),
+            Tab(text: 'Semua Grup (${_filteredAllGroups.length})'),
             Tab(text: 'Grup Saya (${_myGroups.length})'),
+            Tab(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.archive_outlined, size: 15),
+                  const SizedBox(width: 5),
+                  Text('Arsip (${_archivedGroups.length})'),
+                ],
+              ),
+            ),
           ],
         ),
       ),
@@ -494,6 +538,7 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
                     children: [
                       _buildAllGroupsTab(),
                       _buildMyGroupsTab(),
+                      _buildArchivedGroupsTab(),
                     ],
                   ),
                 ),
@@ -668,6 +713,25 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
               itemCount: _myGroups.length,
               itemBuilder: (context, index) {
                 final group = _myGroups[index];
+                final isCreator = group['creator_id'] == _supabase.auth.currentUser?.id;
+                return _buildGroupCard(group, isJoined: true, isCreator: isCreator);
+              },
+            ),
+    );
+  }
+
+  Widget _buildArchivedGroupsTab() {
+    return RefreshIndicator(
+      color: AppTheme.primaryGreen,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      onRefresh: _fetchData,
+      child: _archivedGroups.isEmpty
+          ? _buildEmptyState('Belum ada grup yang diarsipkan.\nGrup akan diarsipkan setelah Doa Khatam Al-Quran selesai dibaca.')
+          : ListView.builder(
+              padding: EdgeInsets.fromLTRB(16, 12, 16, 80 + MediaQuery.of(context).padding.bottom),
+              itemCount: _archivedGroups.length,
+              itemBuilder: (context, index) {
+                final group = _archivedGroups[index];
                 final isCreator = group['creator_id'] == _supabase.auth.currentUser?.id;
                 return _buildGroupCard(group, isJoined: true, isCreator: isCreator);
               },

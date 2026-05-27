@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/personal_history_service.dart';
 import '../theme/app_theme.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({Key? key}) : super(key: key);
@@ -12,10 +13,10 @@ class HistoryScreen extends StatefulWidget {
 
 class _HistoryScreenState extends State<HistoryScreen> {
   final _supabase = Supabase.instance.client;
-  List<Map<String, dynamic>> _history = [];
+  List<Map<String, dynamic>> _cycles = [];
   int _khatamCount = 0;
-  bool _isCurrentMandiriKhatam = false;
   bool _isLoading = true;
+  final Set<int> _expandedIndices = {};
 
   OverlayEntry? _infoOverlayEntry;
   final LayerLink _infoLayerLink = LayerLink();
@@ -33,89 +34,111 @@ class _HistoryScreenState extends State<HistoryScreen> {
       return;
     }
 
-    // 1. Ambil riwayat membaca mandiri (lokal) & jumlah khatam lokal
+    // 1. Ambil riwayat membaca mandiri (lokal)
     final historyList = await PersonalHistoryService.getHistory(userId);
-    final localMandiriKhatams = await PersonalHistoryService.getKhatamCount(userId);
 
-    // 2. Ambil putaran siklus grup selesai yang diikuti oleh user dari Supabase
-    List<Map<String, dynamic>> fetchedGroupKhatamLogs = [];
-    
+    // 2. Kelompokkan log mandiri menjadi siklus khataman berdasarkan isKhatamCompletion
+    final sortedLocal = List<Map<String, dynamic>>.from(historyList)
+      ..sort((a, b) {
+        final tA = DateTime.tryParse(a['timestamp'] ?? '') ?? DateTime.utc(1970);
+        final tB = DateTime.tryParse(b['timestamp'] ?? '') ?? DateTime.utc(1970);
+        return tA.compareTo(tB);
+      });
+
+    final mandiriCycles = <Map<String, dynamic>>[];
+    var currentJuzs = <Map<String, dynamic>>[];
+
+    for (var log in sortedLocal) {
+      if (log['type'] != 'Mandiri') continue;
+      if (log['isKhatamCompletion'] == true) {
+        // Deduplikasi: hanya simpan 1 entri per juz dalam siklus ini
+        final deduped = <int, Map<String, dynamic>>{};
+        for (var j in currentJuzs) {
+          final jNum = int.tryParse(j['juz']?.toString() ?? '0') ?? 0;
+          if (jNum > 0) deduped[jNum] = j;
+        }
+        final juzList = deduped.values.toList()
+          ..sort((a, b) => (int.tryParse(a['juz']?.toString() ?? '0') ?? 0)
+              .compareTo(int.tryParse(b['juz']?.toString() ?? '0') ?? 0));
+        mandiriCycles.add({
+          'title': 'Khataman Mandiri',
+          'type': 'Mandiri',
+          'timestamp': log['timestamp'] ?? DateTime.now().toIso8601String(),
+          'description': log['description'] ?? '🏆 Khataman Mandiri 30 Juz!',
+          'juzDetails': juzList,
+        });
+        currentJuzs.clear();
+      } else if (log['isJuzCompletion'] == true) {
+        currentJuzs.add(log);
+      }
+    }
+
+    // 3. Ambil siklus grup yang diarsipkan
+    final groupCycles = <Map<String, dynamic>>[];
     try {
       final completedGroupSlots = await _supabase
           .from('slot_khataman')
-          .select('putaran_id, nomor_juz, putaran_siklus!inner(id_putaran, group_id, nomor_putaran, start_date, target_deadline, status_aktif_selesai, groups(nama_grup))')
+          .select('putaran_id, nomor_juz, updated_at, putaran_siklus!inner(id_putaran, group_id, nomor_putaran, start_date, target_deadline, status_aktif_selesai, groups(nama_grup, visibility))')
           .eq('user_id', userId)
           .eq('putaran_siklus.status_aktif_selesai', 'SELESAI');
 
-      final slotsList = completedGroupSlots as List;
-      if (slotsList.isNotEmpty) {
+      final slotsList = List<Map<String, dynamic>>.from(completedGroupSlots as List);
+      // Filter hanya grup yang sudah diarsipkan di DB atau ditandai selesai/arsip lokal
+      final prefs = await SharedPreferences.getInstance();
+      final archivedSlots = slotsList.where((s) {
+        final p = s['putaran_siklus'] as Map<String, dynamic>?;
+        final g = p?['groups'] as Map<String, dynamic>?;
+        final pId = s['putaran_id'];
         
-        // Kelompokkan slot berdasarkan putaran_id untuk menghitung putaran unik
-        final Map<dynamic, List<dynamic>> cyclesMap = {};
-        for (var slot in slotsList) {
-          final pId = slot['putaran_id'];
-          if (pId != null) {
-            cyclesMap.putIfAbsent(pId, () => []).add(slot);
-          }
-        }
-        
+        final localArchived = prefs.getBool('archived_group_${p?['group_id']}_$pId') ?? false;
+        return g?['visibility'] == 'ARCHIVED' || localArchived;
+      }).toList();
 
-        // Buat entri log riwayat untuk khataman grup yang selesai
-        for (var pId in cyclesMap.keys) {
-          final slots = cyclesMap[pId]!;
-          final firstSlot = slots.first;
-          final putaran = firstSlot['putaran_siklus'];
-          final groupName = putaran['groups']?['nama_grup'] ?? 'Grup';
-          final completionDate = putaran['target_deadline'] ?? putaran['start_date'] ?? DateTime.now().toIso8601String();
-          final juzs = slots.map((s) => s['nomor_juz']).toList()..sort();
+      final cyclesMap = <dynamic, List<Map<String, dynamic>>>{};
+      for (var slot in archivedSlots) {
+        final pId = slot['putaran_id'];
+        if (pId != null) cyclesMap.putIfAbsent(pId, () => []).add(slot);
+      }
 
-          fetchedGroupKhatamLogs.add({
-            'timestamp': completionDate,
-            'juz': juzs.join(', '),
-            'description': '🏆 Menyelesaikan Khataman Grup bersama "$groupName"! Anda berkontribusi membaca Juz ${juzs.join(', ')}.',
-            'type': 'Grup: $groupName',
-            'isJuzCompletion': true,
-            'isKhatamCompletion': true,
-            'isGroupKhatam': true,
-          });
-        }
+      for (var pId in cyclesMap.keys) {
+        final slots = cyclesMap[pId]!;
+        final firstSlot = slots.first;
+        final putaran = firstSlot['putaran_siklus'] as Map<String, dynamic>;
+        final groupName = (putaran['groups'] as Map<String, dynamic>?)?['nama_grup'] ?? 'Grup';
+        final completionDate = putaran['target_deadline'] ?? putaran['start_date'] ?? DateTime.now().toIso8601String();
+        slots.sort((a, b) => ((a['nomor_juz'] as int?) ?? 0).compareTo((b['nomor_juz'] as int?) ?? 0));
+
+        final juzDetails = slots.map((s) => <String, dynamic>{
+          'juz': s['nomor_juz'],
+          'timestamp': s['updated_at'] ?? completionDate,
+        }).toList();
+
+        groupCycles.add({
+          'title': 'Khataman Grup "$groupName"',
+          'type': 'Grup: $groupName',
+          'timestamp': completionDate,
+          'description': '🏆 Khataman Grup bersama "$groupName"! Kontribusi ${juzDetails.length} Juz.',
+          'juzDetails': juzDetails,
+        });
       }
     } catch (e) {
       debugPrint('Error loading group khatams: $e');
     }
 
-    // 3. Periksa apakah ronde mandiri saat ini sudah 30 Juz selesai (tetapi belum di-reset)
-    bool isCurrentMandiriKhatam = false;
-    try {
-      final activeMandiriRes = await _supabase
-          .from('khataman_mandiri')
-          .select('selesai')
-          .eq('user_id', userId)
-          .eq('selesai', true);
-      
-      final activeCompletedList = activeMandiriRes as List;
-      if (activeCompletedList.isNotEmpty) {
-        isCurrentMandiriKhatam = activeCompletedList.length == 30;
-      }
-    } catch (e) {
-      debugPrint('Error loading active mandiri status: $e');
-    }
-
-    // Gabungkan riwayat lokal & riwayat grup khatam, lalu urutkan kronologis (terbaru di atas)
-    final combinedHistory = [...historyList, ...fetchedGroupKhatamLogs];
-    combinedHistory.sort((a, b) {
+    // 4. Gabungkan & urutkan siklus (terbaru di atas)
+    final combined = [...mandiriCycles, ...groupCycles];
+    combined.sort((a, b) {
       final tA = DateTime.tryParse(a['timestamp'] ?? '') ?? DateTime.now();
       final tB = DateTime.tryParse(b['timestamp'] ?? '') ?? DateTime.now();
       return tB.compareTo(tA);
     });
 
-    // Menghitung total khatam mandiri
-    final displayKhatamCount = localMandiriKhatams + (isCurrentMandiriKhatam ? 1 : 0);
+    final localMandiriKhatams = await PersonalHistoryService.getKhatamCount(userId);
+    final displayKhatamCount = localMandiriKhatams + groupCycles.length;
 
     if (mounted) {
       setState(() {
-        _history = combinedHistory;
-        _isCurrentMandiriKhatam = isCurrentMandiriKhatam;
+        _cycles = combined;
         _khatamCount = displayKhatamCount;
         _isLoading = false;
       });
@@ -235,47 +258,30 @@ class _HistoryScreenState extends State<HistoryScreen> {
     }
   }
 
-  // Menghitung berapa kali khatam 30 Juz dalam rentang waktu tertentu (Mandiri)
+  // Menghitung berapa kali khatam 30 Juz dalam rentang waktu tertentu
   int _getKhatamStatsCount({required int daysRange}) {
     final now = DateTime.now();
     final limit = now.subtract(Duration(days: daysRange));
     int count = 0;
-    
-    // 1. Khatam Mandiri yang tercatat di riwayat gabungan
-    for (var item in _history) {
-      if (item['isKhatamCompletion'] == true && item['isGroupKhatam'] != true) {
-        final date = DateTime.tryParse(item['timestamp'] ?? '');
-        if (date != null && date.isAfter(limit)) {
-          count++;
-        }
+    for (var cycle in _cycles) {
+      final date = DateTime.tryParse(cycle['timestamp'] ?? '');
+      if (date != null && date.isAfter(limit)) {
+        count++;
       }
     }
-
-    // 2. Khatam Mandiri Aktif saat ini yang belum di-reset
-    if (_isCurrentMandiriKhatam) {
-      count++;
-    }
-    
     return count;
   }
 
-  // Menghitung berapa Juz yang terselesaikan (bukan khatam penuh 30 juz)
+  // Menghitung berapa Juz yang terselesaikan
   int _getJuzCompletedCount({required int daysRange}) {
     final now = DateTime.now();
     final limit = now.subtract(Duration(days: daysRange));
     int count = 0;
-
-    for (var item in _history) {
-      final date = DateTime.tryParse(item['timestamp'] ?? '');
-      if (date != null && date.isAfter(limit)) {
-        if (item['isGroupKhatam'] == true) {
-          // Parse the juz field (e.g. "1, 2, 3") to count completed Juz in this group cycle
-          final juzStr = item['juz']?.toString() ?? '';
-          if (juzStr.isNotEmpty) {
-            final juzs = juzStr.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty);
-            count += juzs.length;
-          }
-        } else if (item['isJuzCompletion'] == true && item['isKhatamCompletion'] != true) {
+    for (var cycle in _cycles) {
+      final juzDetails = cycle['juzDetails'] as List? ?? [];
+      for (var juzLog in juzDetails) {
+        final date = DateTime.tryParse(juzLog['timestamp'] ?? '');
+        if (date != null && date.isAfter(limit)) {
           count++;
         }
       }
@@ -329,7 +335,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         actions: [
-          if (_history.isNotEmpty)
+          if (_cycles.isNotEmpty)
             IconButton(
               icon: const Icon(Icons.delete_sweep_rounded, color: Colors.redAccent),
               tooltip: 'Hapus Semua Riwayat',
@@ -493,9 +499,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
                           color: Theme.of(context).colorScheme.onSurface,
                         ),
                       ),
-                      if (_history.isNotEmpty)
+                      if (_cycles.isNotEmpty)
                         Text(
-                          '${_history.length} Catatan',
+                          '${_cycles.length} Khataman',
                           style: TextStyle(
                             fontSize: 12,
                             color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -506,7 +512,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   const SizedBox(height: 12),
 
                   // Daftar riwayat
-                  if (_history.isEmpty)
+                  if (_cycles.isEmpty)
                     Center(
                       child: Padding(
                         padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 24),
@@ -544,114 +550,189 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     ListView.builder(
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
-                      itemCount: _history.length,
+                      itemCount: _cycles.length,
                       itemBuilder: (context, idx) {
-                        final log = _history[idx];
-                        final isJuzComplete = log['isJuzCompletion'] == true;
-                        final isKhatam = log['isKhatamCompletion'] == true;
-                        final type = log['type'] ?? 'Mandiri';
+                        final cycle = _cycles[idx];
+                        final isExpanded = _expandedIndices.contains(idx);
+                        final title = cycle['title'] ?? 'Khataman';
+                        final timestamp = cycle['timestamp'] ?? '';
+                        final description = cycle['description'] ?? '';
+                        final type = cycle['type'] ?? 'Mandiri';
+                        final juzDetails = cycle['juzDetails'] as List? ?? [];
                         final isGroup = type.toString().startsWith('Grup');
 
                         return Container(
-                          margin: const EdgeInsets.only(bottom: 10),
-                          padding: const EdgeInsets.all(14),
+                          margin: const EdgeInsets.only(bottom: 12),
                           decoration: BoxDecoration(
                             color: Theme.of(context).colorScheme.surface,
-                            borderRadius: BorderRadius.circular(14),
+                            borderRadius: BorderRadius.circular(16),
                             border: Border.all(
-                              color: isKhatam
-                                  ? AppTheme.accentGold.withOpacity(0.4)
-                                  : Theme.of(context).dividerColor.withOpacity(0.5),
+                              color: AppTheme.accentGold.withOpacity(0.35),
+                              width: 1,
                             ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.02),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
                           ),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // Icon container
-                              Container(
+                          child: Theme(
+                            data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                            child: ExpansionTile(
+                              key: PageStorageKey<int>(idx),
+                              initiallyExpanded: isExpanded,
+                              onExpansionChanged: (expanded) {
+                                setState(() {
+                                  if (expanded) {
+                                    _expandedIndices.add(idx);
+                                  } else {
+                                    _expandedIndices.remove(idx);
+                                  }
+                                });
+                              },
+                              leading: Container(
                                 padding: const EdgeInsets.all(10),
                                 decoration: BoxDecoration(
-                                  color: isKhatam
-                                      ? AppTheme.accentGold.withOpacity(0.15)
-                                      : isJuzComplete
-                                          ? AppTheme.primaryGreen.withOpacity(0.15)
-                                          : Theme.of(context).colorScheme.onSurface.withOpacity(0.06),
+                                  color: AppTheme.accentGold.withOpacity(0.12),
                                   shape: BoxShape.circle,
                                 ),
-                                child: Icon(
-                                  isKhatam
-                                      ? Icons.emoji_events_rounded
-                                      : isJuzComplete
-                                          ? Icons.check_circle_rounded
-                                          : Icons.chrome_reader_mode_rounded,
-                                  color: isKhatam
-                                      ? AppTheme.accentGold
-                                      : isJuzComplete
-                                          ? AppTheme.primaryGreen
-                                          : Theme.of(context).colorScheme.onSurfaceVariant,
-                                  size: 18,
+                                child: const Icon(
+                                  Icons.emoji_events_rounded,
+                                  color: AppTheme.accentGold,
+                                  size: 20,
                                 ),
                               ),
-                              const SizedBox(width: 12),
-                              // Rincian log
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        Text(
-                                          _formatDisplayTime(log['timestamp'] ?? ''),
-                                          style: TextStyle(
-                                            fontSize: 9,
-                                            color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.7),
-                                          ),
-                                        ),
-                                        // Badge Sumber
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                          decoration: BoxDecoration(
-                                            color: isGroup
-                                                ? const Color(0xFF6C63FF).withOpacity(0.12)
-                                                : AppTheme.primaryGreen.withOpacity(0.12),
-                                            borderRadius: BorderRadius.circular(6),
-                                          ),
-                                          child: Text(
-                                            type,
-                                            style: TextStyle(
-                                              fontSize: 8,
-                                              fontWeight: FontWeight.bold,
-                                              color: isGroup
-                                                  ? const Color(0xFF6C63FF)
-                                                  : AppTheme.primaryGreen,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 6),
-                                    Text(
-                                      log['isKhatamCompletion'] == true ? 'Khatam 30 Juz' : 'Juz ${log['juz']}',
+                              title: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      title,
                                       style: TextStyle(
-                                        fontSize: 13,
+                                        fontSize: 14,
                                         fontWeight: FontWeight.bold,
                                         color: Theme.of(context).colorScheme.onSurface,
                                       ),
                                     ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      log['description'] ?? '',
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                    decoration: BoxDecoration(
+                                      color: isGroup
+                                          ? const Color(0xFF6C63FF).withOpacity(0.12)
+                                          : AppTheme.primaryGreen.withOpacity(0.12),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Text(
+                                      isGroup ? 'Grup' : 'Mandiri',
                                       style: TextStyle(
-                                        fontSize: 11,
-                                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                        height: 1.4,
+                                        fontSize: 8,
+                                        fontWeight: FontWeight.bold,
+                                        color: isGroup
+                                            ? const Color(0xFF6C63FF)
+                                            : AppTheme.primaryGreen,
                                       ),
                                     ),
-                                  ],
+                                  ),
+                                ],
+                              ),
+                              subtitle: Padding(
+                                padding: const EdgeInsets.only(top: 4),
+                                child: Text(
+                                  _formatDisplayTime(timestamp),
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.7),
+                                  ),
                                 ),
                               ),
-                            ],
+                              trailing: Icon(
+                                isExpanded
+                                    ? Icons.keyboard_arrow_up_rounded
+                                    : Icons.keyboard_arrow_down_rounded,
+                                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                              ),
+                              children: [
+                                Padding(
+                                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      const Divider(height: 1),
+                                      const SizedBox(height: 12),
+                                      Text(
+                                        description,
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                          height: 1.4,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 16),
+                                      Text(
+                                        'Rincian Juz yang Dibaca:',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.bold,
+                                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                          letterSpacing: 0.5,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 10),
+                                      if (juzDetails.isEmpty)
+                                        Text(
+                                          'Tidak ada detail juz terekam.',
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            fontStyle: FontStyle.italic,
+                                            color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.5),
+                                          ),
+                                        )
+                                      else
+                                        Wrap(
+                                          spacing: 8,
+                                          runSpacing: 8,
+                                          children: juzDetails.map((j) {
+                                            final juzNum = j['juz'];
+                                            final timeStr = _formatDisplayTime(j['timestamp'] ?? '');
+                                            return Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                              decoration: BoxDecoration(
+                                                color: AppTheme.primaryGreen.withOpacity(0.08),
+                                                borderRadius: BorderRadius.circular(10),
+                                                border: Border.all(color: AppTheme.primaryGreen.withOpacity(0.2)),
+                                              ),
+                                              child: Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Text(
+                                                    'Juz $juzNum',
+                                                    style: const TextStyle(
+                                                      fontSize: 11,
+                                                      fontWeight: FontWeight.bold,
+                                                      color: AppTheme.primaryGreen,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 4),
+                                                  Text(
+                                                    '($timeStr)',
+                                                    style: TextStyle(
+                                                      fontSize: 8,
+                                                      color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.6),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            );
+                                          }).toList(),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         );
                       },

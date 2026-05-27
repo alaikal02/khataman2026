@@ -252,7 +252,7 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
           context,
           duration: const Duration(milliseconds: 300),
           curve: Curves.easeOutCubic,
-          alignment: 0.82, // Nilai optimal agar tombol "Simpan Progres" terlihat jelas dan aman dari tombol navigasi HP
+          alignment: widget.juzNumber == 30 ? 0.82 : 0.5,
         );
       }
     });
