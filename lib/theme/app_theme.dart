@@ -25,9 +25,9 @@ class AppTheme {
     end: Alignment.bottomCenter,
   );
 
-  // Light theme gradient
+  // Light theme gradient (Soft Sage & Eggshell)
   static const LinearGradient lightBgGradient = LinearGradient(
-    colors: [Color(0xFFF5F5F5), Color(0xFFEEEEEE)],
+    colors: [Color(0xFFF4F6F4), Color(0xFFEDF2ED)],
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
   );
@@ -89,26 +89,26 @@ class AppTheme {
   static ThemeData get lightTheme {
     return ThemeData(
       brightness: Brightness.light,
-      scaffoldBackgroundColor: const Color(0xFFF5F5F5),
+      scaffoldBackgroundColor: const Color(0xFFF4F6F4), // Soft Sage Eggshell
       fontFamily: 'sans-serif',
       colorScheme: const ColorScheme.light(
         primary: primaryGreen,
         secondary: accentGold,
-        surface: Colors.white,
-        surfaceContainerHighest: Color(0xFFEEEEEE),
-        onSurface: Color(0xFF1A1A2E),
-        onSurfaceVariant: Color(0xFF757575),
+        surface: Color(0xFFFAFCFA), // Soft Off-White with green hint
+        surfaceContainerHighest: Color(0xFFEDF2ED), // Soft input background
+        onSurface: Color(0xFF1D2A22), // Deep Forest Green (super soft black)
+        onSurfaceVariant: Color(0xFF5F6E65), // Soft secondary text
       ),
       appBarTheme: const AppBarTheme(
-        backgroundColor: Colors.white,
+        backgroundColor: Color(0xFFF4F6F4),
         elevation: 0,
         scrolledUnderElevation: 0,
         titleTextStyle: TextStyle(
-          color: Color(0xFF1A1A2E),
+          color: Color(0xFF1D2A22),
           fontSize: 20,
           fontWeight: FontWeight.w600,
         ),
-        iconTheme: IconThemeData(color: Color(0xFF1A1A2E)),
+        iconTheme: IconThemeData(color: Color(0xFF1D2A22)),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
@@ -121,20 +121,20 @@ class AppTheme {
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: const Color(0xFFEEEEEE),
+        fillColor: const Color(0xFFEDF2ED),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide.none,
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Color(0xFFDDDDDD)),
+          borderSide: const BorderSide(color: Color(0xFFD4DDD6)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: primaryGreen, width: 1.5),
         ),
-        hintStyle: const TextStyle(color: Colors.grey),
+        hintStyle: const TextStyle(color: Color(0xFF8BA093)),
       ),
     );
   }
