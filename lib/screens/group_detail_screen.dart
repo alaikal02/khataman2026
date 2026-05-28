@@ -8,6 +8,7 @@ import '../components/khatam_celebration.dart';
 import '../theme/app_theme.dart';
 import '../services/notification_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'juz_assignment_screen.dart';
 
 class GroupDetailScreen extends StatefulWidget {
   final String groupId;
@@ -296,7 +297,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
     );
   }
 
-  Future<void> _startNewPutaran(bool isAutoAssign) async {
+  Future<void> _startNewPutaran(int assignMode) async {
     try {
       final now = DateUtils.dateOnly(DateTime.now());
       final DateTimeRange? picked = await showDateRangePicker(
@@ -367,7 +368,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
         'target_deadline': endDate.toIso8601String()
       }).select().single();
 
-      if (isAutoAssign) {
+      if (assignMode == 0) {
         // Hanya anggota dengan status APPROVED yang bisa ikut siklus
         final members = await _supabase
             .from('group_members')
@@ -417,7 +418,26 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
         debugPrint('Error sending cycle started notif: $e');
       }
 
-      _fetchData();
+      await _fetchData();
+
+      // If manual brush assignment mode, direct immediately to the brush page
+      if (assignMode == 2) {
+        if (mounted) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => JuzAssignmentScreen(
+                groupId: widget.groupId,
+                groupName: _group?['nama_grup'] ?? 'Khataman',
+              ),
+            ),
+          ).then((_) {
+            if (mounted) {
+              _fetchData(silent: true);
+            }
+          });
+        }
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -428,6 +448,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
   }
 
   Future<void> _showNewPutaranDialog() async {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -446,15 +467,25 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
           ElevatedButton(
             onPressed: () {
               Navigator.pop(ctx);
-              _startNewPutaran(true);
+              _startNewPutaran(0);
             },
             style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primaryGreen),
-            child: const Text('Bagi Rata Otomatis', style: TextStyle(color: Colors.white)),
+            child: const Text('Bagi Rata', style: TextStyle(color: Colors.white)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _startNewPutaran(2);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: isDark ? const Color(0xFF0D5257) : const Color(0xFF007A7C),
+            ),
+            child: const Text('Bagi Manual', style: TextStyle(color: Colors.white)),
           ),
           OutlinedButton(
             onPressed: () {
               Navigator.pop(ctx);
-              _startNewPutaran(false);
+              _startNewPutaran(1);
             },
             style: OutlinedButton.styleFrom(side: const BorderSide(color: AppTheme.accentGold)),
             child: const Text('Klaim Mandiri', style: TextStyle(color: AppTheme.accentGold)),
@@ -1382,6 +1413,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
   void _showGroupSettings() {
     final currentUserId = _supabase.auth.currentUser?.id;
     final isAdmin = currentUserId == _group?['creator_id'];
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     showModalBottomSheet(
       context: context,
@@ -1397,179 +1429,292 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
           final memberCount = approvedMembersCount == 0 ? 1 : approvedMembersCount;
           final maxSlots = (30 / memberCount).ceil();
 
+          final headerDivider = Divider(
+            height: 1,
+            thickness: 1,
+            indent: 16,
+            endIndent: 16,
+            color: isDark 
+                ? Colors.white.withOpacity(0.08) 
+                : Colors.black.withOpacity(0.08),
+          );
+
+          final menuDivider = Divider(
+            height: 1,
+            thickness: 1,
+            indent: 72,
+            endIndent: 16,
+            color: isDark 
+                ? Colors.white.withOpacity(0.08) 
+                : Colors.black.withOpacity(0.08),
+          );
+
+          final dangerZoneDivider = Divider(
+            height: 40,
+            thickness: 1,
+            indent: 16,
+            endIndent: 16,
+            color: isDark 
+                ? Colors.white.withOpacity(0.08) 
+                : Colors.black.withOpacity(0.08),
+          );
+
           return ConstrainedBox(
             constraints: BoxConstraints(
               maxHeight: MediaQuery.of(ctx).size.height * 0.85,
             ),
             child: SafeArea(
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-              children: [
-                const SizedBox(height: 12),
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: Colors.grey.withOpacity(0.3),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'Pengaturan Grup',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Theme.of(context).colorScheme.onSurface,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                const Divider(),
-                ListTile(
-                  leading: const Icon(Icons.share_rounded, color: AppTheme.primaryGreen),
-                  title: const Text('Bagikan Kode Undangan'),
-                  subtitle: Text(_group?['kode_gk_unik'] ?? ''),
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    if (_group != null) {
-                      final kode = _group!['kode_gk_unik'];
-                      final namaGrup = _group!['nama_grup'] ?? 'Khataman';
-                      Share.share(
-                        'Assalamu\'alaikum! 🌙\n\nYuk gabung di grup khataman Al-Quran "$namaGrup"!\n\nGunakan kode berikut di aplikasi Khataman Quran:\n\n📋 Kode Grup: *$kode*\n\nBarakallahu fiikum! 🤲',
-                      );
-                    }
-                  },
-                ),
-                const Divider(),
-                if (isAdmin) ...[
-                  SwitchListTile(
-                    title: const Text('Batasi Pengambilan Juz'),
-                    subtitle: Text(
-                      isLimited
-                          ? '🔒 Aktif: Maksimal $maxSlots Juz per anggota'
-                          : '🔓 Bebas: Anggota bebas mengambil tanpa batas',
-                      style: const TextStyle(fontSize: 11),
-                    ),
-                    secondary: Icon(
-                      Icons.gavel_rounded,
-                      color: isLimited ? AppTheme.accentGold : Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                    value: isLimited,
-                    activeColor: AppTheme.primaryGreen,
-                    onChanged: (val) async {
-                      // Update local state in sheet
-                      setStateSheet(() {
-                        if (_group != null) {
-                          _group!['limit_juz'] = val;
-                        }
-                      });
-                      // Update main detail screen state
-                      setState(() {});
-                      
-                      try {
-                        final result = await _supabase
-                            .from('groups')
-                            .update({'limit_juz': val})
-                            .eq('id_group', widget.groupId)
-                            .select();
-                        
-                        if (result.isEmpty) {
-                          throw Exception('Izin update ditolak (RLS).');
-                        }
-
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                val
-                                    ? '🔒 Batasan pengambilan Juz diaktifkan!'
-                                    : '🔓 Batasan pengambilan Juz dinonaktifkan!',
-                              ),
-                              backgroundColor: AppTheme.primaryGreen,
-                              duration: const Duration(seconds: 2),
-                            ),
-                          );
-                        }
-                        _fetchData(silent: true);
-                      } catch (e) {
-                        // Revert on error
-                        setStateSheet(() {
+              child: Padding(
+                padding: const EdgeInsets.only(top: 12.0),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const SizedBox(height: 12),
+                      Center(
+                        child: Container(
+                          width: 40,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: Colors.grey.withOpacity(0.3),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      Text(
+                        'Pengaturan Grup',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Theme.of(context).colorScheme.onSurface,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      headerDivider,
+                      ListTile(
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+                        leading: const Icon(Icons.share_rounded, color: AppTheme.primaryGreen),
+                        title: const Text('Bagikan Kode Undangan'),
+                        subtitle: Text(
+                          _group?['kode_gk_unik'] ?? '',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: isDark ? Colors.white70 : const Color(0xFF5F6E65),
+                          ),
+                        ),
+                        onTap: () {
+                          Navigator.pop(ctx);
                           if (_group != null) {
-                            _group!['limit_juz'] = !val;
+                            final kode = _group!['kode_gk_unik'];
+                            final namaGrup = _group!['nama_grup'] ?? 'Khataman';
+                            Share.share(
+                              'Assalamu\'alaikum! 🌙\n\nYuk gabung di grup khataman Al-Quran "$namaGrup"!\n\nGunakan kode berikut di aplikasi Khataman Quran:\n\n📋 Kode Grup: *$kode*\n\nBarakallahu fiikum! 🤲',
+                            );
                           }
-                        });
-                        setState(() {});
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Gagal mengubah batasan: $e'),
-                              backgroundColor: Colors.redAccent,
+                        },
+                      ),
+                      if (isAdmin) ...[
+                        menuDivider,
+                        SwitchListTile(
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+                          title: const Text('Batasi Pengambilan Juz'),
+                          subtitle: Text(
+                            isLimited
+                                ? '🔒 Aktif: Maksimal $maxSlots Juz per anggota'
+                                : '🔓 Bebas: Anggota bebas mengambil tanpa batas',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: isDark ? Colors.white70 : const Color(0xFF5F6E65),
                             ),
-                          );
-                        }
-                      }
-                    },
+                          ),
+                          secondary: Icon(
+                            Icons.gavel_rounded,
+                            color: isLimited ? AppTheme.accentGold : Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                          value: isLimited,
+                          activeColor: AppTheme.primaryGreen,
+                          onChanged: (val) async {
+                            // Update local state in sheet
+                            setStateSheet(() {
+                              if (_group != null) {
+                                _group!['limit_juz'] = val;
+                              }
+                            });
+                            // Update main detail screen state
+                            setState(() {});
+                            
+                            try {
+                              final result = await _supabase
+                                  .from('groups')
+                                  .update({'limit_juz': val})
+                                  .eq('id_group', widget.groupId)
+                                  .select();
+                              
+                              if (result.isEmpty) {
+                                throw Exception('Izin update ditolak (RLS).');
+                              }
+
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      val
+                                          ? '🔒 Batasan pengambilan Juz diaktifkan!'
+                                          : '🔓 Batasan pengambilan Juz dinonaktifkan!',
+                                    ),
+                                    backgroundColor: AppTheme.primaryGreen,
+                                    duration: const Duration(seconds: 2),
+                                  ),
+                                );
+                              }
+                              _fetchData(silent: true);
+                            } catch (e) {
+                              // Revert on error
+                              setStateSheet(() {
+                                if (_group != null) {
+                                  _group!['limit_juz'] = !val;
+                                }
+                              });
+                              setState(() {});
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Gagal mengubah batasan: $e'),
+                                    backgroundColor: Colors.redAccent,
+                                  ),
+                                );
+                              }
+                            }
+                          },
+                        ),
+                        menuDivider,
+                        ListTile(
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+                          leading: Badge(
+                            isLabelVisible: _pendingCount > 0,
+                            label: Text('$_pendingCount'),
+                            backgroundColor: Colors.redAccent,
+                            child: const Icon(Icons.manage_accounts_rounded, color: AppTheme.accentGold),
+                          ),
+                          title: const Text('Kelola Anggota'),
+                          subtitle: Text(
+                            'Setujui permintaan masuk & tambah anggota baru',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: isDark ? Colors.white70 : const Color(0xFF5F6E65),
+                            ),
+                          ),
+                          onTap: () {
+                            Navigator.pop(ctx);
+                            _showManageMembersDialog();
+                          },
+                        ),
+                        menuDivider,
+                        ListTile(
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+                          leading: const Icon(Icons.grid_view_rounded, color: AppTheme.accentTeal),
+                          title: const Text('Pembagian Juz (Admin)'),
+                          subtitle: Text(
+                            'Kelola pembagian Juz secara cepat menggunakan kuas/pembagi Juz',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: isDark ? Colors.white70 : const Color(0xFF5F6E65),
+                            ),
+                          ),
+                          onTap: () {
+                            Navigator.pop(ctx);
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => JuzAssignmentScreen(
+                                  groupId: widget.groupId,
+                                  groupName: _group?['nama_grup'] ?? 'Khataman',
+                                ),
+                              ),
+                            ).then((_) {
+                              if (mounted) {
+                                _fetchData(silent: true);
+                              }
+                            });
+                          },
+                        ),
+                        if (_putaran != null) ...[
+                          menuDivider,
+                          ListTile(
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+                            leading: const Icon(Icons.edit_calendar_rounded, color: Colors.blueAccent),
+                            title: const Text('Ubah Tenggat Waktu (Deadline)'),
+                            subtitle: Text(
+                              'Perpanjang atau majukan target waktu siklus',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: isDark ? Colors.white70 : const Color(0xFF5F6E65),
+                              ),
+                            ),
+                            onTap: () {
+                              Navigator.pop(ctx);
+                              _editDeadline();
+                            },
+                          ),
+                        ],
+                        dangerZoneDivider,
+                        ListTile(
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+                          leading: const Icon(Icons.delete_forever_rounded, color: Colors.redAccent),
+                          title: const Text('Hapus Grup', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+                          subtitle: Text(
+                            'Hapus grup ini secara permanen dari server',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: isDark ? Colors.white70 : const Color(0xFF5F6E65),
+                            ),
+                          ),
+                          onTap: () {
+                            Navigator.pop(ctx);
+                            _confirmDeleteGroup();
+                          },
+                        ),
+                      ] else ...[
+                        menuDivider,
+                        ListTile(
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+                          leading: const Icon(Icons.people_rounded, color: AppTheme.accentTeal),
+                          title: const Text('Daftar Anggota'),
+                          subtitle: Text(
+                            'Lihat anggota grup saat ini',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: isDark ? Colors.white70 : const Color(0xFF5F6E65),
+                            ),
+                          ),
+                          onTap: () {
+                            Navigator.pop(ctx);
+                            _showMembersListOnlyDialog();
+                          },
+                        ),
+                        dangerZoneDivider,
+                        ListTile(
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+                          leading: const Icon(Icons.exit_to_app_rounded, color: Colors.redAccent),
+                          title: const Text('Keluar dari Grup', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+                          subtitle: Text(
+                            'Keluar dan lepaskan semua juz yang Anda klaim',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: isDark ? Colors.white70 : const Color(0xFF5F6E65),
+                            ),
+                          ),
+                          onTap: () {
+                            Navigator.pop(ctx);
+                            _confirmLeaveGroup();
+                          },
+                        ),
+                      ],
+                      SizedBox(height: MediaQuery.of(ctx).padding.bottom + 24),
+                    ],
                   ),
-                  const Divider(),
-                  ListTile(
-                    leading: Badge(
-                      isLabelVisible: _pendingCount > 0,
-                      label: Text('$_pendingCount'),
-                      backgroundColor: Colors.redAccent,
-                      child: const Icon(Icons.manage_accounts_rounded, color: AppTheme.accentGold),
-                    ),
-                    title: const Text('Kelola Anggota'),
-                    subtitle: const Text('Setujui permintaan masuk & tambah anggota baru'),
-                    onTap: () {
-                      Navigator.pop(ctx);
-                      _showManageMembersDialog();
-                    },
-                  ),
-                  if (_putaran != null)
-                    ListTile(
-                      leading: const Icon(Icons.edit_calendar_rounded, color: Colors.blueAccent),
-                      title: const Text('Ubah Tenggat Waktu (Deadline)'),
-                      subtitle: const Text('Perpanjang atau majukan target waktu siklus'),
-                      onTap: () {
-                        Navigator.pop(ctx);
-                        _editDeadline();
-                      },
-                    ),
-                  ListTile(
-                    leading: const Icon(Icons.delete_forever_rounded, color: Colors.redAccent),
-                    title: const Text('Hapus Grup', style: TextStyle(color: Colors.redAccent)),
-                    subtitle: const Text('Hapus grup ini secara permanen dari server'),
-                    onTap: () {
-                      Navigator.pop(ctx);
-                      _confirmDeleteGroup();
-                    },
-                  ),
-                ] else ...[
-                  ListTile(
-                    leading: const Icon(Icons.people_rounded, color: AppTheme.accentTeal),
-                    title: const Text('Daftar Anggota'),
-                    subtitle: const Text('Lihat anggota grup saat ini'),
-                    onTap: () {
-                      Navigator.pop(ctx);
-                      _showMembersListOnlyDialog();
-                    },
-                  ),
-                  ListTile(
-                    leading: const Icon(Icons.exit_to_app_rounded, color: Colors.redAccent),
-                    title: const Text('Keluar dari Grup', style: TextStyle(color: Colors.redAccent)),
-                    subtitle: const Text('Keluar dan lepaskan semua juz yang Anda klaim'),
-                    onTap: () {
-                      Navigator.pop(ctx);
-                      _confirmLeaveGroup();
-                    },
-                  ),
-                ],
-                const SizedBox(height: 16),
-              ],
-            ),
+                ),
               ),
             ),
           );
@@ -2329,6 +2474,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
     final approvedMembersCount = _members.where((m) => m['approval_status'] == 'APPROVED').length;
     final memberCount = approvedMembersCount == 0 ? 1 : approvedMembersCount;
     final maxSlots = (30 / memberCount).ceil();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return ListView(
       padding: EdgeInsets.fromLTRB(24, 24, 24, 24 + MediaQuery.of(context).padding.bottom),
@@ -2526,10 +2672,11 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
             ),
           ),
         ),
+        const SizedBox(height: 16),
         SizedBox(
           width: double.infinity,
           child: ElevatedButton.icon(
-            onPressed: () => _startNewPutaran(true),
+            onPressed: () => _startNewPutaran(0),
             icon: const Icon(Icons.auto_awesome_rounded),
             label: const Text('Bagi Rata Otomatis'),
           ),
@@ -2537,8 +2684,24 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
         const SizedBox(height: 10),
         SizedBox(
           width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: () => _startNewPutaran(2),
+            icon: const Icon(Icons.brush_rounded),
+            label: const Text('Bagi Manual (Kuas Admin)'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: isDark ? const Color(0xFF0D5257) : const Color(0xFF007A7C),
+              foregroundColor: Colors.white,
+              elevation: 0,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+        SizedBox(
+          width: double.infinity,
           child: OutlinedButton.icon(
-            onPressed: () => _startNewPutaran(false),
+            onPressed: () => _startNewPutaran(1),
             icon: const Icon(Icons.pan_tool_alt_rounded, color: AppTheme.accentGold),
             label: const Text('Klaim Mandiri (Open Slot)', style: TextStyle(color: AppTheme.accentGold)),
             style: OutlinedButton.styleFrom(

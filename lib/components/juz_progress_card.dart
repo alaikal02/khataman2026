@@ -739,6 +739,39 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
                                   ),
                                 ),
                               ),
+                              if (widget.isGroupMode) ...[
+                                const SizedBox(width: 8),
+                                GestureDetector(
+                                  onTap: _confirmRelease,
+                                  behavior: HitTestBehavior.opaque,
+                                  child: MouseRegion(
+                                    cursor: SystemMouseCursors.click,
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: isDark 
+                                            ? Colors.redAccent.withAlpha(38) 
+                                            : Colors.red.shade50,
+                                        borderRadius: BorderRadius.circular(6),
+                                        border: Border.all(
+                                          color: isDark 
+                                              ? Colors.redAccent.withOpacity(0.2) 
+                                              : Colors.red.shade100,
+                                          width: 0.8,
+                                        ),
+                                      ),
+                                      child: Text(
+                                        'Lepas',
+                                        style: TextStyle(
+                                          color: isDark ? Colors.redAccent : Colors.red.shade700,
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ],
                           ],
                         ),
@@ -943,39 +976,18 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
                       enabled: _selectedSurah != null,
                     ),
                     const SizedBox(height: 14),
-                    Row(
-                      children: [
-                        if (widget.isGroupMode) ...[
-                          OutlinedButton(
-                            onPressed: _confirmRelease,
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: Colors.redAccent,
-                              side: const BorderSide(color: Colors.redAccent, width: 1.5),
-                              minimumSize: const Size(0, 48),
-                              padding: const EdgeInsets.symmetric(horizontal: 16),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                              textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-                            ),
-                            child: const Text('Lepas'),
-                          ),
-                          const SizedBox(width: 8),
-                        ],
-                        Expanded(
-                          child: ElevatedButton(
-                            key: const ValueKey('btn_save_progress'),
-                            onPressed: _handleSave,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: isDark ? const Color(0xFF1B8047) : AppTheme.primaryGreen,
-                              foregroundColor: Colors.white,
-                              elevation: 0,
-                              minimumSize: const Size(double.infinity, 48),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                              textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-                            ),
-                            child: const Text('Simpan Progres'),
-                          ),
-                        ),
-                      ],
+                    ElevatedButton(
+                      key: const ValueKey('btn_save_progress'),
+                      onPressed: _handleSave,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: isDark ? const Color(0xFF1B8047) : AppTheme.primaryGreen,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        minimumSize: const Size(double.infinity, 48),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                      ),
+                      child: const Text('Simpan Progres'),
                     ),
                     const SizedBox(height: 12),
                     Center(
