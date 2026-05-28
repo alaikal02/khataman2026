@@ -61,6 +61,7 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
   // Local state to keep UI snappy and responsive
   late int _localLastAyat;
   late bool _localIsComplete;
+  double _sliderValue = 2.0;
 
   @override
   void initState() {
@@ -110,6 +111,7 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
     if (absoluteIndex == 0) {
       _selectedSurah = _surahsInJuz.keys.first;
       _ayatController.text = '';
+      _sliderValue = 1.0;
     } else {
       int tempAbsolute = absoluteIndex;
       for (var entry in _surahsInJuz.entries) {
@@ -129,6 +131,11 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
       if (_selectedSurah == null) {
         _selectedSurah = _surahsInJuz.keys.last;
         _ayatController.text = _surahsInJuz[_selectedSurah]![1].toString();
+      }
+      if (_totalAyat > 0) {
+        _sliderValue = ((absoluteIndex / _totalAyat) * 20.0).roundToDouble().clamp(1.0, 20.0);
+      } else {
+        _sliderValue = 5.0;
       }
     }
   }
@@ -177,49 +184,7 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
     });
   }
 
-  Widget _buildTargetChip(String label, double fraction) {
-    final targetIndex = (fraction * _totalAyat).round();
-    final isActive = _localLastAyat == targetIndex;
 
-    return ActionChip(
-      onPressed: () {
-        _setFormProgressFromAbsoluteIndex(targetIndex);
-        ScaffoldMessenger.of(context).clearSnackBars();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Target diatur ke $label (Total $targetIndex ayat)',
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
-            ),
-            duration: const Duration(seconds: 2),
-            backgroundColor: AppTheme.accentTeal,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          ),
-        );
-      },
-      elevation: 0,
-      pressElevation: 2,
-      backgroundColor: isActive 
-          ? AppTheme.primaryGreen.withOpacity(0.15) 
-          : Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.5),
-      side: BorderSide(
-        color: isActive 
-            ? AppTheme.primaryGreen.withOpacity(0.5) 
-            : Theme.of(context).dividerColor.withOpacity(0.3),
-        width: isActive ? 1.2 : 0.8,
-      ),
-      label: Text(
-        label,
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: isActive ? FontWeight.bold : FontWeight.w500,
-          color: isActive ? AppTheme.primaryGreen : Theme.of(context).colorScheme.onSurface,
-        ),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
-    );
-  }
 
   @override
   void dispose() {
@@ -845,12 +810,19 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
                     ),
                     child: Row(
                       children: [
-                        Icon(Icons.menu_book_rounded, size: 16, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                        Icon(
+                          Icons.menu_book_rounded, 
+                          size: 16, 
+                          color: isDark ? Colors.white.withOpacity(0.8) : Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             'Juz ini berisi ${_surahsInJuz.length} Surat  •  Total: $_totalAyat ayat',
-                            style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12),
+                            style: TextStyle(
+                              color: isDark ? Colors.white.withOpacity(0.85) : Theme.of(context).colorScheme.onSurfaceVariant, 
+                              fontSize: 12,
+                            ),
                           ),
                         ),
                       ],
@@ -861,38 +833,72 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
                     const SizedBox(height: 12),
                     Text(
                       'Posisi terakhir: $lastPositionString',
-                      style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 13),
+                      style: TextStyle(
+                        color: isDark ? Colors.white.withOpacity(0.9) : Theme.of(context).colorScheme.onSurfaceVariant, 
+                        fontSize: 13,
+                      ),
                     ),
                     const SizedBox(height: 12),
-                    Text(
-                      'Target Membaca Cepat:',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Target Membaca Cepat:',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: isDark ? Colors.white.withOpacity(0.9) : Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: AppTheme.primaryGreen.withOpacity(isDark ? 0.15 : 0.1),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: AppTheme.primaryGreen.withOpacity(isDark ? 0.3 : 0.2),
+                              width: 1,
+                            ),
+                          ),
+                          child: Text(
+                            '${_sliderValue.round()} Halaman',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: AppTheme.primaryGreen,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    SliderTheme(
+                      data: SliderTheme.of(context).copyWith(
+                        activeTrackColor: AppTheme.primaryGreen,
+                        inactiveTrackColor: isDark ? Colors.white10 : Colors.grey.shade200,
+                        thumbColor: AppTheme.primaryGreen,
+                        overlayColor: AppTheme.primaryGreen.withOpacity(0.12),
+                        valueIndicatorColor: AppTheme.primaryGreen,
+                        trackHeight: 4,
+                        thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
+                        overlayShape: const RoundSliderOverlayShape(overlayRadius: 16),
+                      ),
+                      child: Slider(
+                        value: _sliderValue,
+                        min: 1.0,
+                        max: 20.0,
+                        divisions: 19,
+                        onChanged: (double val) {
+                          setState(() {
+                            _sliderValue = val;
+                          });
+                          final fraction = val / 20.0;
+                          final targetIndex = (fraction * _totalAyat).round();
+                          _setFormProgressFromAbsoluteIndex(targetIndex);
+                        },
                       ),
                     ),
-                    const SizedBox(height: 6),
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      physics: const BouncingScrollPhysics(),
-                      child: Row(
-                        children: [
-                          _buildTargetChip('1/10 Juz (2 Hlm)', 1 / 10),
-                          const SizedBox(width: 6),
-                          _buildTargetChip('1/8 Juz (2.5 Hlm)', 1 / 8),
-                          const SizedBox(width: 6),
-                          _buildTargetChip('1/4 Juz (5 Hlm)', 1 / 4),
-                          const SizedBox(width: 6),
-                          _buildTargetChip('1/2 Juz (10 Hlm)', 1 / 2),
-                          const SizedBox(width: 6),
-                          _buildTargetChip('3/4 Juz (15 Hlm)', 3 / 4),
-                          const SizedBox(width: 6),
-                          _buildTargetChip('1 Juz Penuh (20 Hlm)', 1.0),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 10),
                     // Dropdown Surat
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -936,7 +942,7 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
                       ),
                       enabled: _selectedSurah != null,
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 14),
                     Row(
                       children: [
                         if (widget.isGroupMode) ...[
@@ -971,21 +977,31 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
                         ),
                       ],
                     ),
-                    const SizedBox(height: 14),
-                    Divider(color: Theme.of(context).dividerColor.withOpacity(0.5), height: 1),
-                    const SizedBox(height: 14),
-                    OutlinedButton.icon(
-                      key: const ValueKey('btn_mark_finished'),
-                      onPressed: _confirmMarkFinished,
-                      icon: const Icon(Icons.check_circle_rounded, size: 20),
-                      label: const Text('Saya Sudah Membaca 1 Juz Penuh'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppTheme.primaryGreen,
-                        side: const BorderSide(color: AppTheme.primaryGreen, width: 1.5),
-                        padding: const EdgeInsets.symmetric(vertical: 13),
-                        minimumSize: const Size(double.infinity, 48),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                    const SizedBox(height: 12),
+                    Center(
+                      child: TextButton.icon(
+                        key: const ValueKey('btn_mark_finished'),
+                        onPressed: _confirmMarkFinished,
+                        icon: const Icon(Icons.check_circle_rounded, size: 18, color: AppTheme.primaryGreen),
+                        label: const Text(
+                          'Saya Sudah Membaca 1 Juz Penuh',
+                          style: TextStyle(
+                            color: AppTheme.primaryGreen,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                            decoration: TextDecoration.underline,
+                          ),
+                        ),
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+                          foregroundColor: AppTheme.primaryGreen,
+                          overlayColor: isDark 
+                              ? Colors.white.withOpacity(0.08) 
+                              : Colors.black.withOpacity(0.06),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                        ),
                       ),
                     ),
                   ] else if (widget.isGroupMode && !widget.isOwned) ...[
