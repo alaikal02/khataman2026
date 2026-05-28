@@ -1399,51 +1399,65 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
     final rawMembers = group['group_members'] as List<dynamic>? ?? [];
     final approvedMembers = rawMembers.where((m) => m['approval_status'] == 'APPROVED').toList();
 
-    return GestureDetector(
-      onTap: canOpen
-          ? () {
-              setState(() {
-                if (isExpanded) {
-                  _expandedGroupIds.remove(groupId);
-                  _selectedMemberNamePerGroup.remove(groupId);
-                } else {
-                  _expandedGroupIds.add(groupId);
-                }
-              });
-            }
-          : null,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 250),
-        curve: Curves.easeInOut,
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isPending
-                ? AppTheme.accentGold.withOpacity(0.4)
-                : isApproved
-                    ? (isDark
-                        ? AppTheme.primaryGreen.withOpacity(0.3)
-                        : AppTheme.primaryGreen.withOpacity(0.35))
-                    : (isDark
-                        ? const Color(0xFF6C63FF).withOpacity(0.3)
-                        : const Color(0xFF6C63FF).withOpacity(0.15)),
-          ),
-          boxShadow: isExpanded
-              ? [
-                  BoxShadow(
-                    color: (isDark ? Colors.black : Colors.grey.shade200).withOpacity(isDark ? 0.3 : 0.5),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ]
-              : null,
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeInOut,
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isPending
+              ? AppTheme.accentGold.withOpacity(0.4)
+              : isApproved
+                  ? (isDark
+                      ? AppTheme.primaryGreen.withOpacity(0.3)
+                      : AppTheme.primaryGreen.withOpacity(0.35))
+                  : (isDark
+                      ? const Color(0xFF6C63FF).withOpacity(0.3)
+                      : const Color(0xFF6C63FF).withOpacity(0.15)),
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
+        boxShadow: isExpanded
+            ? [
+                BoxShadow(
+                  color: (isDark ? Colors.black : Colors.grey.shade200).withOpacity(isDark ? 0.3 : 0.5),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ]
+            : null,
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: canOpen
+              ? () {
+                  setState(() {
+                    if (isExpanded) {
+                      _expandedGroupIds.remove(groupId);
+                      _selectedMemberNamePerGroup.remove(groupId);
+                    } else {
+                      _expandedGroupIds.add(groupId);
+                    }
+                  });
+                }
+              : null,
+          splashColor: canOpen
+              ? (isDark
+                  ? AppTheme.primaryGreen.withOpacity(0.08)
+                  : AppTheme.primaryGreen.withOpacity(0.05))
+              : Colors.transparent,
+          highlightColor: canOpen
+              ? (isDark
+                  ? AppTheme.primaryGreen.withOpacity(0.04)
+                  : AppTheme.primaryGreen.withOpacity(0.02))
+              : Colors.transparent,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
             Row(
               children: [
                 // Icon
@@ -1546,54 +1560,45 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
                 const SizedBox(width: 8),
                 // Action Button
                 if (canOpen)
-                Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      GestureDetector(
-                        onTap: () async {
-                          await Navigator.push(context, MaterialPageRoute(
-                              builder: (_) => GroupDetailScreen(groupId: group['id_group'])));
-                          if (mounted) _fetchData();
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                          decoration: BoxDecoration(
-                            color: isDark 
-                                ? AppTheme.primaryGreen.withOpacity(0.15) 
-                                : AppTheme.primaryGreen.withOpacity(0.12),
-                            border: isDark 
-                                ? null 
-                                : Border.all(
-                                    color: AppTheme.primaryGreen.withOpacity(0.25),
-                                    width: 0.8,
-                                  ),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Text(
-                            'Buka', 
-                            style: TextStyle(
-                              color: isDark ? AppTheme.primaryGreen : AppTheme.darkGreen, 
-                              fontWeight: FontWeight.w600, 
-                              fontSize: 13,
-                            ),
-                          ),
+                  GestureDetector(
+                    onTap: () async {
+                      await Navigator.push(context, MaterialPageRoute(
+                          builder: (_) => GroupDetailScreen(groupId: group['id_group'])));
+                      if (mounted) _fetchData();
+                    },
+                    child: Container(
+                      width: 76,
+                      height: 32,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: isDark 
+                            ? AppTheme.primaryGreen.withOpacity(0.15) 
+                            : AppTheme.primaryGreen.withOpacity(0.12),
+                        border: isDark 
+                            ? null 
+                            : Border.all(
+                                color: AppTheme.primaryGreen.withOpacity(0.25),
+                                width: 0.8,
+                              ),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        'Buka', 
+                        style: TextStyle(
+                          color: isDark ? AppTheme.primaryGreen : AppTheme.darkGreen, 
+                          fontWeight: FontWeight.w600, 
+                          fontSize: 13,
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      Icon(
-                        isExpanded
-                            ? Icons.keyboard_arrow_up_rounded
-                            : Icons.keyboard_arrow_down_rounded,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.5),
-                        size: 22,
-                      ),
-                    ],
+                    ),
                   )
                 else if (isPending)
                   GestureDetector(
                     onTap: () => _showCancelJoinDialog(groupId, group['nama_grup'] ?? 'Grup'),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                      height: 32,
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      alignment: Alignment.center,
                       decoration: BoxDecoration(
                         color: AppTheme.accentGold.withOpacity(0.12),
                         borderRadius: BorderRadius.circular(10),
@@ -1606,6 +1611,7 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
                       ),
                       child: const Row(
                         mainAxisSize: MainAxisSize.min,
+                        mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Icon(Icons.hourglass_top_rounded, size: 12, color: AppTheme.accentGold),
                           SizedBox(width: 4),
@@ -1625,7 +1631,9 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
                   GestureDetector(
                     onTap: () => _joinGroup(group['id_group'], group['nama_grup'] ?? 'Grup', visibility),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                      width: 76,
+                      height: 32,
+                      alignment: Alignment.center,
                       decoration: BoxDecoration(
                         gradient: isDark
                             ? const LinearGradient(
@@ -1898,7 +1906,9 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
                 ],
               ),
             ),
-          ],
+              ],
+            ),
+          ),
         ),
       ),
     );
