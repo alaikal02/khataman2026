@@ -26,6 +26,7 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
   final Set<String> _expandedGroupIds = {};
   final Map<String, String> _selectedMemberNamePerGroup = {};
   String _groupVisibility = 'PUBLIC'; // untuk form buat grup
+  String _groupType = 'INSIDENTAL'; // untuk form buat grup
   late TabController _tabController;
   StateSetter? _sheetSetState;
 
@@ -154,6 +155,7 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
         'kode_gk_unik': uniqueCode,
         'creator_id': _supabase.auth.currentUser?.id,
         'visibility': _groupVisibility,
+        'tipe_grup': _groupType,
       }).select().single();
 
       // Creator selalu langsung APPROVED
@@ -165,6 +167,7 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
 
       _namaGrupController.clear();
       _groupVisibility = 'PUBLIC';
+      _groupType = 'INSIDENTAL';
       _showSnackbar('Grup "$namaGrup" berhasil dibuat! Kode: $uniqueCode');
       await _fetchData();
 
@@ -692,6 +695,12 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
             'Seseorang';
 
         if (creatorId != null && creatorId != _supabase.auth.currentUser?.id) {
+          // Bersihkan notifikasi join lama agar tidak bertumpuk
+          await NotificationService.deleteJoinNotifications(
+            groupId: groupId,
+            senderId: _supabase.auth.currentUser!.id,
+          );
+
           if (isPrivate) {
             await NotificationService.send(
               userId: creatorId,
@@ -745,6 +754,12 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
           .eq('user_id', userId)
           .select();
       print('Cancel Join Request result: $res');
+
+      // Ubah notifikasi menjadi dibatalkan agar tidak ditolak statusnya
+      await NotificationService.cancelJoinRequest(
+        groupId: groupId,
+        senderId: userId,
+      );
 
       _showSnackbar('Permintaan bergabung ke "$groupName" berhasil dibatalkan.');
       await _fetchData();
@@ -1204,6 +1219,179 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
                                       ),
                                     )
                                   : const SizedBox.shrink(),
+                            ),
+
+                            const SizedBox(height: 20),
+
+                            // ── Group Type Label ──
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                'Tipe Grup',
+                                style: TextStyle(
+                                  color: onSurfaceVariantColor,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: 0.3,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+
+                            // ── Toggle Insidental / Rutin ──
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: GestureDetector(
+                                    onTap: () => setModalState(() => _groupType = 'INSIDENTAL'),
+                                    child: AnimatedContainer(
+                                      duration: const Duration(milliseconds: 200),
+                                      padding: const EdgeInsets.symmetric(vertical: 13),
+                                      decoration: BoxDecoration(
+                                        color: _groupType == 'INSIDENTAL'
+                                            ? AppTheme.primaryGreen
+                                            : inputBgColor,
+                                        borderRadius: BorderRadius.circular(14),
+                                        border: Border.all(
+                                          color: _groupType == 'INSIDENTAL'
+                                              ? AppTheme.primaryGreen
+                                              : borderColor,
+                                          width: _groupType == 'INSIDENTAL' ? 1.5 : 1,
+                                        ),
+                                        boxShadow: _groupType == 'INSIDENTAL'
+                                            ? [
+                                                BoxShadow(
+                                                  color: AppTheme.primaryGreen.withOpacity(0.25),
+                                                  blurRadius: 8,
+                                                  offset: const Offset(0, 2),
+                                                ),
+                                              ]
+                                            : null,
+                                      ),
+                                      child: Row(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          Icon(
+                                            Icons.flash_on_rounded,
+                                            size: 17,
+                                            color: _groupType == 'INSIDENTAL'
+                                                ? Colors.white
+                                                : onSurfaceVariantColor,
+                                          ),
+                                          const SizedBox(width: 6),
+                                          Text(
+                                            'Insidental',
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.w600,
+                                              fontSize: 13,
+                                              color: _groupType == 'INSIDENTAL'
+                                                  ? Colors.white
+                                                  : onSurfaceVariantColor,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: GestureDetector(
+                                    onTap: () => setModalState(() => _groupType = 'RUTIN'),
+                                    child: AnimatedContainer(
+                                      duration: const Duration(milliseconds: 200),
+                                      padding: const EdgeInsets.symmetric(vertical: 13),
+                                      decoration: BoxDecoration(
+                                        color: _groupType == 'RUTIN'
+                                            ? AppTheme.accentTeal
+                                            : inputBgColor,
+                                        borderRadius: BorderRadius.circular(14),
+                                        border: Border.all(
+                                          color: _groupType == 'RUTIN'
+                                              ? AppTheme.accentTeal
+                                              : borderColor,
+                                          width: _groupType == 'RUTIN' ? 1.5 : 1,
+                                        ),
+                                        boxShadow: _groupType == 'RUTIN'
+                                            ? [
+                                                BoxShadow(
+                                                  color: AppTheme.accentTeal.withOpacity(0.25),
+                                                  blurRadius: 8,
+                                                  offset: const Offset(0, 2),
+                                                ),
+                                              ]
+                                            : null,
+                                      ),
+                                      child: Row(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          Icon(
+                                            Icons.sync_rounded,
+                                            size: 17,
+                                            color: _groupType == 'RUTIN'
+                                                ? Colors.white
+                                                : onSurfaceVariantColor,
+                                          ),
+                                          const SizedBox(width: 6),
+                                          Text(
+                                            'Rutin',
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.w600,
+                                              fontSize: 13,
+                                              color: _groupType == 'RUTIN'
+                                                  ? Colors.white
+                                                  : onSurfaceVariantColor,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+
+                            // ── Group Type Info Note ──
+                            AnimatedSize(
+                              duration: const Duration(milliseconds: 200),
+                              curve: Curves.easeInOut,
+                              child: Padding(
+                                padding: const EdgeInsets.only(top: 10),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                  decoration: BoxDecoration(
+                                    color: (_groupType == 'RUTIN' ? AppTheme.accentTeal : AppTheme.primaryGreen).withOpacity(isDark ? 0.12 : 0.08),
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(
+                                      color: (_groupType == 'RUTIN' ? AppTheme.accentTeal : AppTheme.primaryGreen).withOpacity(0.2),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.info_outline_rounded,
+                                        size: 15,
+                                        color: _groupType == 'RUTIN' ? AppTheme.accentTeal : AppTheme.primaryGreen,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          _groupType == 'RUTIN'
+                                              ? 'Tipe Rutin: Sistem siklus rolling Juz otomatis berputar setelah khatam.'
+                                              : 'Tipe Insidental: Jatah Juz di-reset total secara manual setelah khatam.',
+                                          style: TextStyle(
+                                            fontSize: 11.5,
+                                            color: isDark
+                                                ? (_groupType == 'RUTIN' ? AppTheme.accentTeal : AppTheme.primaryGreen)
+                                                : (_groupType == 'RUTIN' ? Colors.teal.shade800 : Colors.green.shade800),
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
                             ),
 
                             const SizedBox(height: 24),

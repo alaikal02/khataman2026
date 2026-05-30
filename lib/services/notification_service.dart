@@ -128,4 +128,69 @@ class NotificationService {
       print('NotificationService.markAllAsRead error: $e');
     }
   }
+
+  /// Hapus semua notifikasi terkait join (JOIN_REQUEST dan JOIN_CANCELLED)
+  static Future<void> deleteJoinNotifications({
+    required String groupId,
+    required String senderId,
+  }) async {
+    try {
+      await _supabase
+          .from('notifications')
+          .delete()
+          .eq('group_id', groupId)
+          .eq('sender_id', senderId)
+          .inFilter('type', ['JOIN_REQUEST', 'JOIN_CANCELLED']);
+    } catch (e) {
+      print('NotificationService.deleteJoinNotifications error: $e');
+    }
+  }
+
+  /// Ubah notifikasi gabung menjadi dibatalkan
+  static Future<void> cancelJoinRequest({
+    required String groupId,
+    required String senderId,
+  }) async {
+    try {
+      await _supabase
+          .from('notifications')
+          .update({
+            'type': 'JOIN_CANCELLED',
+            'title': 'Permintaan Dibatalkan',
+            'is_read': true, // Tandai dibaca agar tidak menambah badge unread admin
+          })
+          .eq('group_id', groupId)
+          .eq('sender_id', senderId)
+          .eq('type', 'JOIN_REQUEST');
+    } catch (e) {
+      print('NotificationService.cancelJoinRequest error: $e');
+    }
+  }
+
+  /// Hapus 1 notifikasi
+  static Future<void> delete(String notificationId) async {
+    try {
+      await _supabase
+          .from('notifications')
+          .delete()
+          .eq('id', notificationId);
+    } catch (e) {
+      print('NotificationService.delete error: $e');
+    }
+  }
+
+  /// Hapus semua notifikasi milik user aktif
+  static Future<void> deleteAll() async {
+    try {
+      final userId = _supabase.auth.currentUser?.id;
+      if (userId == null) return;
+
+      await _supabase
+          .from('notifications')
+          .delete()
+          .eq('user_id', userId);
+    } catch (e) {
+      print('NotificationService.deleteAll error: $e');
+    }
+  }
 }

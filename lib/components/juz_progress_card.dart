@@ -23,8 +23,14 @@ class JuzProgressCard extends StatefulWidget {
   // Callbacks
   final Function(int absoluteIndex, int total)? onSave;
   final Function(int slotId)? onRelease;
+  final Function(int slotId)? onRequestRelease;
+  final Function(int slotId)? onCancelRelease;
   final Function(int slotId)? onClaim;
   final VoidCallback? onProgressUpdated;
+
+  // Release approval status
+  final String? approvalLepasStatus;
+  final String? usernameSebelumnya;
 
   const JuzProgressCard({
     Key? key,
@@ -39,8 +45,12 @@ class JuzProgressCard extends StatefulWidget {
     this.groupName,
     this.onSave,
     this.onRelease,
+    this.onRequestRelease,
+    this.onCancelRelease,
     this.onClaim,
     this.onProgressUpdated,
+    this.approvalLepasStatus,
+    this.usernameSebelumnya,
   }) : super(key: key);
 
   @override
@@ -96,6 +106,29 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
         _expandController.reverse();
       }
     }
+  }
+
+  Map<String, int> _getSurahAndAyatFromAbsolute(int absoluteIndex) {
+    if (absoluteIndex <= 0 || _surahsInJuz.isEmpty) {
+      final firstSurah = _surahsInJuz.isNotEmpty ? _surahsInJuz.keys.first : 0;
+      return {'surah': firstSurah, 'ayat': 0};
+    }
+    int tempAbsolute = absoluteIndex;
+    for (var entry in _surahsInJuz.entries) {
+      int surah = entry.key;
+      int start = entry.value[0];
+      int end = entry.value[1];
+      int ayahsInThisSurah = end - start + 1;
+      
+      if (tempAbsolute <= ayahsInThisSurah) {
+        return {'surah': surah, 'ayat': start + tempAbsolute - 1};
+      } else {
+        tempAbsolute -= ayahsInThisSurah;
+      }
+    }
+    int lastSurah = _surahsInJuz.isNotEmpty ? _surahsInJuz.keys.last : 0;
+    final lastAyatInSurah = _surahsInJuz.isNotEmpty && lastSurah > 0 ? _surahsInJuz[lastSurah]![1] : 0;
+    return {'surah': lastSurah, 'ayat': lastAyatInSurah};
   }
 
   void _initQuranData() {
@@ -282,6 +315,24 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
 
     final isComplete = absoluteIndex == _totalAyat;
 
+    // PROTEKSI ANTI-REDUCTION: Jangan izinkan progres mundur dari posisi tersimpan
+    if (widget.isGroupMode && absoluteIndex < widget.lastAyat && widget.lastAyat > 0) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text(
+              '🔒 Progres tidak bisa dimundurkan! Ayat harus lebih tinggi dari posisi terakhir.',
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
+            ),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      }
+      return;
+    }
+
     if (widget.isGroupMode) {
       // Group Mode DB operation
       if (widget.slotId == null) return;
@@ -380,15 +431,69 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
   }
 
   Future<void> _confirmRelease() async {
-    if (widget.slotId == null || widget.onRelease == null) return;
-    
+    if (widget.slotId == null) return;
+
+    // Jika progres > 0%, Juz terkunci permanen
+    if (_localLastAyat > 0 || _localIsComplete) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('🔒 Juz sudah mulai dibaca, tidak dapat dilepas.'),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      }
+      return;
+    }
+
+    // Jika status PENDING, batalkan pengajuan
+    if (widget.approvalLepasStatus == 'PENDING') {
+      widget.onCancelRelease?.call(widget.slotId!);
+      return;
+    }
+
+    // Konfirmasi pengajuan lepas baru (onRequestRelease → PENDING)
+    if (widget.onRequestRelease == null) {
+      // Fallback: gunakan onRelease langsung (admin mode)
+      if (widget.onRelease == null) return;
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (_) => AlertDialog(
+          backgroundColor: Theme.of(context).colorScheme.surface,
+          title: Text('Lepas Juz?', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
+          content: Text(
+            'Progres Juz ${widget.juzNumber} Anda akan direset dan slot ini akan tersedia untuk anggota lain.',
+            style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, height: 1.5),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Batal'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: TextButton.styleFrom(foregroundColor: Colors.redAccent),
+              child: const Text('Ya, Lepas Juz'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed == true) {
+        widget.onRelease!(widget.slotId!);
+      }
+      return;
+    }
+
+    // Konfirmasi pengajuan lepas Juz (member mode → PENDING)
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
         backgroundColor: Theme.of(context).colorScheme.surface,
-        title: Text('Lepas Juz?', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
+        title: Text('Ajukan Lepas Juz?', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
         content: Text(
-          'Progres Juz ${widget.juzNumber} Anda akan direset dan slot ini akan tersedia untuk anggota lain.',
+          'Pengajuan Anda akan dikirim ke admin grup. Selama menunggu persetujuan, Anda bisa membatalkan pengajuan ini.',
           style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, height: 1.5),
         ),
         actions: [
@@ -396,16 +501,19 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
             onPressed: () => Navigator.pop(context, false),
             child: const Text('Batal'),
           ),
-          TextButton(
+          ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.redAccent),
-            child: const Text('Ya, Lepas Juz'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Ya, Ajukan'),
           ),
         ],
       ),
     );
     if (confirmed == true) {
-      widget.onRelease!(widget.slotId!);
+      widget.onRequestRelease!(widget.slotId!);
     }
   }
 
@@ -566,6 +674,9 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
     final isComplete = _localIsComplete;
     final progress = isComplete ? 100 : _calculateProgress();
     final surahAwal = _surahsInJuz.isNotEmpty ? quran.getSurahName(_surahsInJuz.keys.first) : '';
+    final savedPosition = _getSurahAndAyatFromAbsolute(_localLastAyat);
+    final savedSurah = savedPosition['surah'] ?? 0;
+    final savedAyat = savedPosition['ayat'] ?? 0;
 
     String lastPositionString = 'Belum dibaca';
     if (_localLastAyat > 0 && _surahsInJuz.isNotEmpty) {
@@ -740,37 +851,105 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
                                 ),
                               ),
                               if (widget.isGroupMode) ...[
-                                const SizedBox(width: 8),
-                                GestureDetector(
-                                  onTap: _confirmRelease,
-                                  behavior: HitTestBehavior.opaque,
-                                  child: MouseRegion(
-                                    cursor: SystemMouseCursors.click,
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                                      decoration: BoxDecoration(
-                                        color: isDark 
-                                            ? Colors.redAccent.withAlpha(38) 
-                                            : Colors.red.shade50,
-                                        borderRadius: BorderRadius.circular(6),
-                                        border: Border.all(
+                                // PENDING badge
+                                if (widget.approvalLepasStatus == 'PENDING') ...[
+                                  const SizedBox(width: 8),
+                                  GestureDetector(
+                                    onTap: _confirmRelease,
+                                    behavior: HitTestBehavior.opaque,
+                                    child: MouseRegion(
+                                      cursor: SystemMouseCursors.click,
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                        decoration: BoxDecoration(
                                           color: isDark 
-                                              ? Colors.redAccent.withOpacity(0.2) 
-                                              : Colors.red.shade100,
-                                          width: 0.8,
+                                              ? Colors.orange.withAlpha(38) 
+                                              : Colors.orange.shade50,
+                                          borderRadius: BorderRadius.circular(6),
+                                          border: Border.all(
+                                            color: isDark 
+                                                ? Colors.orange.withOpacity(0.3) 
+                                                : Colors.orange.shade200,
+                                            width: 0.8,
+                                          ),
                                         ),
-                                      ),
-                                      child: Text(
-                                        'Lepas',
-                                        style: TextStyle(
-                                          color: isDark ? Colors.redAccent : Colors.red.shade700,
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.w600,
+                                        child: Text(
+                                          'Batalkan',
+                                          style: TextStyle(
+                                            color: isDark ? Colors.orange : Colors.orange.shade800,
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w600,
+                                          ),
                                         ),
                                       ),
                                     ),
                                   ),
-                                ),
+                                ] else if (_localLastAyat > 0 || _localIsComplete) ...[
+                                  // Locked: progress > 0%
+                                  const SizedBox(width: 8),
+                                  GestureDetector(
+                                    onTap: _confirmRelease,
+                                    behavior: HitTestBehavior.opaque,
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: isDark 
+                                            ? Colors.grey.withAlpha(38) 
+                                            : Colors.grey.shade100,
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(Icons.lock_rounded, size: 10, 
+                                            color: isDark ? Colors.grey : Colors.grey.shade600),
+                                          const SizedBox(width: 3),
+                                          Text(
+                                            'Terkunci',
+                                            style: TextStyle(
+                                              color: isDark ? Colors.grey : Colors.grey.shade600,
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ] else ...[
+                                  // Normal: can request release
+                                  const SizedBox(width: 8),
+                                  GestureDetector(
+                                    onTap: _confirmRelease,
+                                    behavior: HitTestBehavior.opaque,
+                                    child: MouseRegion(
+                                      cursor: SystemMouseCursors.click,
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: isDark 
+                                              ? Colors.redAccent.withAlpha(38) 
+                                              : Colors.red.shade50,
+                                          borderRadius: BorderRadius.circular(6),
+                                          border: Border.all(
+                                            color: isDark 
+                                                ? Colors.redAccent.withOpacity(0.2) 
+                                                : Colors.red.shade100,
+                                            width: 0.8,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          'Lepas',
+                                          style: TextStyle(
+                                            color: isDark ? Colors.redAccent : Colors.red.shade700,
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ],
                             ],
                           ],
@@ -861,6 +1040,43 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
                       ],
                     ),
                   ),
+                  if (widget.isGroupMode &&
+                      widget.usernameSebelumnya != null &&
+                      widget.usernameSebelumnya != widget.memberName) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: AppTheme.accentGold.withOpacity(isDark ? 0.15 : 0.08),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: AppTheme.accentGold.withOpacity(isDark ? 0.3 : 0.2),
+                          width: 0.8,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.history_rounded, 
+                            size: 16, 
+                            color: isDark ? AppTheme.accentGold : Colors.amber.shade900,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Progres sebelumnya oleh: @${widget.usernameSebelumnya}',
+                              style: TextStyle(
+                                color: isDark ? AppTheme.accentGold : Colors.amber.shade900, 
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+
                   // Read Input & Buttons
                   if ((widget.isOwned || !widget.isGroupMode) && !isComplete) ...[
                     const SizedBox(height: 12),
@@ -922,6 +1138,13 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
                         max: 20.0,
                         divisions: 19,
                         onChanged: (double val) {
+                          if (widget.isGroupMode) {
+                            final fraction = val / 20.0;
+                            final targetIndex = (fraction * _totalAyat).round();
+                            if (targetIndex < _localLastAyat) {
+                              return; // Lock backward dragging
+                            }
+                          }
                           setState(() {
                             _sliderValue = val;
                           });
@@ -946,18 +1169,30 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
                           icon: const Icon(Icons.keyboard_arrow_down_rounded, color: AppTheme.primaryGreen),
                           items: _surahsInJuz.entries.map((entry) {
                             final bounds = entry.value;
+                            final isEnabled = !widget.isGroupMode || entry.key >= savedSurah;
                             return DropdownMenuItem<int>(
                               value: entry.key,
+                              enabled: isEnabled,
                               child: Text(
                                 '${quran.getSurahName(entry.key)} (Ayat ${bounds[0]} - ${bounds[1]})',
-                                style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+                                style: TextStyle(
+                                  color: isEnabled
+                                      ? Theme.of(context).colorScheme.onSurface
+                                      : Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.4),
+                                ),
                               ),
                             );
                           }).toList(),
                           onChanged: (val) {
+                            if (val == null) return;
+                            if (widget.isGroupMode && val < savedSurah) return;
                             setState(() {
                               _selectedSurah = val;
-                              _ayatController.text = ''; // Clear ayat when surah changes
+                              if (widget.isGroupMode && val == savedSurah) {
+                                _ayatController.text = savedAyat.toString();
+                              } else {
+                                _ayatController.text = _surahsInJuz[val]![0].toString();
+                              }
                             });
                           },
                         ),
@@ -970,8 +1205,12 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
                       style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
                       decoration: InputDecoration(
                         hintText: _selectedSurah != null 
-                            ? 'Ayat terakhir (Min ${_surahsInJuz[_selectedSurah]![0]}, Max ${_surahsInJuz[_selectedSurah]![1]})'
+                            ? 'Ayat terakhir (Min ${widget.isGroupMode && _selectedSurah == savedSurah ? savedAyat : _surahsInJuz[_selectedSurah]![0]}, Max ${_surahsInJuz[_selectedSurah]![1]})'
                             : 'Pilih surat dulu',
+                        helperText: widget.isGroupMode && _selectedSurah == savedSurah && savedAyat > 0
+                            ? 'Minimal ayat: $savedAyat (posisi tersimpan)'
+                            : null,
+                        helperStyle: const TextStyle(color: AppTheme.accentGold, fontSize: 10, fontWeight: FontWeight.bold),
                       ),
                       enabled: _selectedSurah != null,
                     ),
@@ -1044,13 +1283,16 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
                         minimumSize: const Size(double.infinity, 42),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                       ),
-                      child: const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.undo_rounded, size: 18),
-                          SizedBox(width: 8),
-                          Text('Batalkan Status Selesai'),
-                        ],
+                      child: const FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.undo_rounded, size: 18),
+                            SizedBox(width: 8),
+                            Text('Batalkan Status Selesai'),
+                          ],
+                        ),
                       ),
                     ),
                   ],
@@ -1065,9 +1307,11 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
 
   Widget _buildUnclaimedCard() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final progress = _calculateProgress();
+    final hasProgress = progress > 0 && !widget.isComplete;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
@@ -1078,71 +1322,163 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
           width: 1.0,
         ),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      child: Column(
         children: [
-          Row(
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: isDark 
-                      ? Colors.white.withOpacity(0.08) 
-                      : AppTheme.primaryGreen.withOpacity(0.06),
-                  border: Border.all(
-                    color: isDark ? Colors.transparent : AppTheme.primaryGreen.withOpacity(0.15),
-                    width: 0.8,
-                  ),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Center(
-                  child: Text(
-                    '${widget.juzNumber}',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold, 
-                      fontSize: 16, 
-                      color: isDark ? Colors.white70 : AppTheme.darkGreen,
+          InkWell(
+            borderRadius: BorderRadius.circular(16),
+            onTap: hasProgress ? _toggleExpand : null,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: isDark 
+                                ? Colors.white.withOpacity(0.08) 
+                                : AppTheme.primaryGreen.withOpacity(0.06),
+                            border: Border.all(
+                              color: isDark ? Colors.transparent : AppTheme.primaryGreen.withOpacity(0.15),
+                              width: 0.8,
+                            ),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Center(
+                            child: Text(
+                              '${widget.juzNumber}',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold, 
+                                fontSize: 16, 
+                                color: isDark ? Colors.white70 : AppTheme.darkGreen,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Text(
+                                    'Juz ${widget.juzNumber}',
+                                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Theme.of(context).colorScheme.onSurface),
+                                  ),
+                                  if (hasProgress) ...[
+                                    const SizedBox(width: 8),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                                      decoration: BoxDecoration(
+                                        color: isDark 
+                                            ? AppTheme.accentGold.withOpacity(0.15) 
+                                            : AppTheme.accentGold.withOpacity(0.08),
+                                        borderRadius: BorderRadius.circular(6),
+                                        border: Border.all(
+                                          color: isDark 
+                                              ? AppTheme.accentGold.withOpacity(0.4) 
+                                              : AppTheme.accentGold.withOpacity(0.25),
+                                          width: 0.8,
+                                        ),
+                                      ),
+                                      child: Text(
+                                        'Sudah Dicicil $progress%',
+                                        style: TextStyle(
+                                          color: isDark 
+                                              ? AppTheme.accentGold 
+                                              : Colors.amber.shade900,
+                                          fontSize: 8,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Slot Kosong', 
+                                style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Juz ${widget.juzNumber}',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Theme.of(context).colorScheme.onSurface)),
-                  const SizedBox(height: 4),
-                  Text('Slot Kosong', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12)),
+                  const SizedBox(width: 8),
+                  if (widget.onClaim != null && widget.slotId != null)
+                    GestureDetector(
+                      onTap: () => widget.onClaim!(widget.slotId!),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        decoration: BoxDecoration(
+                          gradient: isDark ? AppTheme.primaryGradient : null,
+                          color: isDark ? null : AppTheme.primaryGreen.withOpacity(0.12),
+                          border: Border.all(
+                            color: isDark ? Colors.transparent : AppTheme.primaryGreen.withOpacity(0.25),
+                            width: 0.8,
+                          ),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          'Ambil Juz Ini',
+                          style: TextStyle(
+                            color: isDark ? Colors.white : AppTheme.darkGreen,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                    ),
                 ],
               ),
-            ],
+            ),
           ),
-          if (widget.onClaim != null && widget.slotId != null)
-            GestureDetector(
-              onTap: () => widget.onClaim!(widget.slotId!),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                decoration: BoxDecoration(
-                  gradient: isDark ? AppTheme.primaryGradient : null,
-                  color: isDark ? null : AppTheme.primaryGreen.withOpacity(0.12),
-                  border: Border.all(
-                    color: isDark ? Colors.transparent : AppTheme.primaryGreen.withOpacity(0.25),
-                    width: 0.8,
+          SizeTransition(
+            sizeFactor: _expandAnimation,
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Divider(color: Theme.of(context).dividerColor, height: 1),
+                  const SizedBox(height: 14),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.person_outline_rounded, 
+                          size: 16, 
+                          color: isDark ? Colors.white.withOpacity(0.8) : Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Dibaca sebelumnya oleh: ${widget.usernameSebelumnya != null ? '@${widget.usernameSebelumnya}' : 'pembaca sebelumnya'}',
+                            style: TextStyle(
+                              color: isDark ? Colors.white.withOpacity(0.85) : Theme.of(context).colorScheme.onSurfaceVariant, 
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(
-                  'Ambil Juz Ini',
-                  style: TextStyle(
-                    color: isDark ? Colors.white : AppTheme.darkGreen,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13,
-                  ),
-                ),
+                ],
               ),
             ),
+          ),
         ],
       ),
     );

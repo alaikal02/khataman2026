@@ -11,6 +11,9 @@ import 'settings_screen.dart';
 import 'notification_screen.dart';
 import 'history_screen.dart';
 import '../services/personal_history_service.dart';
+import 'package:app_links/app_links.dart';
+import 'dart:async';
+import 'group_detail_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -23,6 +26,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   int _unreadNotificationsCount = 0;
   int _personalKhatamCount = 0;
   RealtimeChannel? _notificationChannel;
+  final AppLinks _appLinks = AppLinks();
+  StreamSubscription<Uri>? _linkSubscription;
 
   @override
   void initState() {
@@ -31,6 +36,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _fetchUnreadCount();
     _loadPersonalStats();
     _subscribeToNotifications();
+    _initDeepLinkListener();
   }
 
   @override
@@ -138,6 +144,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _linkSubscription?.cancel();
     if (_notificationChannel != null) {
       try {
         Supabase.instance.client.removeChannel(_notificationChannel!);
@@ -598,5 +605,248 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         ),
       ),
     );
+  }
+
+  void _showSnackbarHome(String message, {bool isError = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(message),
+      backgroundColor: isError ? Colors.redAccent : AppTheme.primaryGreen,
+    ));
+  }
+
+  void _initDeepLinkListener() async {
+    // 1. Handle initial link (when app is opened from cold start by the link)
+    try {
+      final initialUri = await _appLinks.getInitialLink();
+      if (initialUri != null) {
+        _handleDeepLink(initialUri);
+      }
+    } catch (e) {
+      debugPrint('Deep Link Initial error: $e');
+    }
+
+    // 2. Handle subsequent links (when app is already running/resumed)
+    _linkSubscription = _appLinks.uriLinkStream.listen((uri) {
+      _handleDeepLink(uri);
+    }, onError: (err) {
+      debugPrint('Deep Link Stream error: $err');
+    });
+  }
+
+  void _handleDeepLink(Uri uri) async {
+    debugPrint('🔗 [Deep Link] Received URI: $uri');
+    if (uri.path == '/join') {
+      final code = uri.queryParameters['code'];
+      if (code != null && code.isNotEmpty) {
+        _processGroupCode(code);
+      }
+    }
+  }
+
+  void _processGroupCode(String code) async {
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId == null) return;
+
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(color: AppTheme.primaryGreen),
+      ),
+    );
+
+    try {
+      final response = await Supabase.instance.client
+          .from('groups')
+          .select('id_group, nama_grup, visibility')
+          .eq('kode_gk_unik', code)
+          .maybeSingle();
+
+      if (!mounted) return;
+      Navigator.pop(context); // Close loading dialog
+
+      if (response == null) {
+        _showSnackbarHome('Grup dengan kode "$code" tidak ditemukan.', isError: true);
+        return;
+      }
+
+      final groupId = response['id_group'] as String;
+      final groupName = response['nama_grup'] as String;
+      final visibility = response['visibility'] as String;
+
+      final memberCheck = await Supabase.instance.client
+          .from('group_members')
+          .select('approval_status')
+          .eq('group_id', groupId)
+          .eq('user_id', userId)
+          .maybeSingle();
+
+      if (!mounted) return;
+
+      if (memberCheck != null) {
+        final status = memberCheck['approval_status'] as String;
+        if (status == 'APPROVED') {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => GroupDetailScreen(groupId: groupId),
+            ),
+          );
+        } else if (status == 'PENDING') {
+          _showSnackbarHome('Permintaan Anda bergabung di "$groupName" masih PENDING persetujuan Admin.');
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const GroupScreen(),
+            ),
+          );
+        } else {
+          _showSnackbarHome('Keanggotaan Anda di "$groupName" ditolak/ditangguhkan.', isError: true);
+        }
+      } else {
+        _showJoinConfirmationDialog(groupId, groupName, visibility, code);
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context); // Close loading dialog if open
+        _showSnackbarHome('Gagal memproses link: $e', isError: true);
+      }
+    }
+  }
+
+  void _showJoinConfirmationDialog(String groupId, String groupName, String visibility, String code) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: isDark ? const Color(0xFF161B22) : const Color(0xFFFAFCFA),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Row(
+            children: [
+              const Icon(Icons.group_add_rounded, color: AppTheme.primaryGreen),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Gabung Grup',
+                  style: TextStyle(
+                    color: isDark ? Colors.white : const Color(0xFF1D2A22),
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: Text(
+            'Apakah Anda ingin mengajukan bergabung ke grup "$groupName" (Kode: $code)?',
+            style: TextStyle(
+              color: isDark ? Colors.white70 : const Color(0xFF5F6E65),
+              fontSize: 14,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text(
+                'Batal',
+                style: TextStyle(color: isDark ? Colors.white60 : Colors.grey.shade600),
+              ),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.primaryGreen,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              onPressed: () async {
+                Navigator.pop(dialogContext);
+                _joinGroupFromLink(groupId, groupName, visibility);
+              },
+              child: const Text('Gabung', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _joinGroupFromLink(String groupId, String groupName, String visibility) async {
+    final isPrivate = visibility == 'PRIVATE';
+    final status = isPrivate ? 'PENDING' : 'APPROVED';
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(color: AppTheme.primaryGreen),
+      ),
+    );
+
+    try {
+      await Supabase.instance.client.from('group_members').insert({
+        'group_id': groupId,
+        'user_id': Supabase.instance.client.auth.currentUser?.id,
+        'approval_status': status,
+      });
+
+      final groupRes = await Supabase.instance.client
+          .from('groups')
+          .select('creator_id')
+          .eq('id_group', groupId)
+          .maybeSingle();
+
+      if (groupRes != null) {
+        final creatorId = groupRes['creator_id'] as String?;
+        final senderName = Supabase.instance.client.auth.currentUser?.userMetadata?['full_name'] as String? ??
+            Supabase.instance.client.auth.currentUser?.email?.split('@')[0] ??
+            'Seseorang';
+
+        if (creatorId != null && creatorId != Supabase.instance.client.auth.currentUser?.id) {
+          // Bersihkan notifikasi join lama agar tidak bertumpuk
+          await NotificationService.deleteJoinNotifications(
+            groupId: groupId,
+            senderId: Supabase.instance.client.auth.currentUser!.id,
+          );
+
+          if (isPrivate) {
+            await NotificationService.send(
+              userId: creatorId,
+              type: 'JOIN_REQUEST',
+              title: 'Permintaan Bergabung',
+              body: '$senderName meminta bergabung ke grup "$groupName"',
+              groupId: groupId,
+              senderId: Supabase.instance.client.auth.currentUser?.id,
+            );
+          } else {
+            await NotificationService.send(
+              userId: creatorId,
+              type: 'MEMBER_JOINED',
+              title: 'Anggota Baru Bergabung',
+              body: '$senderName telah bergabung ke grup "$groupName"',
+              groupId: groupId,
+              senderId: Supabase.instance.client.auth.currentUser?.id,
+            );
+          }
+        }
+      }
+
+      if (!mounted) return;
+      Navigator.pop(context); // Close loading dialog
+
+      if (isPrivate) {
+        _showSnackbarHome('Permintaan bergabung terkirim! Tunggu persetujuan Admin.');
+      } else {
+        _showSnackbarHome('Berhasil bergabung dengan "$groupName"!');
+        Navigator.push(context, MaterialPageRoute(
+          builder: (_) => GroupDetailScreen(groupId: groupId),
+        ));
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context); // Close loading dialog
+        _showSnackbarHome('Gagal bergabung: $e', isError: true);
+      }
+    }
   }
 }

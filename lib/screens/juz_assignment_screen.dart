@@ -16,7 +16,7 @@ class JuzAssignmentScreen extends StatefulWidget {
   State<JuzAssignmentScreen> createState() => _JuzAssignmentScreenState();
 }
 
-class _JuzAssignmentScreenState extends State<JuzAssignmentScreen> {
+class _JuzAssignmentScreenState extends State<JuzAssignmentScreen> with SingleTickerProviderStateMixin {
   final _supabase = Supabase.instance.client;
   
   List<Map<String, dynamic>> _members = [];
@@ -32,10 +32,50 @@ class _JuzAssignmentScreenState extends State<JuzAssignmentScreen> {
   final Map<String, String> _uniqueInitials = {};
   final Map<String, Color> _memberColors = {};
 
+  late AnimationController _pulseController;
+  late Animation<double> _pulseAnimation;
+  RealtimeChannel? _subscription;
+
   @override
   void initState() {
     super.initState();
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1000),
+    )..repeat(reverse: true);
+    _pulseAnimation = Tween<double>(begin: 0.2, end: 1.0).animate(_pulseController);
     _fetchData();
+    _setupRealtime();
+  }
+
+  @override
+  void dispose() {
+    if (_subscription != null) {
+      try {
+        _supabase.removeChannel(_subscription!);
+      } catch (e) {
+        debugPrint('Error removing realtime channel: $e');
+      }
+    }
+    _pulseController.dispose();
+    super.dispose();
+  }
+
+  void _setupRealtime() {
+    final channelName = 'juz_assignment_${widget.groupId}';
+    _subscription = _supabase.channel(channelName)
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'slot_khataman',
+          callback: (payload) {
+            debugPrint('🔄 [Realtime Admin Grid] Slot khataman changed. Syncing...');
+            if (mounted) {
+              _fetchData(silent: true);
+            }
+          },
+        )
+        .subscribe();
   }
 
   Future<void> _fetchData({bool silent = false}) async {
@@ -164,11 +204,17 @@ class _JuzAssignmentScreenState extends State<JuzAssignmentScreen> {
         
         if (orig.isNotEmpty) {
           if (slot['user_id'] != orig['user_id']) {
+            String? prevUsername;
+            if (slot['user_id'] == null) {
+              final usersMap = orig['users'] as Map<String, dynamic>?;
+              prevUsername = usersMap?['username'] as String?;
+            }
             updateFutures.add(
               _supabase.from('slot_khataman').update({
                 'user_id': slot['user_id'],
                 'ayat_terakhir_input': slot['ayat_terakhir_input'],
                 'status_checklist': slot['status_checklist'],
+                if (slot['user_id'] == null) 'username_sebelumnya': prevUsername,
               }).eq('id_slot', slot['id_slot'])
             );
           }
@@ -340,6 +386,95 @@ class _JuzAssignmentScreenState extends State<JuzAssignmentScreen> {
   }
 
   void _handleJuzTap(Map<String, dynamic> slot) {
+    // Intercept jika slot statusnya PENDING (pengajuan lepas dari anggota)
+    if (slot['approval_lepas_status'] == 'PENDING') {
+      final claimedUser = slot['users'] as Map<String, dynamic>? ?? {};
+      final claimedUsername = claimedUser['username'] as String? ?? 'Anggota';
+      final int juzNo = slot['nomor_juz'] as int;
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: Theme.of(context).colorScheme.surface,
+          title: const Text(
+            'Persetujuan Lepas Juz',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          content: Text(
+            'Anggota "$claimedUsername" mengajukan untuk melepas Juz $juzNo.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Batal'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                Navigator.pop(ctx);
+                try {
+                  // SETUJUI: user_id = NULL, pertahankan progres, set approval_lepas_status = NULL
+                  await _supabase.from('slot_khataman').update({
+                    'user_id': null,
+                    'approval_lepas_status': null,
+                    'username_sebelumnya': claimedUsername,
+                  }).eq('id_slot', slot['id_slot']);
+                  _fetchData(silent: true);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Juz $juzNo berhasil dilepas.'),
+                      backgroundColor: AppTheme.primaryGreen,
+                    ),
+                  );
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Gagal menyetujui: $e'),
+                      backgroundColor: Colors.redAccent,
+                    ),
+                  );
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.primaryGreen,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Setujui'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                Navigator.pop(ctx);
+                try {
+                  // TOLAK: set approval_lepas_status = NULL
+                  await _supabase.from('slot_khataman').update({
+                    'approval_lepas_status': null,
+                  }).eq('id_slot', slot['id_slot']);
+                  _fetchData(silent: true);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Pengajuan lepas Juz $juzNo ditolak.'),
+                      backgroundColor: Colors.orange,
+                    ),
+                  );
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Gagal menolak: $e'),
+                      backgroundColor: Colors.redAccent,
+                    ),
+                  );
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.redAccent,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Tolak'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
     // 1. Logika Proteksi Juz yang Sudah Dicicil (Progres > 0%)
     final lastAyat = slot['ayat_terakhir_input'] as int? ?? 0;
     final statusChecklist = slot['status_checklist'] == true;
@@ -838,31 +973,51 @@ class _JuzAssignmentScreenState extends State<JuzAssignmentScreen> {
                              final claimerColor = hasClaim ? (_memberColors[claimedUserId] ?? _getPastelColor(claimedUsername ?? '')) : Colors.transparent;
                              final claimerInitials = hasClaim ? (_uniqueInitials[claimedUserId] ?? _getInitials(claimedUsername)) : '';
 
+                             final bool isPending = slot['approval_lepas_status'] == 'PENDING';
+
                             return GestureDetector(
                               onTap: () => _handleJuzTap(slot),
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 200),
-                                decoration: BoxDecoration(
-                                  color: hasClaim 
-                                      ? claimerColor.withOpacity(isDark ? 0.12 : 0.20)
-                                      : cardBg,
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(
-                                    color: hasClaim
-                                        ? claimerColor.withOpacity(isDark ? 0.4 : 0.6)
-                                        : (isDark ? Colors.white10 : Colors.grey.shade300),
-                                    width: hasClaim ? 1.5 : 1,
-                                  ),
-                                  boxShadow: hasClaim
-                                      ? null
-                                      : [
-                                          BoxShadow(
-                                            color: Colors.black.withOpacity(0.02),
-                                            blurRadius: 4,
-                                            offset: const Offset(0, 1),
-                                          )
-                                        ],
-                                ),
+                              child: AnimatedBuilder(
+                                animation: _pulseAnimation,
+                                builder: (ctx, child) {
+                                  return AnimatedContainer(
+                                    duration: const Duration(milliseconds: 200),
+                                    decoration: BoxDecoration(
+                                      color: hasClaim 
+                                          ? (isPending 
+                                              ? Colors.amber.withOpacity(isDark ? 0.08 : 0.15)
+                                              : claimerColor.withOpacity(isDark ? 0.12 : 0.20))
+                                          : cardBg,
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: isPending
+                                            ? Colors.amber.withOpacity(_pulseAnimation.value)
+                                            : (hasClaim
+                                                ? claimerColor.withOpacity(isDark ? 0.4 : 0.6)
+                                                : (isDark ? Colors.white10 : Colors.grey.shade300)),
+                                        width: isPending ? 3.0 : (hasClaim ? 1.5 : 1),
+                                      ),
+                                      boxShadow: isPending
+                                          ? [
+                                              BoxShadow(
+                                                color: Colors.amber.withOpacity(0.3 * _pulseAnimation.value),
+                                                blurRadius: 6,
+                                                spreadRadius: 1,
+                                              )
+                                            ]
+                                          : (hasClaim
+                                              ? null
+                                              : [
+                                                  BoxShadow(
+                                                    color: Colors.black.withOpacity(0.02),
+                                                    blurRadius: 4,
+                                                    offset: const Offset(0, 1),
+                                                  )
+                                                ]),
+                                    ),
+                                    child: child,
+                                  );
+                                },
                                 child: Stack(
                                   children: [
                                     // Juz Number Centered
@@ -890,6 +1045,18 @@ class _JuzAssignmentScreenState extends State<JuzAssignmentScreen> {
                                           color: isDark 
                                               ? Colors.white.withOpacity(0.4) 
                                               : Colors.black.withOpacity(0.35),
+                                        ),
+                                      ),
+
+                                    // Pending Icon in Top-Left if slot is awaiting release approval
+                                    if (isPending)
+                                      Positioned(
+                                        top: 5,
+                                        left: 5,
+                                        child: Icon(
+                                          Icons.hourglass_empty_rounded,
+                                          size: 11,
+                                          color: Colors.amber.shade700,
                                         ),
                                       ),
 

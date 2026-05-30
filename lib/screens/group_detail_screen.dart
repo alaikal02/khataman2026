@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -7,7 +8,9 @@ import '../components/juz_progress_card.dart';
 import '../components/khatam_celebration.dart';
 import '../theme/app_theme.dart';
 import '../services/notification_service.dart';
+import '../services/rolling_juz_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
 import 'juz_assignment_screen.dart';
 
 class GroupDetailScreen extends StatefulWidget {
@@ -34,6 +37,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
   late AnimationController _shimmerController;
   late ScrollController _scrollController;
   double _shrinkFactor = 0.0;
+  bool _isExited = false;
 
   final _memberSearchController = TextEditingController();
 
@@ -247,7 +251,8 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
       if (groupData['creator_id'] == _supabase.auth.currentUser?.id &&
           groupData['visibility'] != 'ARCHIVED' &&
           pData != null &&
-          pData['status_aktif_selesai'] == 'SELESAI') {
+          pData['status_aktif_selesai'] == 'SELESAI' &&
+          groupData['tipe_grup'] != 'RUTIN') {
         debugPrint('🔒 [Self-Healing] Creator detected completed round. Archiving group permanently in background...');
         try {
           await _supabase
@@ -258,6 +263,21 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
         } catch (shErr) {
           debugPrint('Error in silent self-healing archive: $shErr');
         }
+      }
+
+      final isCreator = groupData['creator_id'] == _supabase.auth.currentUser?.id;
+      final isCurrentUserMember = membersList.any((m) => m['user_id'] == _supabase.auth.currentUser?.id);
+
+      if (!isCreator && !isCurrentUserMember && !_isExited && mounted) {
+        _isExited = true;
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Anda telah dikeluarkan dari grup "${groupData['nama_grup'] ?? 'Grup'}" oleh admin.'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+        return;
       }
 
       if (mounted) {
@@ -280,20 +300,105 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
   void _showCelebration() {
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: Theme.of(context).colorScheme.surface,
-        title: Text('🎉 Alhamdulillah!', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
-        content: Text(
-          'Siklus Khataman telah selesai!\nSemua 30 Juz telah dibaca.',
-          style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, height: 1.5),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Tutup', style: TextStyle(color: AppTheme.primaryGreen)),
+      barrierDismissible: true,
+      builder: (ctx) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Stack(
+            clipBehavior: Clip.none,
+            alignment: Alignment.center,
+            children: [
+              // Confetti particle system rendering underneath
+              const Positioned.fill(
+                child: PremiumConfettiOverlay(),
+              ),
+              
+              // Celebratory Card Box
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF161E2E) : Colors.white,
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.3),
+                      blurRadius: 20,
+                      spreadRadius: 2,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                  border: Border.all(
+                    color: AppTheme.accentGold.withOpacity(0.5),
+                    width: 1.5,
+                  ),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Gold trophy with glowing shadow
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: AppTheme.accentGold.withOpacity(0.12),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.emoji_events_rounded,
+                        color: AppTheme.accentGold,
+                        size: 64,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Text(
+                      'Maa Syaa Allah! 🎉',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: isDark ? Colors.white : AppTheme.darkGreen,
+                        letterSpacing: -0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      'Alhamdulillah! Grup Anda telah menyelesaikan target 30 Juz Al-Quran pada putaran ini.\n\nSemoga menjadi berkah dan cahaya bagi seluruh anggota kelompok. Aamiin.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: isDark ? Colors.white70 : Colors.grey.shade700,
+                        height: 1.5,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppTheme.primaryGreen,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          elevation: 0,
+                        ),
+                        child: const Text(
+                          'Alhamdulillah',
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -387,6 +492,38 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
           }
           await _supabase.from('slot_khataman').insert(slotsToInsert);
         }
+      } else if (assignMode == 3) {
+        // Rolling Juz: Acak cerdas berdasarkan riwayat personal
+        try {
+          final groupName = _group?['nama_grup'] ?? 'Khataman';
+          final assignments = await RollingJuzService.generateRollingAssignment(
+            groupId: widget.groupId,
+            groupName: groupName,
+          );
+          final slotsToInsert = assignments.map((a) => {
+            'putaran_id': newPutaran['id_putaran'],
+            'nomor_juz': a['nomor_juz'],
+            'user_id': a['user_id'],
+          }).toList();
+          await _supabase.from('slot_khataman').insert(slotsToInsert);
+        } catch (e) {
+          debugPrint('Error Rolling Juz: $e');
+          // Fallback to empty slots if Rolling Juz fails
+          final slotsToInsert = List.generate(30, (i) => {
+            'putaran_id': newPutaran['id_putaran'],
+            'nomor_juz': i + 1,
+            'user_id': null,
+          });
+          await _supabase.from('slot_khataman').insert(slotsToInsert);
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Rolling Juz gagal: $e. Slot dibuat kosong.'),
+                backgroundColor: Colors.orange,
+              ),
+            );
+          }
+        }
       } else {
         List<Map<String, dynamic>> slotsToInsert = [];
         for (int i = 1; i <= 30; i++) {
@@ -449,6 +586,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
 
   Future<void> _showNewPutaranDialog() async {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isRutinGroup = _group?['tipe_grup'] == 'RUTIN';
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -464,6 +602,18 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
             onPressed: () => Navigator.pop(ctx),
             child: Text('Batal', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
           ),
+          if (isRutinGroup)
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.pop(ctx);
+                _startNewPutaran(3);
+              },
+              icon: const Icon(Icons.shuffle_rounded, size: 16),
+              label: const Text('Rolling Juz', style: TextStyle(color: Colors.white)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF7C3AED),
+              ),
+            ),
           ElevatedButton(
             onPressed: () {
               Navigator.pop(ctx);
@@ -524,7 +674,9 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
       // Update HANYA jika user_id masih NULL (slot belum diambil orang lain)
       final result = await _supabase
           .from('slot_khataman')
-          .update({'user_id': _supabase.auth.currentUser?.id})
+          .update({
+            'user_id': _supabase.auth.currentUser?.id,
+          })
           .eq('id_slot', slotId)
           .isFilter('user_id', null) // ← Kunci: hanya update jika masih kosong
           .select();
@@ -560,13 +712,89 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
   }
 
 
+  /// Admin langsung melepas slot (digunakan oleh admin approval)
   Future<void> _releaseSlot(int slotId) async {
+    final slotObj = _slots.firstWhere((s) => s['id_slot'] == slotId, orElse: () => null);
+    final String? prevUsername = slotObj?['users']?['username'] as String?;
+
     await _supabase.from('slot_khataman').update({
       'user_id': null,
       'ayat_terakhir_input': 0,
-      'status_checklist': false
+      'status_checklist': false,
+      'approval_lepas_status': null,
+      if (prevUsername != null) 'username_sebelumnya': prevUsername,
     }).eq('id_slot', slotId);
     _fetchData(silent: true);
+  }
+
+  /// Anggota mengajukan pelepasan Juz (status → PENDING)
+  Future<void> _requestReleaseSlot(int slotId) async {
+    try {
+      // Cek kuota PENDING: maks 2 Juz PENDING bersamaan per anggota
+      final myUserId = _supabase.auth.currentUser?.id;
+      if (myUserId != null) {
+        final pendingSlots = _slots.where((s) =>
+          s['user_id'] == myUserId &&
+          s['approval_lepas_status'] == 'PENDING'
+        ).length;
+        if (pendingSlots >= 2) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('⚠️ Maks 2 pengajuan lepas Juz bersamaan. Tunggu admin merespons.'),
+                backgroundColor: Colors.orange,
+              ),
+            );
+          }
+          return;
+        }
+      }
+
+      await _supabase.from('slot_khataman').update({
+        'approval_lepas_status': 'PENDING',
+      }).eq('id_slot', slotId);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('📤 Pengajuan lepas Juz dikirim. Menunggu persetujuan admin.'),
+            backgroundColor: AppTheme.primaryGreen,
+          ),
+        );
+      }
+      _fetchData(silent: true);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal mengajukan lepas Juz: $e'), backgroundColor: Colors.redAccent),
+        );
+      }
+    }
+  }
+
+  /// Anggota membatalkan pengajuan lepas (status PENDING → NULL)
+  Future<void> _cancelReleaseRequest(int slotId) async {
+    try {
+      await _supabase.from('slot_khataman').update({
+        'approval_lepas_status': null,
+      }).eq('id_slot', slotId);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('↩️ Pengajuan lepas Juz dibatalkan.'),
+            backgroundColor: Colors.grey,
+          ),
+        );
+      }
+      _fetchData(silent: true);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal membatalkan pengajuan: $e'), backgroundColor: Colors.redAccent),
+        );
+      }
+    }
   }
 
   String _formatDateRange(String? startStr, String? endStr) {
@@ -637,7 +865,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
       // 1. Fetch current members
       final membersData = await _supabase
           .from('group_members')
-          .select('user_id, approval_status, users(username, email, avatar_url)')
+          .select('user_id, approval_status, prioritas_jatah, users(username, email, avatar_url)')
           .eq('group_id', widget.groupId)
           .neq('user_id', _supabase.auth.currentUser!.id) // Sembunyikan admin dari list
           .order('approval_status', ascending: false); // PENDING di atas, APPROVED di bawah
@@ -1207,10 +1435,67 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                                                   ),
                                                 ],
                                               )
-                                            : IconButton(
-                                                icon: Icon(Icons.person_remove_rounded, color: Colors.redAccent.withOpacity(0.7), size: 20),
-                                                tooltip: 'Keluarkan Anggota',
-                                                onPressed: () async {
+                                            : Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  if (_group?['tipe_grup'] == 'RUTIN') ...[
+                                                    Tooltip(
+                                                      message: 'Prioritas Jatah Kuota',
+                                                      child: InkWell(
+                                                        onTap: () async {
+                                                          final currentPrioritas = member['prioritas_jatah'] == true;
+                                                          final nextPrioritas = !currentPrioritas;
+                                                          
+                                                          try {
+                                                            await _supabase
+                                                                .from('group_members')
+                                                                .update({'prioritas_jatah': nextPrioritas})
+                                                                .eq('user_id', member['user_id'])
+                                                                .eq('group_id', widget.groupId);
+                                                                
+                                                            setModalState(() {
+                                                              member['prioritas_jatah'] = nextPrioritas;
+                                                            });
+                                                            
+                                                            ScaffoldMessenger.of(context).showSnackBar(
+                                                              SnackBar(
+                                                                content: Text(
+                                                                  nextPrioritas 
+                                                                      ? '⭐ ${user['username']} mendapat prioritas jatah kuota!' 
+                                                                      : '⚪ Prioritas jatah ${user['username']} dinonaktifkan.',
+                                                                ),
+                                                                backgroundColor: AppTheme.primaryGreen,
+                                                              ),
+                                                            );
+                                                            _fetchData(silent: true);
+                                                          } catch (e) {
+                                                            ScaffoldMessenger.of(context).showSnackBar(
+                                                              SnackBar(
+                                                                content: Text('Gagal mengubah prioritas: $e'),
+                                                                backgroundColor: Colors.redAccent,
+                                                              ),
+                                                            );
+                                                          }
+                                                        },
+                                                        child: Padding(
+                                                          padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0),
+                                                          child: Icon(
+                                                            member['prioritas_jatah'] == true
+                                                                ? Icons.star_rounded
+                                                                : Icons.star_border_rounded,
+                                                            color: member['prioritas_jatah'] == true
+                                                                ? AppTheme.accentGold
+                                                                : onSurfaceVariantColor,
+                                                            size: 22,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                  IconButton(
+                                                    icon: Icon(Icons.person_remove_rounded, color: Colors.redAccent.withOpacity(0.7), size: 20),
+                                                    tooltip: 'Keluarkan Anggota',
+                                                    onPressed: () async {
                                                   final confirm = await showDialog<bool>(
                                                     context: context,
                                                     builder: (ctx) => AlertDialog(
@@ -1250,20 +1535,28 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                                                       debugPrint('Error sending removed notification: $notifErr');
                                                     }
 
-                                                    // 2. Bersihkan slot
-                                                    if (_putaran != null) {
-                                                      try {
-                                                        await _supabase
-                                                            .from('slot_khataman')
-                                                            .update({'user_id': null, 'ayat_terakhir_input': 0, 'status_checklist': false})
-                                                            .eq('putaran_id', _putaran!['id_putaran'])
-                                                            .eq('user_id', targetUserId);
-                                                      } catch (slotErr) {
-                                                        debugPrint('[RemoveMember] Slot release failed: $slotErr');
-                                                      }
-                                                    }
+                                                    // 2. Pelepasan Juz terlebih dahulu (Logika database teratur)
+                                                    // Ambil semua id_putaran dari grup ini
+                                                    final putaranRes = await _supabase
+                                                        .from('putaran_siklus')
+                                                        .select('id_putaran')
+                                                        .eq('group_id', widget.groupId);
 
-                                                    // 3. Hapus keanggotaan
+                                                    final List<dynamic> putaranIds = (putaranRes as List).map((p) => p['id_putaran']).toList();
+
+                                                    if (putaranIds.isNotEmpty) {
+                                                       await _supabase
+                                                           .from('slot_khataman')
+                                                           .update({
+                                                             'user_id': null,
+                                                             'approval_lepas_status': null,
+                                                             'username_sebelumnya': user['username'] ?? 'Anggota',
+                                                           })
+                                                           .inFilter('putaran_id', putaranIds)
+                                                           .eq('user_id', targetUserId);
+                                                     }
+
+                                                    // 3. Hapus keanggotaan setelah slot bersih
                                                     await _supabase
                                                         .from('group_members')
                                                         .delete()
@@ -1303,6 +1596,8 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                                                   }
                                                 },
                                               ),
+                                            ],
+                                          ),
                                       ),
                                     );
                                   }).toList(),
@@ -1508,13 +1803,73 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                           if (_group != null) {
                             final kode = _group!['kode_gk_unik'];
                             final namaGrup = _group!['nama_grup'] ?? 'Khataman';
+                            final inviteLink = 'https://khataman2026.web.app/join?code=$kode';
                             Share.share(
-                              'Assalamu\'alaikum! 🌙\n\nYuk gabung di grup khataman Al-Quran "$namaGrup"!\n\nGunakan kode berikut di aplikasi Khataman Quran:\n\n📋 Kode Grup: *$kode*\n\nBarakallahu fiikum! 🤲',
+                              'Assalamu\'alaikum! 🌙\n\nYuk gabung di grup khataman Al-Quran "$namaGrup"!\n\nKlik link di bawah ini untuk langsung bergabung:\n🔗 $inviteLink\n\n📋 Atau masukkan Kode Grup berikut di aplikasi:\n*$kode*\n\nBarakallahu fiikum! 🤲',
                             );
                           }
                         },
                       ),
                       if (isAdmin) ...[
+                        menuDivider,
+                        ListTile(
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+                          leading: const Icon(Icons.category_rounded, color: AppTheme.accentGold),
+                          title: const Text('Tipe Grup'),
+                          subtitle: Text(
+                            _group?['tipe_grup'] == 'RUTIN'
+                                ? '🔁 RUTIN: Siklus berulang tanpa diarsip, mendukung Rolling Juz'
+                                : '⚡ INSIDENTAL: Satu kali putaran selesai lalu diarsip',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: isDark ? Colors.white70 : const Color(0xFF5F6E65),
+                            ),
+                          ),
+                          trailing: DropdownButton<String>(
+                            value: _group?['tipe_grup'] ?? 'INSIDENTAL',
+                            underline: const SizedBox(),
+                            dropdownColor: Theme.of(context).colorScheme.surface,
+                            items: const [
+                              DropdownMenuItem(
+                                value: 'INSIDENTAL',
+                                child: Text('INSIDENTAL'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'RUTIN',
+                                child: Text('RUTIN'),
+                              ),
+                            ],
+                            onChanged: (val) async {
+                              if (val == null) return;
+                              setStateSheet(() {
+                                if (_group != null) {
+                                  _group!['tipe_grup'] = val;
+                                }
+                              });
+                              setState(() {});
+                              try {
+                                await _supabase
+                                    .from('groups')
+                                    .update({'tipe_grup': val})
+                                    .eq('id_group', widget.groupId);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Tipe grup diubah menjadi $val!'),
+                                    backgroundColor: AppTheme.primaryGreen,
+                                  ),
+                                );
+                                _fetchData(silent: true);
+                              } catch (e) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Gagal mengubah tipe grup: $e'),
+                                    backgroundColor: Colors.redAccent,
+                                  ),
+                                );
+                              }
+                            },
+                          ),
+                        ),
                         menuDivider,
                         SwitchListTile(
                           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
@@ -1658,6 +2013,23 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                             },
                           ),
                         ],
+                        menuDivider,
+                        ListTile(
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+                          leading: const Icon(Icons.history_rounded, color: Colors.blueAccent),
+                          title: const Text('Riwayat Putaran'),
+                          subtitle: Text(
+                            'Lihat daftar putaran khataman yang telah selesai',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: isDark ? Colors.white70 : const Color(0xFF5F6E65),
+                            ),
+                          ),
+                          onTap: () {
+                            Navigator.pop(ctx);
+                            _showKhatamHistorySheet();
+                          },
+                        ),
                         dangerZoneDivider,
                         ListTile(
                           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
@@ -1691,6 +2063,23 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                           onTap: () {
                             Navigator.pop(ctx);
                             _showMembersListOnlyDialog();
+                          },
+                        ),
+                        menuDivider,
+                        ListTile(
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+                          leading: const Icon(Icons.history_rounded, color: Colors.blueAccent),
+                          title: const Text('Riwayat Putaran'),
+                          subtitle: Text(
+                            'Lihat daftar putaran khataman yang telah selesai',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: isDark ? Colors.white70 : const Color(0xFF5F6E65),
+                            ),
+                          ),
+                          onTap: () {
+                            Navigator.pop(ctx);
+                            _showKhatamHistorySheet();
                           },
                         ),
                         dangerZoneDivider,
@@ -2196,9 +2585,19 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
         //    memerlukan membership aktif untuk mengizinkan update slot)
         if (_putaran != null) {
           try {
+            final myMemberObj = _members.firstWhere(
+              (m) => m['user_id'] == currentUserId,
+              orElse: () => {},
+            );
+            final myUsername = myMemberObj['users']?['username'] as String?;
             await _supabase
                 .from('slot_khataman')
-                .update({'user_id': null, 'ayat_terakhir_input': 0, 'status_checklist': false})
+                .update({
+                  'user_id': null, 
+                  'ayat_terakhir_input': 0, 
+                  'status_checklist': false,
+                  'username_sebelumnya': myUsername,
+                })
                 .eq('putaran_id', _putaran!['id_putaran'])
                 .eq('user_id', currentUserId);
             debugPrint('[LeaveGroup] Slots released successfully');
@@ -2539,10 +2938,11 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                 children: [
                   GestureDetector(
                     onLongPress: () {
-                      Clipboard.setData(ClipboardData(text: code));
+                      final inviteLink = 'https://khataman2026.web.app/join?code=$code';
+                      Clipboard.setData(ClipboardData(text: inviteLink));
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Kode berhasil disalin: $code 📋'),
+                        const SnackBar(
+                          content: Text('Link undangan grup berhasil disalin! 🔗'),
                           backgroundColor: AppTheme.primaryGreen,
                         ),
                       );
@@ -2673,12 +3073,38 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
           ),
         ),
         const SizedBox(height: 16),
+        const SizedBox(height: 16),
+        if (_group?['tipe_grup'] == 'RUTIN') ...[
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () => _startNewPutaran(3),
+              icon: const Icon(Icons.shuffle_rounded),
+              label: const Text('Rolling Juz (Acak Cerdas)'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF7C3AED),
+                foregroundColor: Colors.white,
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+        ],
         SizedBox(
           width: double.infinity,
           child: ElevatedButton.icon(
             onPressed: () => _startNewPutaran(0),
             icon: const Icon(Icons.auto_awesome_rounded),
             label: const Text('Bagi Rata Otomatis'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.primaryGreen,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
           ),
         ),
         const SizedBox(height: 10),
@@ -2714,9 +3140,9 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
       ],
     );
   }
-
   /// Menampilkan dialog konfirmasi Doa Khatam Al-Quran untuk Khataman Grup.
   void _showDoaKhatamGroupConfirmation() {
+    final bool isRutin = _group?['tipe_grup'] == 'RUTIN';
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -2728,17 +3154,20 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
           size: 40,
         ),
         title: Text(
-          'Konfirmasi Khataman Grup',
+          isRutin ? 'Konfirmasi Selesai Putaran' : 'Konfirmasi Khataman Grup',
           style: TextStyle(
             color: Theme.of(context).colorScheme.onSurface,
             fontWeight: FontWeight.bold,
           ),
         ),
         content: Text(
-          'Apakah Anda sudah selesai membaca Doa Khatam Al-Quran?\n\n'
-          'Jika sudah, grup ini akan diarsipkan dan progres khataman '
-          'akan dicatat ke dalam riwayat semua anggota. '
-          'Anggota lain akan menerima notifikasi.',
+          isRutin
+              ? 'Apakah Anda sudah selesai membaca Doa Khatam Al-Quran?\n\n'
+                  'Jika sudah, putaran siklus ini akan diselesaikan dan dicatat ke dalam riwayat grup. Anda dapat langsung memulai putaran berikutnya.'
+              : 'Apakah Anda sudah selesai membaca Doa Khatam Al-Quran?\n\n'
+                  'Jika sudah, grup ini akan diarsipkan dan progres khataman '
+                  'akan dicatat ke dalam riwayat semua anggota. '
+                  'Anggota lain akan menerima notifikasi.',
           style: TextStyle(
             color: Theme.of(context).colorScheme.onSurfaceVariant,
             height: 1.6,
@@ -2781,26 +3210,30 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
     );
   }
 
-  /// Mengarsipkan grup: update visibility ke ARCHIVED, kirim notifikasi, refresh.
+  /// Mengarsipkan grup atau menyelesaikan putaran RUTIN: update status, kirim notifikasi, refresh.
   Future<void> _archiveGroup() async {
     try {
-      // 1. Update group visibility to ARCHIVED (Defensive: catch RLS errors separately)
-      try {
-        await _supabase
-            .from('groups')
-            .update({'visibility': 'ARCHIVED'})
-            .eq('id_group', widget.groupId);
-      } catch (grpErr) {
-        debugPrint('⚠️ [RLS Restriction] Failed to update groups visibility: $grpErr');
-        // Proceed anyway; creator self-healing will apply the DB flag silently when creator opens the group
-      }
+      final bool isRutin = _group?['tipe_grup'] == 'RUTIN';
 
-      // Save a local archived flag so this user instantly sees the group in history and archives
-      try {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setBool('archived_group_${widget.groupId}_${_putaran?['id_putaran']}', true);
-      } catch (prefErr) {
-        debugPrint('Error saving local archived flag: $prefErr');
+      // 1. Update group visibility to ARCHIVED (hanya untuk INSIDENTAL)
+      if (!isRutin) {
+        try {
+          await _supabase
+              .from('groups')
+              .update({'visibility': 'ARCHIVED'})
+              .eq('id_group', widget.groupId);
+        } catch (grpErr) {
+          debugPrint('⚠️ [RLS Restriction] Failed to update groups visibility: $grpErr');
+          // Proceed anyway; creator self-healing will apply the DB flag silently when creator opens the group
+        }
+
+        // Save a local archived flag so this user instantly sees the group in history and archives
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setBool('archived_group_${widget.groupId}_${_putaran?['id_putaran']}', true);
+        } catch (prefErr) {
+          debugPrint('Error saving local archived flag: $prefErr');
+        }
       }
 
       // 2. Pastikan putaran siklus aktif ditandai SELESAI
@@ -2820,12 +3253,14 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
         await NotificationService.sendToGroup(
           groupId: widget.groupId,
           type: 'KHATAMAN_COMPLETE',
-          title: '\uD83D\uDCC1 Khataman Diarsipkan',
-          body: '"$gName" telah diarsipkan oleh $senderName setelah menyelesaikan Doa Khatam Al-Quran. Alhamdulillah!',
+          title: isRutin ? '🎉 Putaran Khataman Selesai!' : '📁 Khataman Diarsipkan',
+          body: isRutin
+              ? '"$gName" telah menyelesaikan putaran siklus oleh $senderName. Alhamdulillah!'
+              : '"$gName" telah diarsipkan oleh $senderName setelah menyelesaikan Doa Khatam Al-Quran. Alhamdulillah!',
           excludeUserId: _supabase.auth.currentUser?.id,
         );
       } catch (notifErr) {
-        debugPrint('Error sending archive notification: \$notifErr');
+        debugPrint('Error sending archive notification: $notifErr');
       }
 
       // 4. Refresh data
@@ -2833,20 +3268,21 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('\uD83D\uDCC1 Grup telah diarsipkan. Alhamdulillah!'),
+          SnackBar(
+            content: Text(isRutin 
+                ? '🎉 Putaran khataman berhasil diselesaikan!' 
+                : '📁 Grup telah diarsipkan. Alhamdulillah!'),
             backgroundColor: AppTheme.primaryGreen,
           ),
         );
       }
     } catch (e) {
-      debugPrint('🚨 [Archive Group Error] Failed to archive group: $e');
+      debugPrint('🚨 [Archive Group Error] Failed to archive/complete cycle: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Gagal mengarsipkan grup: $e\n\n(Pastikan Anda adalah pembuat grup atau periksa izin database)'),
+            content: Text('Gagal menyelesaikan khataman: $e'),
             backgroundColor: Colors.redAccent,
-            duration: const Duration(seconds: 8),
           ),
         );
       }
@@ -3203,10 +3639,14 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                   isGroupMode: true,
                   isOwned: slot['user_id'] == currentUserId,
                   memberName: memberName,
+                  usernameSebelumnya: slot['username_sebelumnya'] as String?,
                   slotId: slot['id_slot'] as int?,
                   groupId: widget.groupId,
                   groupName: _group?['nama_grup'],
                   onRelease: _releaseSlot,
+                  approvalLepasStatus: slot['approval_lepas_status'] as String?,
+                  onRequestRelease: _requestReleaseSlot,
+                  onCancelRelease: _cancelReleaseRequest,
                   onClaim: _claimSlot,
                   onProgressUpdated: () {
                     if (mounted) {
@@ -3221,4 +3661,153 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
       ],
     );
   }
+}
+
+class PremiumConfettiOverlay extends StatefulWidget {
+  const PremiumConfettiOverlay({Key? key}) : super(key: key);
+
+  @override
+  State<PremiumConfettiOverlay> createState() => _PremiumConfettiOverlayState();
+}
+
+class _PremiumConfettiOverlayState extends State<PremiumConfettiOverlay>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  final List<ConfettiParticle> _particles = [];
+  final Random _random = Random();
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 4),
+    )..addListener(() {
+        _updateParticles();
+      })..repeat();
+
+    // Create initial particles
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final size = MediaQuery.of(context).size;
+      for (int i = 0; i < 120; i++) {
+        _particles.add(ConfettiParticle.random(size.width, size.height, _random));
+      }
+    });
+  }
+
+  void _updateParticles() {
+    if (!mounted) return;
+    final size = MediaQuery.of(context).size;
+    setState(() {
+      for (var p in _particles) {
+        p.update(size.width, size.height, _random);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: CustomPaint(
+        painter: ConfettiPainter(particles: _particles),
+        size: Size.infinite,
+      ),
+    );
+  }
+}
+
+class ConfettiParticle {
+  double x;
+  double y;
+  double vx;
+  double vy;
+  double size;
+  Color color;
+  double rotation;
+  double rotationSpeed;
+
+  ConfettiParticle({
+    required this.x,
+    required this.y,
+    required this.vx,
+    required this.vy,
+    required this.size,
+    required this.color,
+    required this.rotation,
+    required this.rotationSpeed,
+  });
+
+  factory ConfettiParticle.random(double width, double height, Random random) {
+    final colors = [
+      Colors.redAccent,
+      Colors.blueAccent,
+      Colors.greenAccent,
+      Colors.orangeAccent,
+      Colors.pinkAccent,
+      Colors.purpleAccent,
+      Colors.yellowAccent,
+      Colors.tealAccent,
+    ];
+    return ConfettiParticle(
+      x: random.nextDouble() * width,
+      y: -random.nextDouble() * height,
+      vx: (random.nextDouble() - 0.5) * 4,
+      vy: random.nextDouble() * 5 + 3,
+      size: random.nextDouble() * 8 + 6,
+      color: colors[random.nextInt(colors.length)],
+      rotation: random.nextDouble() * pi * 2,
+      rotationSpeed: (random.nextDouble() - 0.5) * 0.2,
+    );
+  }
+
+  void update(double width, double height, Random random) {
+    x += vx;
+    y += vy;
+    rotation += rotationSpeed;
+
+    // Reset if it goes out of screen
+    if (y > height || x < 0 || x > width) {
+      y = -random.nextDouble() * 50;
+      x = random.nextDouble() * width;
+      vx = (random.nextDouble() - 0.5) * 4;
+      vy = random.nextDouble() * 5 + 3;
+    }
+  }
+}
+
+class ConfettiPainter extends CustomPainter {
+  final List<ConfettiParticle> particles;
+
+  ConfettiPainter({required this.particles});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..style = PaintingStyle.fill;
+
+    for (var p in particles) {
+      paint.color = p.color;
+      canvas.save();
+      canvas.translate(p.x, p.y);
+      canvas.rotate(p.rotation);
+      
+      // Draw rectangular confetti piece
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromCenter(center: Offset.zero, width: p.size, height: p.size * 0.6),
+          const Radius.circular(2),
+        ),
+        paint,
+      );
+      canvas.restore();
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }

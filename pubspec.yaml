@@ -17,6 +17,7 @@ dependencies:
   flutter_dotenv: ^5.1.0
   quran: ^1.2.4
   share_plus: ^10.1.4
+  app_links: ^7.1.1
 
 dev_dependencies:
   flutter_test:

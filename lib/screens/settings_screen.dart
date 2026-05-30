@@ -873,6 +873,15 @@ class SettingsScreen extends StatelessWidget {
                                       }
                                     }
 
+                                    // Query username first before deleting user profile
+                                    String? myUsername;
+                                    try {
+                                      final uRes = await supabase.from('users').select('username').eq('id_user', userId).maybeSingle();
+                                      if (uRes != null) {
+                                        myUsername = uRes['username'] as String?;
+                                      }
+                                    } catch (_) {}
+
                                     // 4. Hapus dari keanggotaan grup (`group_members`)
                                     await supabase.from('group_members').delete().eq('user_id', userId);
 
@@ -880,7 +889,10 @@ class SettingsScreen extends StatelessWidget {
                                     // A. Selesai 100% -> Dipertahankan sebagai snapshot (set user_id ke null)
                                     await supabase
                                         .from('slot_khataman')
-                                        .update({'user_id': null})
+                                        .update({
+                                          'user_id': null,
+                                          'username_sebelumnya': myUsername,
+                                        })
                                         .eq('user_id', userId)
                                         .eq('status_checklist', true);
 
@@ -891,6 +903,7 @@ class SettingsScreen extends StatelessWidget {
                                           'user_id': null,
                                           'ayat_terakhir_input': 0,
                                           'status_checklist': false,
+                                          'username_sebelumnya': myUsername,
                                         })
                                         .eq('user_id', userId)
                                         .eq('status_checklist', false);

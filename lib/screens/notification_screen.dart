@@ -87,6 +87,15 @@ class _NotificationScreenState extends State<NotificationScreen> {
           .eq('user_id', senderId)
           .eq('group_id', groupId);
 
+      // Update tipe notifikasi asli di DB agar permanen disetujui
+      await client
+          .from('notifications')
+          .update({
+            'type': 'JOIN_APPROVED',
+            'title': 'Permintaan Disetujui',
+          })
+          .eq('id', notifId);
+
       // Kirim notifikasi ke pemohon
       try {
         String groupName = 'Grup';
@@ -111,10 +120,12 @@ class _NotificationScreenState extends State<NotificationScreen> {
       if (mounted) {
         setState(() {
           _memberStatuses['${groupId}_$senderId'] = 'APPROVED';
-          // Mark notification as read locally
+          // Mark notification as read locally and set type
           final idx = _notifications.indexWhere((element) => element['id'] == notifId);
           if (idx != -1) {
             _notifications[idx]['is_read'] = true;
+            _notifications[idx]['type'] = 'JOIN_APPROVED';
+            _notifications[idx]['title'] = 'Permintaan Disetujui';
           }
           _processingNotifIds.remove(notifId);
         });
@@ -183,6 +194,15 @@ class _NotificationScreenState extends State<NotificationScreen> {
           .eq('user_id', senderId)
           .eq('group_id', groupId);
 
+      // Update tipe notifikasi asli di DB agar permanen ditolak
+      await client
+          .from('notifications')
+          .update({
+            'type': 'JOIN_REJECTED',
+            'title': 'Permintaan Ditolak',
+          })
+          .eq('id', notifId);
+
       // Tandai notifikasi sebagai telah dibaca
       await NotificationService.markAsRead(notifId);
 
@@ -190,10 +210,12 @@ class _NotificationScreenState extends State<NotificationScreen> {
       if (mounted) {
         setState(() {
           _memberStatuses.remove('${groupId}_$senderId'); // status menjadi null (artinya ditolak/dihapus)
-          // Mark notification as read locally
+          // Mark notification as read locally and set type
           final idx = _notifications.indexWhere((element) => element['id'] == notifId);
           if (idx != -1) {
             _notifications[idx]['is_read'] = true;
+            _notifications[idx]['type'] = 'JOIN_REJECTED';
+            _notifications[idx]['title'] = 'Permintaan Ditolak';
           }
           _processingNotifIds.remove(notifId);
         });
@@ -227,6 +249,120 @@ class _NotificationScreenState extends State<NotificationScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Semua notifikasi telah ditandai dibaca')),
     );
+  }
+
+  Future<void> _deleteNotification(String notifId) async {
+    setState(() {
+      _processingNotifIds.add(notifId);
+    });
+
+    try {
+      await NotificationService.delete(notifId);
+      
+      if (mounted) {
+        setState(() {
+          _notifications.removeWhere((n) => n['id'] == notifId);
+          _processingNotifIds.remove(notifId);
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Notifikasi berhasil dihapus 🗑️'),
+            backgroundColor: Colors.orangeAccent,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _processingNotifIds.remove(notifId);
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal menghapus notifikasi: $e'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _deleteAllNotifications() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        return AlertDialog(
+          backgroundColor: isDark ? const Color(0xFF161B22) : const Color(0xFFFAFCFA),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Row(
+            children: [
+              Icon(Icons.delete_forever_rounded, color: Colors.redAccent),
+              SizedBox(width: 10),
+              Expanded(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Hapus Semua Notifikasi?',
+                    maxLines: 1,
+                    softWrap: false,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: Text(
+            'Apakah Anda yakin ingin menghapus seluruh riwayat notifikasi Anda? Tindakan ini tidak dapat dibatalkan.',
+            style: TextStyle(color: isDark ? Colors.white70 : const Color(0xFF5F6E65)),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text(
+                'Batal',
+                style: TextStyle(color: isDark ? Colors.white60 : Colors.grey.shade600),
+              ),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.redAccent,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Hapus Semua', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirm != true) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      await NotificationService.deleteAll();
+      await _loadNotifications();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Seluruh notifikasi berhasil dibersihkan'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal menghapus semua notifikasi: $e'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _handleNotificationTap(Map<String, dynamic> notif) async {
@@ -272,6 +408,9 @@ class _NotificationScreenState extends State<NotificationScreen> {
         return Icons.person_add_rounded;
       case 'JOIN_REQUEST':
         return Icons.group_add_rounded;
+      case 'JOIN_CANCELLED':
+      case 'JOIN_REJECTED':
+        return Icons.cancel_outlined;
       case 'JOIN_APPROVED':
         return Icons.check_circle_rounded;
       case 'JUZ_COMPLETED':
@@ -289,8 +428,12 @@ class _NotificationScreenState extends State<NotificationScreen> {
         return AppTheme.primaryGreen;
       case 'JOIN_REQUEST':
         return AppTheme.accentGold;
+      case 'JOIN_CANCELLED':
+        return Colors.grey;
+      case 'JOIN_REJECTED':
+        return Colors.redAccent;
       case 'JOIN_APPROVED':
-        return AppTheme.accentTeal;
+        return AppTheme.primaryGreen;
       case 'JUZ_COMPLETED':
         return AppTheme.accentGold;
       case 'KHATAMAN_COMPLETE':
@@ -338,6 +481,12 @@ class _NotificationScreenState extends State<NotificationScreen> {
               tooltip: 'Tandai semua dibaca',
               onPressed: _markAllAsRead,
             ),
+          if (_notifications.isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.delete_sweep_rounded, color: Colors.redAccent),
+              tooltip: 'Hapus semua notifikasi',
+              onPressed: _deleteAllNotifications,
+            ),
         ],
       ),
       body: Container(
@@ -356,7 +505,83 @@ class _NotificationScreenState extends State<NotificationScreen> {
     );
   }
 
-  Widget _buildActionButtons(Map<String, dynamic> notif, String notifId, String groupId, String senderId, String? approvalStatus) {
+  Widget _buildStatusBadge(
+    BuildContext context, {
+    required IconData icon,
+    required String text,
+    required Color color,
+    required Color bgColor,
+    required Color borderColor,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: bgColor,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: borderColor),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, color: color, size: 14),
+                const SizedBox(width: 6),
+                Text(
+                  text,
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionButtons(Map<String, dynamic> notif, String notifId, String groupId, String senderId, String? approvalStatus, String type) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    // 1. Jika tipe notifikasi sudah permanen JOIN_CANCELLED, JOIN_REJECTED, atau JOIN_APPROVED
+    if (type == 'JOIN_CANCELLED') {
+      return _buildStatusBadge(
+        context,
+        icon: Icons.cancel_outlined,
+        text: 'Permintaan dibatalkan',
+        color: isDark ? Colors.white60 : Colors.grey.shade700,
+        bgColor: Colors.grey.withOpacity(0.12),
+        borderColor: Colors.grey.withOpacity(0.35),
+      );
+    }
+
+    if (type == 'JOIN_REJECTED') {
+      return _buildStatusBadge(
+        context,
+        icon: Icons.cancel_rounded,
+        text: 'Permintaan ditolak',
+        color: Colors.redAccent,
+        bgColor: Colors.redAccent.withOpacity(0.1),
+        borderColor: Colors.redAccent.withOpacity(0.3),
+      );
+    }
+
+    if (type == 'JOIN_APPROVED' || approvalStatus == 'APPROVED') {
+      return _buildStatusBadge(
+        context,
+        icon: Icons.check_circle_rounded,
+        text: 'Permintaan disetujui',
+        color: AppTheme.primaryGreen,
+        bgColor: AppTheme.primaryGreen.withOpacity(0.1),
+        borderColor: AppTheme.primaryGreen.withOpacity(0.3),
+      );
+    }
+
     final isProcessing = _processingNotifIds.contains(notifId);
 
     if (isProcessing) {
@@ -373,69 +598,17 @@ class _NotificationScreenState extends State<NotificationScreen> {
       );
     }
 
-    if (approvalStatus == 'APPROVED') {
-      return Padding(
-        padding: const EdgeInsets.only(top: 12),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: AppTheme.primaryGreen.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: AppTheme.primaryGreen.withOpacity(0.3)),
-              ),
-              child: const Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.check_circle_rounded, color: AppTheme.primaryGreen, size: 14),
-                  SizedBox(width: 6),
-                  Text(
-                    'Permintaan disetujui',
-                    style: TextStyle(
-                      color: AppTheme.primaryGreen,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
     if (approvalStatus == null) {
-      return Padding(
-        padding: const EdgeInsets.only(top: 12),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: Colors.redAccent.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.redAccent.withOpacity(0.3)),
-              ),
-              child: const Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.cancel_rounded, color: Colors.redAccent, size: 14),
-                  SizedBox(width: 6),
-                  Text(
-                    'Permintaan ditolak',
-                    style: TextStyle(
-                      color: Colors.redAccent,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
+      // Jika statusnya null (data keanggotaan terhapus di group_members),
+      // namun tipe notifikasi bukan JOIN_REJECTED (karena kalau ditolak oleh admin tipenya diubah ke JOIN_REJECTED),
+      // maka ini berarti permintaan dibatalkan oleh pemohon!
+      return _buildStatusBadge(
+        context,
+        icon: Icons.cancel_outlined,
+        text: 'Permintaan bergabung dibatalkan',
+        color: isDark ? Colors.white60 : Colors.grey.shade700,
+        bgColor: Colors.grey.withOpacity(0.12),
+        borderColor: Colors.grey.withOpacity(0.35),
       );
     }
 
@@ -543,24 +716,57 @@ class _NotificationScreenState extends State<NotificationScreen> {
       itemBuilder: (context, index) {
         final notif = _notifications[index];
         final isRead = notif['is_read'] as bool? ?? false;
-        final type = notif['type'] as String? ?? 'GENERAL';
-        final title = notif['title'] as String? ?? '';
+        var type = notif['type'] as String? ?? 'GENERAL';
+        var title = notif['title'] as String? ?? '';
         final body = notif['body'] as String? ?? '';
         final timeStr = _formatTime(notif['created_at'] as String?);
         final notifId = notif['id'] as String;
         final groupId = notif['group_id'] as String?;
         final senderId = notif['sender_id'] as String?;
 
+        // Deteksi apakah notifikasi ini sudah digantikan oleh aktivitas yang lebih baru
+        bool isSuperseded = false;
+        if (type == 'JOIN_REQUEST' && groupId != null && senderId != null) {
+          for (int j = 0; j < index; j++) {
+            final other = _notifications[j];
+            if (other['group_id'] == groupId && other['sender_id'] == senderId) {
+              isSuperseded = true;
+              break;
+            }
+          }
+        }
+
+        if (isSuperseded) {
+          type = 'JOIN_CANCELLED';
+          title = 'Permintaan Dibatalkan';
+        }
+
         final cardBg = isRead
             ? (isDark ? AppTheme.bgCard : Colors.white)
             : (isDark ? AppTheme.bgCardLight.withOpacity(0.7) : const Color(0xFFEBFDF3));
 
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: InkWell(
-            onTap: () => _handleNotificationTap(notif),
-            borderRadius: BorderRadius.circular(16),
-            child: AnimatedContainer(
+        return Dismissible(
+          key: Key(notifId),
+          direction: DismissDirection.endToStart,
+          background: Container(
+            alignment: Alignment.centerRight,
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.only(right: 20),
+            decoration: BoxDecoration(
+              color: Colors.redAccent,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: const Icon(Icons.delete_sweep_rounded, color: Colors.white),
+          ),
+          onDismissed: (direction) {
+            _deleteNotification(notifId);
+          },
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: InkWell(
+              onTap: () => _handleNotificationTap(notif),
+              borderRadius: BorderRadius.circular(16),
+              child: AnimatedContainer(
               duration: const Duration(milliseconds: 300),
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -636,12 +842,30 @@ class _NotificationScreenState extends State<NotificationScreen> {
                               ),
                             ),
                             const SizedBox(width: 8),
-                            Text(
-                              timeStr,
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: onSurfaceVariant,
-                              ),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  timeStr,
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: onSurfaceVariant,
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                InkWell(
+                                  onTap: () => _deleteNotification(notifId),
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(4.0),
+                                    child: Icon(
+                                      Icons.delete_outline_rounded,
+                                      size: 16,
+                                      color: onSurfaceVariant.withOpacity(0.6),
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ],
                         ),
@@ -654,7 +878,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
                             height: 1.4,
                           ),
                         ),
-                        if (type == 'JOIN_REQUEST' && groupId != null && senderId != null)
+                        if ((type == 'JOIN_REQUEST' || type == 'JOIN_CANCELLED') && groupId != null && senderId != null)
                           GestureDetector(
                             onTap: () {}, // Mencegah tap card terpicu saat menekan tombol aksi
                             child: _buildActionButtons(
@@ -663,6 +887,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
                               groupId,
                               senderId,
                               _memberStatuses['${groupId}_$senderId'],
+                              type,
                             ),
                           ),
                       ],
@@ -672,8 +897,9 @@ class _NotificationScreenState extends State<NotificationScreen> {
               ),
             ),
           ),
-        );
-      },
+        ),
+      );
+    },
     );
   }
 }
