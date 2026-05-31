@@ -31,6 +31,7 @@ class JuzProgressCard extends StatefulWidget {
   // Release approval status
   final String? approvalLepasStatus;
   final String? usernameSebelumnya;
+  final bool isAdmin;
 
   const JuzProgressCard({
     Key? key,
@@ -39,6 +40,7 @@ class JuzProgressCard extends StatefulWidget {
     required this.isComplete,
     this.isGroupMode = false,
     this.isOwned = false,
+    this.isAdmin = false,
     this.memberName,
     this.slotId,
     this.groupId,
@@ -433,8 +435,8 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
   Future<void> _confirmRelease() async {
     if (widget.slotId == null) return;
 
-    // Jika progres > 0%, Juz terkunci permanen
-    if (_localLastAyat > 0 || _localIsComplete) {
+    // Jika progres > 0%, Juz terkunci permanen (kecuali Admin)
+    if (!widget.isAdmin && (_localLastAyat > 0 || _localIsComplete)) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -451,6 +453,36 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
     // Jika status PENDING, batalkan pengajuan
     if (widget.approvalLepasStatus == 'PENDING') {
       widget.onCancelRelease?.call(widget.slotId!);
+      return;
+    }
+
+    // Jika user adalah admin, tampilkan dialog konfirmasi pelepasan langsung (bukan pengajuan)
+    if (widget.isAdmin) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (_) => AlertDialog(
+          backgroundColor: Theme.of(context).colorScheme.surface,
+          title: Text('Lepas Juz?', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
+          content: Text(
+            'Apakah Anda yakin ingin melepas Juz ${widget.juzNumber}? Slot ini akan kosong kembali secara instan dan tersedia untuk anggota lain.',
+            style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, height: 1.5),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Batal'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: TextButton.styleFrom(foregroundColor: Colors.redAccent),
+              child: const Text('Ya, Lepas'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed == true) {
+        widget.onRequestRelease?.call(widget.slotId!);
+      }
       return;
     }
 
@@ -884,7 +916,7 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
                                       ),
                                     ),
                                   ),
-                                ] else if (_localLastAyat > 0 || _localIsComplete) ...[
+                                ] else if (!widget.isAdmin && (_localLastAyat > 0 || _localIsComplete)) ...[
                                   // Locked: progress > 0%
                                   const SizedBox(width: 8),
                                   GestureDetector(

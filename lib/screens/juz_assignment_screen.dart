@@ -478,95 +478,144 @@ class _JuzAssignmentScreenState extends State<JuzAssignmentScreen> with SingleTi
     // 1. Logika Proteksi Juz yang Sudah Dicicil (Progres > 0%)
     final lastAyat = slot['ayat_terakhir_input'] as int? ?? 0;
     final statusChecklist = slot['status_checklist'] == true;
-    if (lastAyat > 0 || statusChecklist) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Juz ini terkunci secara permanen karena sudah mulai dibaca!'),
-          backgroundColor: Colors.redAccent,
-        ),
-      );
-      return;
-    }
 
-    final String? previousUserId = slot['user_id'];
+    Future<void> proceedWithChange() async {
+      final String? previousUserId = slot['user_id'];
 
-    // Determine new user info
-    String? newUserId;
-    Map<String, dynamic>? newUsers;
+      // Determine new user info
+      String? newUserId;
+      Map<String, dynamic>? newUsers;
 
-    if (_selectedBrushUserId == 'eraser') {
-      newUserId = null;
-      newUsers = null;
-    } else {
-      final member = _members.firstWhere(
-        (m) => m['user_id'] == _selectedBrushUserId,
-        orElse: () => {},
-      );
-      if (member.isNotEmpty) {
-        newUserId = _selectedBrushUserId;
-        newUsers = member['users'];
-      }
-    }
-
-    // Do nothing if same state
-    if (previousUserId == newUserId) return;
-
-    // 2. Rumus Dinamis Rentang Kuota (Pengecekan Saklar Kuota Maksimal)
-    if (_limitJuz && newUserId != null) {
-      final memberCount = _members.isEmpty ? 1 : _members.length;
-      final batasMaksimal = (30 / memberCount).ceil();
-      final currentCount = _slots.where((s) => s['user_id'] == newUserId).length;
-
-      if (currentCount >= batasMaksimal) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Gagal! Anggota ini sudah mencapai batas maksimal pembagian rata ($batasMaksimal Juz).'),
-            backgroundColor: Colors.redAccent,
-          ),
+      if (_selectedBrushUserId == 'eraser') {
+        newUserId = null;
+        newUsers = null;
+      } else {
+        final member = _members.firstWhere(
+          (m) => m['user_id'] == _selectedBrushUserId,
+          orElse: () => {},
         );
-        return;
+        if (member.isNotEmpty) {
+          newUserId = _selectedBrushUserId;
+          newUsers = member['users'];
+        }
+      }
+
+      // Do nothing if same state
+      if (previousUserId == newUserId) return;
+
+      // 2. Rumus Dinamis Rentang Kuota (Pengecekan Saklar Kuota Maksimal)
+      if (_limitJuz && newUserId != null) {
+        final memberCount = _members.isEmpty ? 1 : _members.length;
+        final batasMaksimal = (30 / memberCount).ceil();
+        final currentCount = _slots.where((s) => s['user_id'] == newUserId).length;
+
+        if (currentCount >= batasMaksimal) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Gagal! Anggota ini sudah mencapai batas maksimal pembagian rata ($batasMaksimal Juz).'),
+              backgroundColor: Colors.redAccent,
+            ),
+          );
+          return;
+        }
+      }
+
+      // 3. Logika Pop-up Peringatan Untuk Juz Yang Belum Dibaca (Progres = 0%)
+      if (previousUserId != null) {
+        showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: Theme.of(context).colorScheme.surface,
+            title: const Text(
+              'Pindahkan Pembagian Juz?',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            content: const Text(
+              'Juz ini sudah ditugaskan tetapi BELUM mulai dibaca. Apakah Anda yakin ingin memindahkannya?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Tidak'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primaryGreen,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: const Text('Ya, Pindahkan'),
+              ),
+            ],
+          ),
+        ).then((confirmed) {
+          if (confirmed == true) {
+            _applySlotChange(slot, newUserId, newUsers);
+          }
+        });
+      } else {
+        _applySlotChange(slot, newUserId, newUsers);
       }
     }
 
-    // 3. Logika Pop-up Peringatan Untuk Juz Yang Belum Dibaca (Progres = 0%)
-    if (previousUserId != null) {
+    if (lastAyat > 0 || statusChecklist) {
       showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
           backgroundColor: Theme.of(context).colorScheme.surface,
-          title: const Text(
-            'Pindahkan Pembagian Juz?',
-            style: TextStyle(fontWeight: FontWeight.bold),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
           ),
-          content: const Text(
-            'Juz ini sudah ditugaskan tetapi BELUM mulai dibaca. Apakah Anda yakin ingin memindahkannya?',
+          title: Row(
+            children: [
+              const Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 28),
+              const SizedBox(width: 8),
+              Text(
+                'Juz Sudah Dibaca!',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
+              ),
+            ],
+          ),
+          content: Text(
+            'Juz ${slot['nomor_juz']} ini sudah memiliki progres membaca. Apakah Anda yakin ingin memaksa mengubah pembagian atau menghapus progresnya? Tindakan ini akan mereset progres pembacaan juz tersebut.',
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              height: 1.5,
+            ),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Tidak'),
+              child: const Text('Batal'),
             ),
             ElevatedButton(
               onPressed: () => Navigator.pop(ctx, true),
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.primaryGreen,
+                backgroundColor: Colors.redAccent,
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),
               ),
-              child: const Text('Ya, Pindahkan'),
+              child: const Text('Ya, Paksa Ubah'),
             ),
           ],
         ),
       ).then((confirmed) {
-        if (confirmed == true) {
-          _applySlotChange(slot, newUserId, newUsers);
+        if (confirmed == true && mounted) {
+          proceedWithChange();
         }
       });
-    } else {
-      _applySlotChange(slot, newUserId, newUsers);
+      return;
     }
+
+    proceedWithChange();
   }
 
   @override

@@ -715,8 +715,18 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
 
   /// Admin langsung melepas slot (digunakan oleh admin approval)
   Future<void> _releaseSlot(int slotId) async {
-    final slotObj = _slots.firstWhere((s) => s['id_slot'] == slotId, orElse: () => null);
-    final String? prevUsername = slotObj?['users']?['username'] as String?;
+    final slotObj = _slots.firstWhere(
+      (s) => s['id_slot'] == slotId,
+      orElse: () => <String, dynamic>{},
+    );
+    final Map<String, dynamic> slotMap = slotObj is Map<String, dynamic> ? slotObj : {};
+    String? prevUsername;
+    if (slotMap.isNotEmpty) {
+      final usersMap = slotMap['users'] as Map<String, dynamic>?;
+      if (usersMap != null) {
+        prevUsername = usersMap['username'] as String?;
+      }
+    }
 
     await _supabase.from('slot_khataman').update({
       'user_id': null,
@@ -728,11 +738,58 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
     _fetchData(silent: true);
   }
 
-  /// Anggota mengajukan pelepasan Juz (status → PENDING)
   Future<void> _requestReleaseSlot(int slotId) async {
     try {
-      // Cek kuota PENDING: maks 2 Juz PENDING bersamaan per anggota
       final myUserId = _supabase.auth.currentUser?.id;
+      final isAdmin = myUserId == _group?['creator_id'];
+
+      if (isAdmin) {
+        // Jika yang melepaskan juz adalah admin, maka dia tidak perlu pengajuan, langsung lepas!
+        await _releaseSlot(slotId);
+        
+        // Kirimkan notifikasi ke anggota bahwa admin melepas juz
+        try {
+          final userRes = await _supabase
+              .from('users')
+              .select('username')
+              .eq('id_user', myUserId!)
+              .maybeSingle();
+          final String username = userRes?['username'] as String? ?? '';
+          final senderName = username.isNotEmpty ? '@$username' : 'Admin';
+          final gName = _group?['nama_grup'] ?? 'Grup';
+          final slotObj = _slots.firstWhere(
+            (s) => s['id_slot'] == slotId,
+            orElse: () => <String, dynamic>{},
+          );
+          final Map<String, dynamic> slotMap = slotObj is Map<String, dynamic> ? slotObj : {};
+          int juzNum = 0;
+          if (slotMap.isNotEmpty) {
+            juzNum = slotMap['nomor_juz'] as int? ?? 0;
+          }
+
+          await NotificationService.sendToGroup(
+            groupId: widget.groupId,
+            type: 'JUZ_RELEASED',
+            title: 'Juz Dilepas oleh Admin 🚪',
+            body: '$senderName telah melepas kembali Juz $juzNum di grup "$gName". Sekarang slot ini kosong dan bebas diambil!',
+            excludeUserId: myUserId,
+          );
+        } catch (notifErr) {
+          debugPrint('Error sending release slot by admin notification: $notifErr');
+        }
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('✅ Juz berhasil dilepas secara langsung dan notifikasi telah dikirim ke anggota.'),
+              backgroundColor: AppTheme.primaryGreen,
+            ),
+          );
+        }
+        return;
+      }
+
+      // Cek kuota PENDING: maks 2 Juz PENDING bersamaan per anggota
       if (myUserId != null) {
         final pendingSlots = _slots.where((s) =>
           s['user_id'] == myUserId &&
@@ -3645,6 +3702,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                   isComplete: slot['status_checklist'] == true,
                   isGroupMode: true,
                   isOwned: slot['user_id'] == currentUserId,
+                  isAdmin: currentUserId == _group?['creator_id'],
                   memberName: memberName,
                   usernameSebelumnya: slot['username_sebelumnya'] as String?,
                   slotId: slot['id_slot'] as int?,
