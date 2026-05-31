@@ -34,3 +34,22 @@ USING (
     AND public.groups.creator_id = auth.uid()
   )
 );
+
+-- E. Trigger untuk memperbarui username_sebelumnya secara otomatis ketika username anggota berubah
+CREATE OR REPLACE FUNCTION public.handle_update_username()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.username IS DISTINCT FROM OLD.username THEN
+    UPDATE public.slot_khataman
+    SET username_sebelumnya = NEW.username
+    WHERE username_sebelumnya = OLD.username;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS on_username_updated ON public.users;
+CREATE TRIGGER on_username_updated
+  AFTER UPDATE OF username ON public.users
+  FOR EACH ROW
+  EXECUTE FUNCTION public.handle_update_username();

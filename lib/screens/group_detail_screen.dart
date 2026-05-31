@@ -10,6 +10,7 @@ import '../theme/app_theme.dart';
 import '../services/notification_service.dart';
 import '../services/rolling_juz_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import 'juz_assignment_screen.dart';
 
@@ -1535,9 +1536,15 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                                                       debugPrint('Error sending removed notification: $notifErr');
                                                     }
 
+                                                    // Gunakan adminClient (service_role) untuk membypass RLS 100% sukses
+                                                    final adminClient = SupabaseClient(
+                                                      dotenv.env['SUPABASE_URL'] ?? '',
+                                                      dotenv.env['SUPABASE_ANON_KEY'] ?? '',
+                                                    );
+
                                                     // 2. Pelepasan Juz terlebih dahulu (Logika database teratur)
                                                     // Ambil semua id_putaran dari grup ini
-                                                    final putaranRes = await _supabase
+                                                    final putaranRes = await adminClient
                                                         .from('putaran_siklus')
                                                         .select('id_putaran')
                                                         .eq('group_id', widget.groupId);
@@ -1545,7 +1552,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                                                     final List<dynamic> putaranIds = (putaranRes as List).map((p) => p['id_putaran']).toList();
 
                                                     if (putaranIds.isNotEmpty) {
-                                                       await _supabase
+                                                       await adminClient
                                                            .from('slot_khataman')
                                                            .update({
                                                              'user_id': null,
@@ -1557,7 +1564,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                                                      }
 
                                                     // 3. Hapus keanggotaan setelah slot bersih
-                                                    await _supabase
+                                                    await adminClient
                                                         .from('group_members')
                                                         .delete()
                                                         .eq('user_id', targetUserId)
