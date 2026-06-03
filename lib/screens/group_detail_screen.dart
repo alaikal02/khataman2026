@@ -812,6 +812,41 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
         'approval_lepas_status': 'PENDING',
       }).eq('id_slot', slotId);
 
+      // Kirim notifikasi ke Admin bahwa ada pengajuan lepas Juz
+      try {
+        final userRes = await _supabase
+            .from('users')
+            .select('username')
+            .eq('id_user', myUserId!)
+            .maybeSingle();
+        final String username = userRes?['username'] as String? ?? '';
+        final senderName = username.isNotEmpty ? '@$username' : 'Anggota';
+        final gName = _group?['nama_grup'] ?? 'Grup';
+        final slotObj = _slots.firstWhere(
+          (s) => s['id_slot'] == slotId,
+          orElse: () => <String, dynamic>{},
+        );
+        final Map<String, dynamic> slotMap = slotObj is Map<String, dynamic> ? slotObj : {};
+        int juzNum = 0;
+        if (slotMap.isNotEmpty) {
+          juzNum = slotMap['nomor_juz'] as int? ?? 0;
+        }
+
+        final creatorId = _group?['creator_id'] as String?;
+        if (creatorId != null && creatorId != myUserId) {
+          await NotificationService.send(
+            userId: creatorId,
+            senderId: myUserId,
+            type: 'RELEASE_REQUEST',
+            title: 'Pengajuan Pelepasan Juz 📖',
+            body: '$senderName mengajukan pelepasan Juz $juzNum di grup "$gName".',
+            groupId: widget.groupId,
+          );
+        }
+      } catch (notifErr) {
+        debugPrint('Error sending release request notification: $notifErr');
+      }
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -833,9 +868,24 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
   /// Anggota membatalkan pengajuan lepas (status PENDING → NULL)
   Future<void> _cancelReleaseRequest(int slotId) async {
     try {
+      final myUserId = _supabase.auth.currentUser?.id;
       await _supabase.from('slot_khataman').update({
         'approval_lepas_status': null,
       }).eq('id_slot', slotId);
+
+      // Hapus notifikasi pengajuan lepas yang PENDING dari anggota ini
+      if (myUserId != null) {
+        try {
+          await _supabase
+              .from('notifications')
+              .delete()
+              .eq('group_id', widget.groupId)
+              .eq('sender_id', myUserId)
+              .eq('type', 'RELEASE_REQUEST');
+        } catch (notifErr) {
+          debugPrint('Error deleting release notification: $notifErr');
+        }
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1158,6 +1208,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                                         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
                                         leading: CircleAvatar(
                                           backgroundImage: avatar != null ? NetworkImage(avatar) : null,
+                                          onBackgroundImageError: (_, __) {},
                                           child: avatar == null ? const Icon(Icons.person) : null,
                                         ),
                                         title: Text(name, style: TextStyle(color: onSurfaceColor, fontSize: 14, fontWeight: FontWeight.w600)),
@@ -1365,6 +1416,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                                           children: [
                                             CircleAvatar(
                                               backgroundImage: avatarUrl != null ? NetworkImage(avatarUrl) : null,
+                                              onBackgroundImageError: (_, __) {},
                                               child: avatarUrl == null ? const Icon(Icons.person) : null,
                                             ),
                                             if (isPending)
@@ -1773,6 +1825,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
     final currentUserId = _supabase.auth.currentUser?.id;
     final isAdmin = currentUserId == _group?['creator_id'];
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final int pendingReleaseCount = _slots.where((s) => s['approval_lepas_status'] == 'PENDING').length;
 
     showModalBottomSheet(
       context: context,
@@ -2032,7 +2085,12 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                         menuDivider,
                         ListTile(
                           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-                          leading: const Icon(Icons.grid_view_rounded, color: AppTheme.accentTeal),
+                          leading: Badge(
+                            isLabelVisible: pendingReleaseCount > 0,
+                            label: Text('$pendingReleaseCount'),
+                            backgroundColor: AppTheme.accentGold,
+                            child: const Icon(Icons.grid_view_rounded, color: AppTheme.accentTeal),
+                          ),
                           title: const Text('Pembagian Juz (Admin)'),
                           subtitle: Text(
                             'Kelola pembagian Juz secara cepat menggunakan kuas/pembagi Juz',
@@ -2210,6 +2268,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                         contentPadding: EdgeInsets.zero,
                         leading: CircleAvatar(
                           backgroundImage: avatarUrl != null ? NetworkImage(avatarUrl) : null,
+                          onBackgroundImageError: (_, __) {},
                           child: avatarUrl == null ? const Icon(Icons.person) : null,
                         ),
                         title: Row(
@@ -2896,6 +2955,8 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
   @override
   Widget build(BuildContext context) {
     final currentUserId = _supabase.auth.currentUser?.id;
+    final int pendingReleaseCount = _slots.where((s) => s['approval_lepas_status'] == 'PENDING').length;
+    final int totalPending = _pendingCount + pendingReleaseCount;
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -2912,9 +2973,9 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
           if (_group != null)
             IconButton(
               icon: Badge(
-                isLabelVisible: currentUserId == _group!['creator_id'] && _pendingCount > 0,
-                label: Text('$_pendingCount'),
-                backgroundColor: Colors.redAccent,
+                isLabelVisible: currentUserId == _group!['creator_id'] && totalPending > 0,
+                label: Text('$totalPending'),
+                backgroundColor: _pendingCount > 0 ? Colors.redAccent : AppTheme.accentGold,
                 child: Icon(Icons.more_vert_rounded, color: Theme.of(context).colorScheme.onSurfaceVariant),
               ),
               tooltip: 'Pengaturan Grup',
@@ -3058,6 +3119,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
             leading: CircleAvatar(
               backgroundColor: Theme.of(context).colorScheme.surface,
               backgroundImage: avatar != null ? NetworkImage(avatar) : null,
+              onBackgroundImageError: (_, __) {},
               child: avatar == null ? Icon(Icons.person, color: Theme.of(context).colorScheme.onSurfaceVariant) : null,
             ),
             title: Row(

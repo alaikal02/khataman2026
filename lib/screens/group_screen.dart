@@ -391,6 +391,7 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
                                               radius: 22,
                                               backgroundColor: AppTheme.primaryGreen.withOpacity(0.1),
                                               backgroundImage: avatarUrl != null ? NetworkImage(avatarUrl) : null,
+                                              onBackgroundImageError: (_, __) {},
                                               child: avatarUrl == null
                                                   ? Text(
                                                       name.isNotEmpty ? name[0].toUpperCase() : '?',
@@ -484,6 +485,7 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
                                             radius: 20,
                                             backgroundColor: isDark ? const Color(0xFF30363D) : const Color(0xFFEDF2ED),
                                             backgroundImage: avatarUrl != null ? NetworkImage(avatarUrl) : null,
+                                            onBackgroundImageError: (_, __) {},
                                             child: avatarUrl == null
                                                 ? Text(
                                                     name.isNotEmpty ? name[0].toUpperCase() : '?',
@@ -2041,6 +2043,7 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
                                         backgroundImage: avatarUrl != null && avatarUrl.isNotEmpty
                                             ? NetworkImage(avatarUrl)
                                             : null,
+                                        onBackgroundImageError: (_, __) {},
                                         child: avatarUrl == null || avatarUrl.isEmpty
                                             ? Text(
                                                 name.isNotEmpty ? name[0].toUpperCase() : '?',

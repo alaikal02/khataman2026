@@ -253,6 +253,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   radius: 22,
                   backgroundColor: Theme.of(context).colorScheme.surface,
                   backgroundImage: avatarUrl != null ? NetworkImage(avatarUrl) : null,
+                  onBackgroundImageError: (_, __) {},
                   child: avatarUrl == null ? Icon(Icons.person, color: Theme.of(context).colorScheme.onSurfaceVariant) : null,
                 ),
               ),

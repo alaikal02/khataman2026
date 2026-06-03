@@ -169,6 +169,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       radius: 54,
                       backgroundColor: Theme.of(context).colorScheme.surface,
                       backgroundImage: avatarUrl != null ? NetworkImage(avatarUrl) : null,
+                      onBackgroundImageError: (_, __) {},
                       child: avatarUrl == null
                           ? Icon(Icons.person_rounded, size: 50, color: Theme.of(context).colorScheme.onSurfaceVariant)
                           : null,

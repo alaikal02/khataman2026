@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/notification_service.dart';
 import '../theme/app_theme.dart';
 import 'group_detail_screen.dart';
+import 'juz_assignment_screen.dart';
 
 class NotificationScreen extends StatefulWidget {
   const NotificationScreen({Key? key}) : super(key: key);
@@ -390,15 +391,28 @@ class _NotificationScreenState extends State<NotificationScreen> {
         groupName = notif['groups']['nama_grup'] as String;
       }
 
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => GroupDetailScreen(
-            groupId: groupId,
-            groupName: groupName,
+      final String? type = notif['type'] as String?;
+      if (type == 'RELEASE_REQUEST') {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => JuzAssignmentScreen(
+              groupId: groupId,
+              groupName: groupName,
+            ),
           ),
-        ),
-      ).then((_) => _loadNotifications()); // Reload on back to reflect changes
+        ).then((_) => _loadNotifications());
+      } else {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => GroupDetailScreen(
+              groupId: groupId,
+              groupName: groupName,
+            ),
+          ),
+        ).then((_) => _loadNotifications()); // Reload on back to reflect changes
+      }
     }
   }
 
@@ -410,13 +424,17 @@ class _NotificationScreenState extends State<NotificationScreen> {
         return Icons.group_add_rounded;
       case 'JOIN_CANCELLED':
       case 'JOIN_REJECTED':
+      case 'RELEASE_REJECTED':
         return Icons.cancel_outlined;
       case 'JOIN_APPROVED':
+      case 'RELEASE_APPROVED':
         return Icons.check_circle_rounded;
       case 'JUZ_COMPLETED':
         return Icons.menu_book_rounded;
       case 'KHATAMAN_COMPLETE':
         return Icons.emoji_events_rounded;
+      case 'RELEASE_REQUEST':
+        return Icons.assignment_return_rounded;
       default:
         return Icons.notifications_rounded;
     }
@@ -431,12 +449,16 @@ class _NotificationScreenState extends State<NotificationScreen> {
       case 'JOIN_CANCELLED':
         return Colors.grey;
       case 'JOIN_REJECTED':
+      case 'RELEASE_REJECTED':
         return Colors.redAccent;
       case 'JOIN_APPROVED':
+      case 'RELEASE_APPROVED':
         return AppTheme.primaryGreen;
       case 'JUZ_COMPLETED':
         return AppTheme.accentGold;
       case 'KHATAMAN_COMPLETE':
+        return Colors.orangeAccent;
+      case 'RELEASE_REQUEST':
         return Colors.orangeAccent;
       default:
         return Theme.of(context).colorScheme.onSurfaceVariant;

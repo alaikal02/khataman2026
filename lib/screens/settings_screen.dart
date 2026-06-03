@@ -627,6 +627,7 @@ class SettingsScreen extends StatelessWidget {
                         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                         leading: CircleAvatar(
                           backgroundImage: avatarUrl != null ? NetworkImage(avatarUrl) : null,
+                          onBackgroundImageError: (_, __) {},
                           child: avatarUrl == null ? const Icon(Icons.person) : null,
                         ),
                         title: Text(

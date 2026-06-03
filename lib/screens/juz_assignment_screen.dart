@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_theme.dart';
+import '../services/notification_service.dart';
 
 class JuzAssignmentScreen extends StatefulWidget {
   final String groupId;
@@ -390,6 +391,7 @@ class _JuzAssignmentScreenState extends State<JuzAssignmentScreen> with SingleTi
     if (slot['approval_lepas_status'] == 'PENDING') {
       final claimedUser = slot['users'] as Map<String, dynamic>? ?? {};
       final claimedUsername = claimedUser['username'] as String? ?? 'Anggota';
+      final String? claimedUserId = slot['user_id'] as String?;
       final int juzNo = slot['nomor_juz'] as int;
       showDialog(
         context: context,
@@ -417,6 +419,34 @@ class _JuzAssignmentScreenState extends State<JuzAssignmentScreen> with SingleTi
                     'approval_lepas_status': null,
                     'username_sebelumnya': claimedUsername,
                   }).eq('id_slot', slot['id_slot']);
+
+                  // Kirim notifikasi balasan ke anggota
+                  if (claimedUserId != null) {
+                    await NotificationService.send(
+                      userId: claimedUserId,
+                      type: 'RELEASE_APPROVED',
+                      title: 'Pengajuan Lepas Juz Disetujui 💚',
+                      body: 'Pengajuan pelepasan Juz $juzNo Anda di grup "${widget.groupName}" telah disetujui oleh admin.',
+                      groupId: widget.groupId,
+                    );
+
+                    // Update notifikasi asli admin di DB agar permanen disetujui dan dibaca
+                    try {
+                      await _supabase
+                          .from('notifications')
+                          .update({
+                            'type': 'RELEASE_APPROVED',
+                            'title': 'Pengajuan Lepas Juz Disetujui',
+                            'is_read': true,
+                          })
+                          .eq('group_id', widget.groupId)
+                          .eq('sender_id', claimedUserId)
+                          .eq('type', 'RELEASE_REQUEST');
+                    } catch (notifErr) {
+                      debugPrint('Error updating original release notification: $notifErr');
+                    }
+                  }
+
                   _fetchData(silent: true);
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
@@ -447,6 +477,34 @@ class _JuzAssignmentScreenState extends State<JuzAssignmentScreen> with SingleTi
                   await _supabase.from('slot_khataman').update({
                     'approval_lepas_status': null,
                   }).eq('id_slot', slot['id_slot']);
+
+                  // Kirim notifikasi balasan ke anggota bahwa pengajuan ditolak
+                  if (claimedUserId != null) {
+                    await NotificationService.send(
+                      userId: claimedUserId,
+                      type: 'RELEASE_REJECTED',
+                      title: 'Pengajuan Lepas Juz Ditolak ⚠️',
+                      body: 'Pengajuan pelepasan Juz $juzNo Anda di grup "${widget.groupName}" ditolak oleh admin.',
+                      groupId: widget.groupId,
+                    );
+
+                    // Update notifikasi asli admin di DB agar permanen ditolak dan dibaca
+                    try {
+                      await _supabase
+                          .from('notifications')
+                          .update({
+                            'type': 'RELEASE_REJECTED',
+                            'title': 'Pengajuan Lepas Juz Ditolak',
+                            'is_read': true,
+                          })
+                          .eq('group_id', widget.groupId)
+                          .eq('sender_id', claimedUserId)
+                          .eq('type', 'RELEASE_REQUEST');
+                    } catch (notifErr) {
+                      debugPrint('Error updating original release notification: $notifErr');
+                    }
+                  }
+
                   _fetchData(silent: true);
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
