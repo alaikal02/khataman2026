@@ -26,7 +26,11 @@ class _JuzAssignmentScreenState extends State<JuzAssignmentScreen> with SingleTi
   Map<String, dynamic>? _activeCycle;
   bool _isLoading = true;
   bool _limitJuz = false;
+  final List<GlobalKey> _juzKeys = List.generate(30, (index) => GlobalKey());
+  final Set<int> _draggedJuzIndices = {};
+  bool? _dragSelectIsAssignMode;
   String _selectedBrushUserId = 'eraser'; // 'eraser' = eraser, or user_id
+  bool _hasShownTransferWarning = false;
 
   // Precomputed unique initials and contrast colors for all approved members
   final Map<String, String> _uniqueInitials = {};
@@ -386,6 +390,19 @@ class _JuzAssignmentScreenState extends State<JuzAssignmentScreen> with SingleTi
     return _contrastPalette[index];
   }
 
+  Color _getReadableTextColor(Color bg, bool isDark) {
+    if (isDark) {
+      return bg;
+    } else {
+      final hsl = HSLColor.fromColor(bg);
+      if (hsl.lightness > 0.5) {
+        return hsl.withLightness((hsl.lightness - 0.25).clamp(0.2, 0.55)).toColor();
+      }
+      return bg;
+    }
+  }
+
+
   String _getInitials2(String name) {
     final clean = name.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '').trim();
     if (clean.isEmpty) return 'UM';
@@ -694,7 +711,8 @@ class _JuzAssignmentScreenState extends State<JuzAssignmentScreen> with SingleTi
 
       // 3. Logika Pop-up Peringatan Untuk Juz Yang Belum Dibaca (Progres = 0%)
       // Hanya tampilkan jika memindahkan kepemilikan dari satu pengguna ke pengguna lain (keduanya non-null).
-      if (previousUserId != null && newUserId != null) {
+      // Muncul hanya sekali per sesi pembukaan halaman ini.
+      if (previousUserId != null && newUserId != null && !_hasShownTransferWarning) {
         showDialog<bool>(
           context: context,
           builder: (ctx) => AlertDialog(
@@ -726,6 +744,9 @@ class _JuzAssignmentScreenState extends State<JuzAssignmentScreen> with SingleTi
           ),
         ).then((confirmed) {
           if (confirmed == true) {
+            setState(() {
+              _hasShownTransferWarning = true;
+            });
             _applySlotChange(slot, newUserId, newUsers);
           }
         });
@@ -789,6 +810,113 @@ class _JuzAssignmentScreenState extends State<JuzAssignmentScreen> with SingleTi
     }
 
     proceedWithChange();
+  }
+
+  void _handleJuzDragSelected(int index) {
+    if (index < 0 || index >= _slots.length) return;
+    final slot = _slots[index];
+
+    // Protect slots with reading progress (Progres > 0% or checklist = true)
+    final lastAyat = slot['ayat_terakhir_input'] as int? ?? 0;
+    final statusChecklist = slot['status_checklist'] == true;
+    if (lastAyat > 0 || statusChecklist) return; // Skip locked slots
+
+    // Intercept if slot is pending approval
+    if (slot['approval_lepas_status'] == 'PENDING') return; // Skip pending slots
+
+    final String? previousUserId = slot['user_id'];
+    String? newUserId;
+    Map<String, dynamic>? newUsers;
+
+    // Resolve active brush details
+    String? brushUserId;
+    Map<String, dynamic>? brushUsers;
+    if (_selectedBrushUserId != 'eraser') {
+      final member = _members.firstWhere(
+        (m) => m['user_id'] == _selectedBrushUserId,
+        orElse: () => {},
+      );
+      if (member.isNotEmpty) {
+        brushUserId = _selectedBrushUserId;
+        brushUsers = member['users'];
+      }
+    }
+
+    if (_dragSelectIsAssignMode == true) {
+      // ASSIGN MODE: Paint the brush onto slots
+      newUserId = brushUserId;
+      newUsers = brushUsers;
+
+      // Keep it assigned (do nothing) if slot already belongs to the active brush.
+      if (previousUserId == newUserId) {
+        return;
+      }
+    } else {
+      // UNASSIGN/ERASE MODE: Clear the slots
+      // If a user brush is active (not eraser), we only unassign slots owned by that user brush
+      if (_selectedBrushUserId != 'eraser' && previousUserId != _selectedBrushUserId) {
+        return; // Skip slots owned by other users
+      }
+      newUserId = null;
+      newUsers = null;
+    }
+
+    // Check limit if active cycle has limits
+    if (_limitJuz && newUserId != null) {
+      final memberCount = _members.isEmpty ? 1 : _members.length;
+      final batasMaksimal = (30 / memberCount).ceil();
+      final currentCount = _slots.where((s) => s['user_id'] == newUserId).length;
+      if (currentCount >= batasMaksimal) {
+        return;
+      }
+    }
+
+    // Overwrite warning check
+    if (previousUserId != null && newUserId != null) {
+      if (!_hasShownTransferWarning) {
+        return; // Skip drag selection if warning hasn't been shown yet
+      }
+    }
+
+    // Apply change directly!
+    _applySlotChange(slot, newUserId, newUsers);
+  }
+
+  void _detectDragSelection(Offset globalPosition) {
+    for (int i = 0; i < 30; i++) {
+      final key = _juzKeys[i];
+      final context = key.currentContext;
+      if (context != null) {
+        final box = context.findRenderObject() as RenderBox?;
+        if (box != null) {
+          final position = box.localToGlobal(Offset.zero);
+          final size = box.size;
+          final rect = Rect.fromLTWH(position.dx, position.dy, size.width, size.height);
+          if (rect.contains(globalPosition)) {
+            if (!_draggedJuzIndices.contains(i)) {
+              // Determine drag select mode based on the first touched slot
+              if (_dragSelectIsAssignMode == null) {
+                final slot = _slots[i];
+                final String? previousUserId = slot['user_id'];
+                if (_selectedBrushUserId == 'eraser') {
+                  _dragSelectIsAssignMode = false;
+                } else if (previousUserId == _selectedBrushUserId) {
+                  // Starting on already-assigned slot of active brush -> UNASSIGN MODE
+                  _dragSelectIsAssignMode = false;
+                } else {
+                  // Starting on unassigned or another user's slot -> ASSIGN MODE
+                  _dragSelectIsAssignMode = true;
+                }
+              }
+
+              _draggedJuzIndices.add(i);
+              _handleJuzDragSelected(i);
+            }
+            break;
+          }
+        }
+      }
+    }
   }
 
   @override
@@ -966,84 +1094,106 @@ class _JuzAssignmentScreenState extends State<JuzAssignmentScreen> with SingleTi
                             final user = member['users'] as Map<String, dynamic>? ?? {};
                             final username = user['username'] as String? ?? 'Umum';
                             final initials = _uniqueInitials[userId] ?? _getInitials(username);
-                            final pastelBg = _memberColors[userId] ?? _getPastelColor(username);
-                            final isSelected = _selectedBrushUserId == userId;
-
-                            return Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 6),
-                              child: GestureDetector(
-                                onTap: () {
-                                  setState(() {
-                                    if (_selectedBrushUserId == userId) {
-                                      _selectedBrushUserId = 'eraser';
-                                    } else {
-                                      _selectedBrushUserId = userId;
-                                    }
-                                  });
-                                },
-                                child: Column(
-                                  children: [
-                                    AnimatedContainer(
-                                      duration: const Duration(milliseconds: 200),
-                                      width: 50,
-                                      height: 50,
-                                      decoration: BoxDecoration(
-                                        color: pastelBg,
-                                        shape: BoxShape.circle,
-                                        border: Border.all(
-                                          color: isSelected
-                                              ? (isDark ? AppTheme.accentTeal : AppTheme.primaryGreen)
-                                              : Colors.transparent,
-                                          width: isSelected ? 3.0 : 0,
-                                        ),
-                                        boxShadow: isSelected
-                                            ? [
-                                                BoxShadow(
-                                                  color: (isDark ? AppTheme.accentTeal : AppTheme.primaryGreen).withOpacity(0.4),
-                                                  blurRadius: 10,
-                                                  spreadRadius: 2,
-                                                )
-                                              ]
-                                            : [
-                                                BoxShadow(
-                                                  color: Colors.black.withOpacity(0.04),
-                                                  blurRadius: 4,
-                                                  offset: const Offset(0, 2),
-                                                )
-                                              ],
-                                      ),
-                                      child: Center(
-                                        child: Text(
-                                          initials,
-                                          style: const TextStyle(
-                                            color: Color(0xFF1C2D21), // Dark forest text for high contrast on pastel
-                                            fontWeight: FontWeight.w800,
-                                            fontSize: 14,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 5),
-                                    SizedBox(
-                                      width: 54,
-                                      child: Text(
-                                        '@$username',
-                                        style: TextStyle(
-                                          fontSize: 9.5,
-                                          fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                                          color: isSelected 
-                                              ? (isDark ? AppTheme.accentTeal : AppTheme.primaryGreen)
-                                              : primaryTextColor,
-                                        ),
-                                        textAlign: TextAlign.center,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            );
+                             final pastelBg = _memberColors[userId] ?? _getPastelColor(username);
+                             final isSelected = _selectedBrushUserId == userId;
+                             final hasSelection = _selectedBrushUserId != 'eraser';
+                             final isDimmed = hasSelection && !isSelected;
+ 
+                             return Padding(
+                               padding: const EdgeInsets.symmetric(horizontal: 6),
+                               child: GestureDetector(
+                                 onTap: () {
+                                   setState(() {
+                                     if (_selectedBrushUserId == userId) {
+                                       _selectedBrushUserId = 'eraser';
+                                     } else {
+                                       _selectedBrushUserId = userId;
+                                     }
+                                   });
+                                 },
+                                 child: AnimatedOpacity(
+                                   duration: const Duration(milliseconds: 200),
+                                   opacity: isDimmed ? 0.45 : 1.0,
+                                   child: Column(
+                                     children: [
+                                       AnimatedBuilder(
+                                         animation: _pulseAnimation,
+                                         builder: (context, child) {
+                                           return AnimatedContainer(
+                                             duration: const Duration(milliseconds: 200),
+                                             padding: EdgeInsets.all(isSelected ? 3.0 : 0),
+                                             decoration: BoxDecoration(
+                                               shape: BoxShape.circle,
+                                               border: Border.all(
+                                                 color: isSelected
+                                                     ? (isDark ? Colors.white.withOpacity(0.9) : const Color(0xFF1D2A22).withOpacity(0.9))
+                                                     : Colors.transparent,
+                                                 width: isSelected ? 2.0 : 0,
+                                               ),
+                                               boxShadow: isSelected
+                                                   ? [
+                                                       BoxShadow(
+                                                         color: (isDark ? AppTheme.accentTeal : AppTheme.primaryGreen)
+                                                             .withOpacity(0.25 + (_pulseAnimation.value * 0.45)),
+                                                         blurRadius: 6.0 + (_pulseAnimation.value * 8.0),
+                                                         spreadRadius: 1.0 + (_pulseAnimation.value * 2.0),
+                                                       )
+                                                     ]
+                                                   : null,
+                                             ),
+                                             child: AnimatedContainer(
+                                               duration: const Duration(milliseconds: 200),
+                                               width: isSelected ? 48 : 50,
+                                               height: isSelected ? 48 : 50,
+                                               decoration: BoxDecoration(
+                                                 color: pastelBg,
+                                                 shape: BoxShape.circle,
+                                                 boxShadow: !isSelected
+                                                     ? [
+                                                         BoxShadow(
+                                                           color: Colors.black.withOpacity(0.04),
+                                                           blurRadius: 4,
+                                                           offset: const Offset(0, 2),
+                                                         )
+                                                       ]
+                                                     : null,
+                                               ),
+                                               child: Center(
+                                                 child: Text(
+                                                   initials,
+                                                   style: const TextStyle(
+                                                     color: Color(0xFF1C2D21), // Dark forest text for high contrast on pastel
+                                                     fontWeight: FontWeight.w800,
+                                                     fontSize: 14,
+                                                   ),
+                                                 ),
+                                               ),
+                                             ),
+                                           );
+                                         },
+                                       ),
+                                       const SizedBox(height: 5),
+                                       SizedBox(
+                                         width: 54,
+                                         child: Text(
+                                           '@$username',
+                                           style: TextStyle(
+                                             fontSize: 9.5,
+                                             fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                                             color: isSelected 
+                                                 ? _getReadableTextColor(pastelBg, isDark)
+                                                 : primaryTextColor,
+                                           ),
+                                           textAlign: TextAlign.center,
+                                           maxLines: 1,
+                                           overflow: TextOverflow.ellipsis,
+                                         ),
+                                       ),
+                                     ],
+                                   ),
+                                 ),
+                               ),
+                             );
                           },
                         ),
                       ),
@@ -1133,17 +1283,26 @@ class _JuzAssignmentScreenState extends State<JuzAssignmentScreen> with SingleTi
                             ],
                           ),
                         )
-                      : GridView.builder(
-                          physics: const AlwaysScrollableScrollPhysics(),
-                          padding: const EdgeInsets.only(left: 16, right: 16, top: 16, bottom: 90),
-                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 5,
-                            crossAxisSpacing: 8,
-                            mainAxisSpacing: 8,
-                            childAspectRatio: 1.0, // Fixed 1:1 ratio for perfect squares
-                          ),
-                          itemCount: 30, // Juz 1 to Juz 30
-                          itemBuilder: (ctx, index) {
+                      : GestureDetector(
+                          onPanStart: (details) {
+                            _draggedJuzIndices.clear();
+                            _dragSelectIsAssignMode = null;
+                            _detectDragSelection(details.globalPosition);
+                          },
+                          onPanUpdate: (details) {
+                            _detectDragSelection(details.globalPosition);
+                          },
+                          child: GridView.builder(
+                            physics: const ClampingScrollPhysics(),
+                            padding: const EdgeInsets.only(left: 16, right: 16, top: 16, bottom: 16),
+                            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 5,
+                              crossAxisSpacing: 8,
+                              mainAxisSpacing: 8,
+                              childAspectRatio: 1.0, // Fixed 1:1 ratio for perfect squares
+                            ),
+                            itemCount: 30, // Juz 1 to Juz 30
+                            itemBuilder: (ctx, index) {
                             final juzNumber = index + 1;
                             
                             // Find the slot for this Juz number
@@ -1181,9 +1340,10 @@ class _JuzAssignmentScreenState extends State<JuzAssignmentScreen> with SingleTi
 
                              final bool isPending = slot['approval_lepas_status'] == 'PENDING';
 
-                            return GestureDetector(
-                              onTap: () => _handleJuzTap(slot),
-                              child: AnimatedBuilder(
+                             return GestureDetector(
+                               key: _juzKeys[index],
+                               onTap: () => _handleJuzTap(slot),
+                               child: AnimatedBuilder(
                                 animation: _pulseAnimation,
                                 builder: (ctx, child) {
                                   return AnimatedContainer(
@@ -1303,76 +1463,77 @@ class _JuzAssignmentScreenState extends State<JuzAssignmentScreen> with SingleTi
                             );
                           },
                         ),
+                      ),
                 ),
-              ],
-            ),
-        bottomNavigationBar: _isLoading || _activeCycle == null
-            ? null
-            : SafeArea(
-                child: Padding(
-                  padding: const EdgeInsets.only(left: 16, right: 16, bottom: 16, top: 8),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: cardBg,
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(isDark ? 0.3 : 0.08),
-                          blurRadius: 12,
-                          spreadRadius: 2,
-                          offset: const Offset(0, 4),
+                if (_activeCycle != null)
+                  SafeArea(
+                    top: false,
+                    child: Padding(
+                      padding: const EdgeInsets.only(left: 16, right: 16, bottom: 16, top: 8),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: cardBg,
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(isDark ? 0.3 : 0.08),
+                              blurRadius: 12,
+                              spreadRadius: 2,
+                              offset: const Offset(0, 4),
                         ),
-                      ],
-                      border: Border.all(
-                        color: dividerColor,
-                        width: 1.0,
+                          ],
+                          border: Border.all(
+                            color: dividerColor,
+                            width: 1.0,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            TextButton.icon(
+                              onPressed: _hasUnsavedChanges() ? _resetDraftChanges : null,
+                              icon: Icon(
+                                Icons.restart_alt_rounded,
+                                size: 16,
+                                color: _hasUnsavedChanges()
+                                    ? (isDark ? AppTheme.accentGold : Colors.orange.shade800)
+                                    : secondaryTextColor.withOpacity(0.4),
+                              ),
+                              label: Text(
+                                'Reset Perubahan',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: _hasUnsavedChanges()
+                                      ? (isDark ? AppTheme.accentGold : Colors.orange.shade800)
+                                      : secondaryTextColor.withOpacity(0.4),
+                                ),
+                              ),
+                            ),
+                            TextButton.icon(
+                              onPressed: _clearAllSlots,
+                              icon: const Icon(
+                                Icons.delete_sweep_outlined,
+                                size: 16,
+                                color: Colors.redAccent,
+                              ),
+                              label: const Text(
+                                'Bersihkan Semua',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.redAccent,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        TextButton.icon(
-                          onPressed: _hasUnsavedChanges() ? _resetDraftChanges : null,
-                          icon: Icon(
-                            Icons.restart_alt_rounded,
-                            size: 16,
-                            color: _hasUnsavedChanges()
-                                ? (isDark ? AppTheme.accentGold : Colors.orange.shade800)
-                                : secondaryTextColor.withOpacity(0.4),
-                          ),
-                          label: Text(
-                            'Reset Perubahan',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: _hasUnsavedChanges()
-                                  ? (isDark ? AppTheme.accentGold : Colors.orange.shade800)
-                                  : secondaryTextColor.withOpacity(0.4),
-                            ),
-                          ),
-                        ),
-                        TextButton.icon(
-                          onPressed: _clearAllSlots,
-                          icon: const Icon(
-                            Icons.delete_sweep_outlined,
-                            size: 16,
-                            color: Colors.redAccent,
-                          ),
-                          label: const Text(
-                            'Bersihkan Semua',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.redAccent,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
                   ),
-                ),
-              ),
+              ],
+            ),
       ),
     );
   }
