@@ -229,6 +229,43 @@ class PersonalHistoryService {
     }
   }
 
+  // Get completed group khatams count
+  static Future<int> getGroupKhatamCount(String userId) async {
+    try {
+      final supabase = Supabase.instance.client;
+      if (supabase.auth.currentUser == null) return 0;
+
+      final completedGroupSlots = await supabase
+          .from('slot_khataman')
+          .select('putaran_id, putaran_siklus!inner(id_putaran, group_id, status_aktif_selesai, groups(visibility))')
+          .eq('user_id', userId)
+          .eq('putaran_siklus.status_aktif_selesai', 'SELESAI');
+
+      final slotsList = List<Map<String, dynamic>>.from(completedGroupSlots as List);
+      final prefs = await SharedPreferences.getInstance();
+
+      final archivedSlots = slotsList.where((s) {
+        final p = s['putaran_siklus'] as Map<String, dynamic>?;
+        final g = p?['groups'] as Map<String, dynamic>?;
+        final pId = s['putaran_id'];
+
+        final localArchived = prefs.getBool('archived_group_${p?['group_id']}_$pId') ?? false;
+        return g?['visibility'] == 'ARCHIVED' || localArchived;
+      }).toList();
+
+      final cyclesMap = <dynamic, List<Map<String, dynamic>>>{};
+      for (var slot in archivedSlots) {
+        final pId = slot['putaran_id'];
+        if (pId != null) cyclesMap.putIfAbsent(pId, () => []).add(slot);
+      }
+
+      return cyclesMap.keys.length;
+    } catch (e) {
+      debugPrint('📝 [History Log] Error loading group khatam count: $e');
+      return 0;
+    }
+  }
+
   // Set manual Khatam count
   static Future<void> setKhatamCount(String userId, int count) async {
     try {

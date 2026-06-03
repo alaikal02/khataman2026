@@ -57,6 +57,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     await PersonalHistoryService.getHistory(userId);
     
     final localMandiriKhatams = await PersonalHistoryService.getKhatamCount(userId);
+    final groupKhatams = await PersonalHistoryService.getGroupKhatamCount(userId);
     
     // Periksa apakah ronde mandiri saat ini sudah 30 Juz selesai (tetapi belum di-reset)
     bool isCurrentMandiriKhatam = false;
@@ -75,7 +76,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       debugPrint('Error loading active mandiri count on home: $e');
     }
 
-    final totalCount = localMandiriKhatams + (isCurrentMandiriKhatam ? 1 : 0);
+    final totalCount = localMandiriKhatams + groupKhatams + (isCurrentMandiriKhatam ? 1 : 0);
     if (mounted) {
       setState(() {
         _personalKhatamCount = totalCount;
@@ -176,32 +177,31 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 12),
                   // Header
                   _buildHeader(context, displayName, avatarUrl, authProvider),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 18),
                   // Greeting Card
                   _buildGreetingCard(context, displayName),
-                  const SizedBox(height: 18),
+                  const SizedBox(height: 12),
                   // Personal History Card
                   _buildPersonalHistoryCard(context),
-                  const SizedBox(height: 28),
+                  const SizedBox(height: 18),
                   // Section Title
                   Text(
                     'Mulai Sekarang',
                     style: TextStyle(
-                      fontSize: 22,
+                      fontSize: 20,
                       fontWeight: FontWeight.bold,
                       color: Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
-                  const SizedBox(height: 16),
-                  // Feature Cards
-                  _buildFeatureCard(
+                  const SizedBox(height: 12),
+                                  _buildFeatureCard(
                     context,
                     icon: Icons.person_rounded,
                     title: 'Khataman Mandiri',
-                    subtitle: 'Lacak progres membaca Quran Anda sendiri.\nPantau setiap Juz yang sudah Anda selesaikan.',
+                    subtitle: 'Lacak progres membaca Al-Quran pribadi Anda',
                     gradient: const LinearGradient(
                       colors: [Color(0xFF2ECC71), Color(0xFF1A8A4A)],
                       begin: Alignment.topLeft,
@@ -209,12 +209,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     ),
                     onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const MandiriScreen())),
                   ),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 10),
                   _buildFeatureCard(
                     context,
                     icon: Icons.group_rounded,
                     title: 'Khataman Grup',
-                    subtitle: 'Buat atau gabung grup khataman bersama.\nDistribusikan 30 Juz secara dinamis ke anggota.',
+                    subtitle: 'Khataman Al-Quran bersama anggota grup',
                     gradient: const LinearGradient(
                       colors: [Color(0xFF6C63FF), Color(0xFF3F3D8B)],
                       begin: Alignment.topLeft,
@@ -222,10 +222,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     ),
                     onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const GroupScreen())),
                   ),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 18),
                   // Stats Row
                   _buildStatsRow(context),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 12),
                 ],
               ),
             ),
@@ -354,10 +354,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(22),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
         gradient: cardBgGradient,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: borderColor),
         boxShadow: [
           BoxShadow(color: shadowColor, blurRadius: 30, spreadRadius: 2),
@@ -378,7 +378,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     letterSpacing: 1,
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 4),
                 Text(
                   '"Dan bacalah Al-Quran dengan tartil."',
                   style: TextStyle(fontSize: 15, color: bodyTextColor, fontStyle: FontStyle.italic, height: 1.5),
@@ -417,10 +417,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       onTap: onTap,
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.all(22),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surface,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: isDark 
                 ? AppTheme.primaryGreen.withOpacity(0.3) 
@@ -490,10 +490,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Widget _statCard(BuildContext context, String value, String label, IconData icon, Color color) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: isDark 
               ? AppTheme.primaryGreen.withOpacity(0.3) 
@@ -502,10 +502,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       ),
       child: Column(
         children: [
-          Icon(icon, color: color, size: 22),
-          const SizedBox(height: 8),
-          Text(value, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: color)),
+          Icon(icon, color: color, size: 18),
           const SizedBox(height: 4),
+          Text(value, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: color)),
+          const SizedBox(height: 2),
           Text(label, style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant)),
         ],
       ),
@@ -551,10 +551,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       },
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.all(18),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
           gradient: cardBgGradient,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(16),
           border: isDark ? null : Border.all(color: borderColor, width: 0.8),
           boxShadow: shadow,
         ),
