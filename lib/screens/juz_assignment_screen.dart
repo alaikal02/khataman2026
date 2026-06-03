@@ -25,7 +25,6 @@ class _JuzAssignmentScreenState extends State<JuzAssignmentScreen> with SingleTi
   List<Map<String, dynamic>> _originalSlots = [];
   Map<String, dynamic>? _activeCycle;
   bool _isLoading = true;
-  bool _isSaving = false;
   bool _limitJuz = false;
   String _selectedBrushUserId = 'eraser'; // 'eraser' = eraser, or user_id
 
@@ -174,25 +173,21 @@ class _JuzAssignmentScreenState extends State<JuzAssignmentScreen> with SingleTi
     );
   }
 
-  void _cancelDraftChanges() {
+  void _resetDraftChanges() {
     setState(() {
       _slots = _originalSlots.map((slot) => Map<String, dynamic>.from(slot)).toList();
       _selectedBrushUserId = 'eraser';
     });
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('Perubahan draf dibatalkan'),
+        content: Text('🔄 Draf pembagian di-reset ke kondisi awal'),
         backgroundColor: Colors.grey,
         duration: Duration(seconds: 1),
       ),
     );
   }
 
-  Future<void> _saveDraftChanges() async {
-    setState(() {
-      _isSaving = true;
-    });
-
+  Future<bool> _saveDraftChanges() async {
     try {
       final List<Future> updateFutures = [];
 
@@ -228,7 +223,6 @@ class _JuzAssignmentScreenState extends State<JuzAssignmentScreen> with SingleTi
 
       setState(() {
         _originalSlots = _slots.map((s) => Map<String, dynamic>.from(s)).toList();
-        _isSaving = false;
       });
 
       if (mounted) {
@@ -240,10 +234,8 @@ class _JuzAssignmentScreenState extends State<JuzAssignmentScreen> with SingleTi
           ),
         );
       }
+      return true;
     } catch (e) {
-      setState(() {
-        _isSaving = false;
-      });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -252,7 +244,126 @@ class _JuzAssignmentScreenState extends State<JuzAssignmentScreen> with SingleTi
           ),
         );
       }
+      return false;
     }
+  }
+
+  Future<void> _toggleLimitJuz(bool val) async {
+    setState(() {
+      _limitJuz = val;
+    });
+
+    try {
+      final result = await _supabase
+          .from('groups')
+          .update({'limit_juz': val})
+          .eq('id_group', widget.groupId)
+          .select();
+
+      if (result.isEmpty) {
+        throw Exception('Izin update ditolak (RLS).');
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              val
+                  ? '🔒 Batasan pengambilan Juz diaktifkan!'
+                  : '🔓 Batasan pengambilan Juz dinonaktifkan!',
+            ),
+            backgroundColor: AppTheme.primaryGreen,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      setState(() {
+        _limitJuz = !val;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal mengubah batasan: $e'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    }
+  }
+
+  bool _hasUnsavedChanges() {
+    for (var slot in _slots) {
+      final orig = _originalSlots.firstWhere(
+        (o) => o['id_slot'] == slot['id_slot'],
+        orElse: () => {},
+      );
+      if (orig.isNotEmpty) {
+        if (slot['user_id'] != orig['user_id'] ||
+            slot['ayat_terakhir_input'] != orig['ayat_terakhir_input'] ||
+            slot['status_checklist'] != orig['status_checklist']) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  Future<bool> _showUnsavedChangesDialog() async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: AppTheme.accentGold),
+            SizedBox(width: 8),
+            Text(
+              'Simpan Perubahan?',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        content: const Text(
+          'Anda memiliki draf pembagian Juz yang belum disimpan. Apakah Anda ingin menyimpan perubahan tersebut?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false), // false = discard and go back
+            style: TextButton.styleFrom(foregroundColor: Colors.redAccent),
+            child: const Text('Buang'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, null), // null = cancel back action, stay here
+            style: TextButton.styleFrom(foregroundColor: Colors.grey),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(ctx, true); // true = save first, then go back
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.primaryGreen,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: const Text('Simpan'),
+          ),
+        ],
+      ),
+    );
+
+    if (result == null) {
+      return false; // Stay on screen
+    }
+
+    if (result == true) {
+      final success = await _saveDraftChanges();
+      return success; // If save succeeded, return true to pop screen, else false to stay
+    }
+
+    return true; // Discard changes, return true to pop screen
   }
 
   // Locked high-contrast color palette (Open Color standard)
@@ -380,9 +491,6 @@ class _JuzAssignmentScreenState extends State<JuzAssignmentScreen> with SingleTi
       slot['users'] = newUsers;
       slot['ayat_terakhir_input'] = 0;
       slot['status_checklist'] = false;
-      if (newUserId == null) {
-        _selectedBrushUserId = 'eraser';
-      }
     });
   }
 
@@ -558,8 +666,14 @@ class _JuzAssignmentScreenState extends State<JuzAssignmentScreen> with SingleTi
         }
       }
 
-      // Do nothing if same state
-      if (previousUserId == newUserId) return;
+      // If the slot is already assigned to the active brush user, toggle it to unassigned (null).
+      // Otherwise, if both are already null, do nothing.
+      if (previousUserId == newUserId && newUserId != null) {
+        newUserId = null;
+        newUsers = null;
+      } else if (previousUserId == newUserId) {
+        return;
+      }
 
       // 2. Rumus Dinamis Rentang Kuota (Pengecekan Saklar Kuota Maksimal)
       if (_limitJuz && newUserId != null) {
@@ -579,7 +693,8 @@ class _JuzAssignmentScreenState extends State<JuzAssignmentScreen> with SingleTi
       }
 
       // 3. Logika Pop-up Peringatan Untuk Juz Yang Belum Dibaca (Progres = 0%)
-      if (previousUserId != null) {
+      // Hanya tampilkan jika memindahkan kepemilikan dari satu pengguna ke pengguna lain (keduanya non-null).
+      if (previousUserId != null && newUserId != null) {
         showDialog<bool>(
           context: context,
           builder: (ctx) => AlertDialog(
@@ -687,8 +802,17 @@ class _JuzAssignmentScreenState extends State<JuzAssignmentScreen> with SingleTi
     final secondaryTextColor = isDark ? Colors.white70 : const Color(0xFF5F6E65);
     final dividerColor = isDark ? Colors.white10 : Colors.grey.shade200;
 
-    return Scaffold(
-      backgroundColor: scaffoldBg,
+    return PopScope(
+      canPop: !_hasUnsavedChanges(),
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        final shouldPop = await _showUnsavedChangesDialog();
+        if (shouldPop && context.mounted) {
+          Navigator.of(context).pop();
+        }
+      },
+      child: Scaffold(
+        backgroundColor: scaffoldBg,
       appBar: AppBar(
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -715,6 +839,34 @@ class _JuzAssignmentScreenState extends State<JuzAssignmentScreen> with SingleTi
         backgroundColor: cardBg,
         elevation: 0,
         iconTheme: IconThemeData(color: primaryTextColor),
+        actions: [
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Batasi Juz',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: primaryTextColor,
+                ),
+              ),
+              const SizedBox(width: 4),
+              Transform.scale(
+                scale: 0.8,
+                child: Switch(
+                  value: _limitJuz,
+                  activeColor: AppTheme.primaryGreen,
+                  activeTrackColor: AppTheme.primaryGreen.withOpacity(0.4),
+                  onChanged: (val) async {
+                    await _toggleLimitJuz(val);
+                  },
+                ),
+              ),
+              const SizedBox(width: 8),
+            ],
+          ),
+        ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1.0),
           child: Container(
@@ -751,38 +903,51 @@ class _JuzAssignmentScreenState extends State<JuzAssignmentScreen> with SingleTi
                                 fontSize: 13,
                               ),
                             ),
-                            Row(
-                              children: [
-                                if (_selectedBrushUserId != 'eraser') ...[
-                                  GestureDetector(
-                                    onTap: () {
-                                      setState(() {
-                                        _selectedBrushUserId = 'eraser';
-                                      });
-                                    },
-                                    child: Text(
-                                      'Batal Pilih',
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        color: isDark ? AppTheme.accentTeal : AppTheme.primaryGreen,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 14),
-                                ],
-                                GestureDetector(
-                                  onTap: _clearAllSlots,
-                                  child: const Text(
-                                    'Bersihkan Semua',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      color: Colors.redAccent,
-                                      fontWeight: FontWeight.w600,
-                                    ),
+                            GestureDetector(
+                              onTap: () {
+                                setState(() {
+                                  _selectedBrushUserId = 'eraser';
+                                });
+                              },
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 200),
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: _selectedBrushUserId == 'eraser'
+                                      ? Colors.redAccent.withOpacity(0.12)
+                                      : (isDark ? Colors.white.withOpacity(0.05) : Colors.grey.shade100),
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(
+                                    color: _selectedBrushUserId == 'eraser'
+                                        ? Colors.redAccent
+                                        : (isDark ? Colors.white12 : Colors.grey.shade300),
+                                    width: 1,
                                   ),
                                 ),
-                              ],
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.delete_sweep_outlined,
+                                      size: 13,
+                                      color: _selectedBrushUserId == 'eraser'
+                                          ? Colors.redAccent
+                                          : secondaryTextColor,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      'Penghapus',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: _selectedBrushUserId == 'eraser'
+                                            ? Colors.redAccent
+                                            : secondaryTextColor,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
                             ),
                           ],
                         ),
@@ -793,76 +958,10 @@ class _JuzAssignmentScreenState extends State<JuzAssignmentScreen> with SingleTi
                         child: ListView.builder(
                           scrollDirection: Axis.horizontal,
                           padding: const EdgeInsets.symmetric(horizontal: 12),
-                          itemCount: _members.length + 1, // +1 for the Eraser Brush
+                          itemCount: _members.length,
                           itemBuilder: (ctx, index) {
-                            // First item is the Eraser
-                            if (index == 0) {
-                              final isSelected = _selectedBrushUserId == 'eraser';
-                              const activeBlue = Color(0xFF339AF0); // Vibrant sky blue
-                              return Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 6),
-                                child: GestureDetector(
-                                  onTap: () {
-                                    setState(() {
-                                      _selectedBrushUserId = 'eraser';
-                                    });
-                                  },
-                                  child: Column(
-                                    children: [
-                                      AnimatedContainer(
-                                        duration: const Duration(milliseconds: 200),
-                                        width: 50,
-                                        height: 50,
-                                        decoration: BoxDecoration(
-                                          color: isSelected 
-                                              ? activeBlue.withOpacity(0.12)
-                                              : (isDark ? Colors.white.withOpacity(0.05) : Colors.grey.shade100),
-                                          shape: BoxShape.circle,
-                                          border: Border.all(
-                                            color: isSelected
-                                                ? activeBlue
-                                                : (isDark ? Colors.white12 : Colors.grey.shade300),
-                                            width: isSelected ? 2.5 : 1,
-                                          ),
-                                          boxShadow: isSelected
-                                              ? [
-                                                  BoxShadow(
-                                                    color: activeBlue.withOpacity(0.4),
-                                                    blurRadius: 10,
-                                                    spreadRadius: 2,
-                                                  )
-                                                ]
-                                              : null,
-                                        ),
-                                        child: Center(
-                                          child: Icon(
-                                            Icons.delete_rounded,
-                                            size: 22,
-                                            color: isSelected
-                                                ? activeBlue
-                                                : (isDark ? Colors.white60 : Colors.grey.shade600),
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 5),
-                                      const Text(
-                                        'Hapus',
-                                        style: TextStyle(
-                                          fontSize: 9.5,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              );
-                            }
-
                             // Members
-                            final memberIndex = index - 1;
-                            final member = _members[memberIndex];
+                            final member = _members[index];
                             final userId = member['user_id'] as String;
                             final user = member['users'] as Map<String, dynamic>? ?? {};
                             final username = user['username'] as String? ?? 'Umum';
@@ -1036,7 +1135,7 @@ class _JuzAssignmentScreenState extends State<JuzAssignmentScreen> with SingleTi
                         )
                       : GridView.builder(
                           physics: const AlwaysScrollableScrollPhysics(),
-                          padding: const EdgeInsets.only(left: 16, right: 16, top: 16, bottom: 80),
+                          padding: const EdgeInsets.only(left: 16, right: 16, top: 16, bottom: 90),
                           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                             crossAxisCount: 5,
                             crossAxisSpacing: 8,
@@ -1207,73 +1306,74 @@ class _JuzAssignmentScreenState extends State<JuzAssignmentScreen> with SingleTi
                 ),
               ],
             ),
-      bottomNavigationBar: _isLoading || _activeCycle == null
-          ? null
-          : Container(
-              padding: EdgeInsets.only(
-                left: 16,
-                right: 16,
-                top: 12,
-                bottom: MediaQuery.of(context).padding.bottom + 12,
-              ),
-              decoration: BoxDecoration(
-                color: cardBg,
-                border: Border(
-                  top: BorderSide(color: dividerColor, width: 1),
+        bottomNavigationBar: _isLoading || _activeCycle == null
+            ? null
+            : SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 16, right: 16, bottom: 16, top: 8),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: cardBg,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(isDark ? 0.3 : 0.08),
+                          blurRadius: 12,
+                          spreadRadius: 2,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                      border: Border.all(
+                        color: dividerColor,
+                        width: 1.0,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        TextButton.icon(
+                          onPressed: _hasUnsavedChanges() ? _resetDraftChanges : null,
+                          icon: Icon(
+                            Icons.restart_alt_rounded,
+                            size: 16,
+                            color: _hasUnsavedChanges()
+                                ? (isDark ? AppTheme.accentGold : Colors.orange.shade800)
+                                : secondaryTextColor.withOpacity(0.4),
+                          ),
+                          label: Text(
+                            'Reset Perubahan',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: _hasUnsavedChanges()
+                                  ? (isDark ? AppTheme.accentGold : Colors.orange.shade800)
+                                  : secondaryTextColor.withOpacity(0.4),
+                            ),
+                          ),
+                        ),
+                        TextButton.icon(
+                          onPressed: _clearAllSlots,
+                          icon: const Icon(
+                            Icons.delete_sweep_outlined,
+                            size: 16,
+                            color: Colors.redAccent,
+                          ),
+                          label: const Text(
+                            'Bersihkan Semua',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.redAccent,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextButton(
-                      onPressed: _isSaving ? null : _cancelDraftChanges,
-                      style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        foregroundColor: Colors.redAccent.withOpacity(0.8),
-                      ),
-                      child: const Text(
-                        'Batalkan',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: _isSaving ? null : _saveDraftChanges,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppTheme.primaryGreen,
-                        foregroundColor: Colors.white,
-                        elevation: 2,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      child: _isSaving
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                              ),
-                            )
-                          : const Text(
-                              'Simpan Pembagian',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+      ),
     );
   }
 }
