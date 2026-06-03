@@ -66,8 +66,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _showSnackbar('Username minimal 3 karakter', isError: true);
       return;
     }
-    if (!RegExp(r'^[a-zA-Z0-9_]+$').hasMatch(newUsername)) {
-      _showSnackbar('Username hanya boleh huruf, angka, dan underscore (_)', isError: true);
+    if (!RegExp(r'^[a-zA-Z0-9_.]+$').hasMatch(newUsername)) {
+      _showSnackbar('Username hanya boleh huruf, angka, titik (.), dan underscore (_)', isError: true);
       return;
     }
 
@@ -216,7 +216,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 )),
                                 const SizedBox(width: 6),
                                 Tooltip(
-                                  message: 'Aturan Username:\n• Minimal 3 karakter\n• Hanya huruf (a-z), angka (0-9), & underscore (_)',
+                                  message: 'Aturan Username:\n• Minimal 3 karakter\n• Hanya huruf (a-z), angka (0-9), titik (.), & underscore (_)',
                                   textStyle: const TextStyle(color: Colors.white, fontSize: 11, height: 1.4),
                                   decoration: BoxDecoration(
                                     color: Colors.grey[850],
@@ -270,7 +270,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             children: [
                               _buildGuidelineRow(context, 'Minimal 3 karakter'),
                               const SizedBox(height: 4),
-                              _buildGuidelineRow(context, 'Hanya huruf, angka, dan underscore (_)'),
+                              _buildGuidelineRow(context, 'Hanya huruf, angka, titik (.), dan underscore (_)'),
                             ],
                           ),
                           const SizedBox(height: 16),
