@@ -7,20 +7,6 @@ class PersonalHistoryService {
   static const String _keyPrefix = 'personal_history_log_';
   static const String _khatamCountPrefix = 'personal_khatam_count_';
 
-  // Helper to normalize timestamp for safe comparison across timezones and formatting
-  static String _normalizeTimestamp(String? timestampStr) {
-    if (timestampStr == null) return '';
-    final dt = DateTime.tryParse(timestampStr);
-    if (dt == null) return timestampStr;
-    // Gunakan milidetik UTC untuk standardisasi 100% konsisten
-    return dt.toUtc().millisecondsSinceEpoch.toString();
-  }
-
-  // Helper to compare two timestamps safely
-  static bool _areTimestampsEqual(String? t1, String? t2) {
-    if (t1 == null || t2 == null) return false;
-    return _normalizeTimestamp(t1) == _normalizeTimestamp(t2);
-  }
 
   // Log a reading event
   static Future<void> logReading({
@@ -56,11 +42,8 @@ class PersonalHistoryService {
       existingData.add(jsonEncode(newEntry));
       await prefs.setStringList(key, existingData);
 
-      if (isKhatamCompletion) {
-        final khatamKey = '$_khatamCountPrefix$userId';
-        final currentKhatamCount = prefs.getInt(khatamKey) ?? 0;
-        await prefs.setInt(khatamKey, currentKhatamCount + 1);
-      }
+
+
       debugPrint('📝 [History Log] Logged locally successfully: Juz $juz ($type) - $description');
 
       // Attempt to sync to Supabase (defensively)
@@ -144,23 +127,14 @@ class PersonalHistoryService {
     }
   }
 
-  // Get all logs for a user with bidirectional cloud synchronization
+  // Get all logs for a user. Supabase is the single source of truth.
+  // Local SharedPreferences is used only as offline fallback cache.
   static Future<List<Map<String, dynamic>>> getHistory(String userId) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final key = '$_keyPrefix$userId';
-      
-      // 1. Load local history
-      final rawList = prefs.getStringList(key) ?? [];
-      final List<Map<String, dynamic>> localLogs = rawList.map((e) {
-        try {
-          return jsonDecode(e) as Map<String, dynamic>;
-        } catch (_) {
-          return <String, dynamic>{};
-        }
-      }).where((element) => element.isNotEmpty).toList();
 
-      // 2. Load cloud history from Supabase (defensively)
+      // 1. Try to fetch from Supabase (single source of truth)
       List<Map<String, dynamic>> cloudLogs = [];
       bool cloudFetchSuccess = false;
       try {
@@ -169,10 +143,11 @@ class PersonalHistoryService {
           final res = await supabase
               .from('riwayat_personal')
               .select()
-              .eq('user_id', userId);
-          
+              .eq('user_id', userId)
+              .order('created_at', ascending: false);
+
           final list = res as List;
-          cloudLogs = list.map((item) => {
+          cloudLogs = list.map((item) => <String, dynamic>{
             'timestamp': item['created_at'] as String? ?? DateTime.now().toIso8601String(),
             'juz': item['juz'] as int? ?? 0,
             'description': item['description'] as String? ?? '',
@@ -184,110 +159,70 @@ class PersonalHistoryService {
           debugPrint('📝 [History Log] Fetched ${cloudLogs.length} logs from Supabase');
         }
       } catch (e) {
-        debugPrint('⚠️ [History Log] Cloud fetch failed: $e');
+        debugPrint('⚠️ [History Log] Cloud fetch failed, falling back to local cache: $e');
       }
 
-      // 3. Bidirectional Sync & De-duplication
-      final Map<String, Map<String, dynamic>> mergedMap = {};
-
-      // Add local logs first
-      for (final log in localLogs) {
-        final timestamp = log['timestamp'] as String? ?? '';
-        final juz = log['juz']?.toString() ?? '0';
-        final type = log['type'] ?? '';
-        
-        final uniqueKey = '${_normalizeTimestamp(timestamp)}_${juz}_$type';
-        mergedMap[uniqueKey] = log;
+      if (cloudFetchSuccess) {
+        // Cloud is available — use it as the definitive source.
+        // Cache to SharedPreferences for offline fallback.
+        final List<String> rawToSave = cloudLogs.map((e) => jsonEncode(e)).toList();
+        await prefs.setStringList(key, rawToSave);
+        return cloudLogs;
       }
 
-      // Merge with cloud logs (Cloud is the absolute source of truth if timestamps match)
-      for (final log in cloudLogs) {
-        final timestamp = log['timestamp'] as String? ?? '';
-        final juz = log['juz']?.toString() ?? '0';
-        final type = log['type'] ?? '';
-        
-        final uniqueKey = '${_normalizeTimestamp(timestamp)}_${juz}_$type';
-        mergedMap[uniqueKey] = log;
-      }
-
-      final List<Map<String, dynamic>> mergedList = mergedMap.values.toList();
+      // 2. Fallback: Load from local cache if cloud is unavailable
+      final rawList = prefs.getStringList(key) ?? [];
+      final List<Map<String, dynamic>> localLogs = rawList.map((e) {
+        try {
+          return jsonDecode(e) as Map<String, dynamic>;
+        } catch (_) {
+          return <String, dynamic>{};
+        }
+      }).where((element) => element.isNotEmpty).toList();
 
       // Sort chronological descending (newest first)
-      mergedList.sort((a, b) {
+      localLogs.sort((a, b) {
         final tA = DateTime.tryParse(a['timestamp'] ?? '') ?? DateTime.now();
         final tB = DateTime.tryParse(b['timestamp'] ?? '') ?? DateTime.now();
         return tB.compareTo(tA);
       });
 
-      // 4. Self-Healing Write Back to SharedPreferences
-      if (cloudFetchSuccess) {
-        final List<String> rawToSave = mergedList.map((e) => jsonEncode(e)).toList();
-        // reverse the order back because SharedPreferences was historically stored newest last (then reversed on read)
-        final List<String> reversedRawToSave = rawToSave.reversed.toList();
-        await prefs.setStringList(key, reversedRawToSave);
-        
-        // Also upload any local-only logs back to Supabase
-        for (final localLog in localLogs) {
-          final timestamp = localLog['timestamp'] as String? ?? '';
-          final juz = localLog['juz'] as int? ?? 0;
-          final type = localLog['type'] ?? '';
-          
-          final existsInCloud = cloudLogs.any((c) => 
-            _areTimestampsEqual(c['timestamp'] as String?, timestamp) && 
-            c['juz'].toString() == juz.toString() && 
-            c['type'] == type
-          );
-
-          if (!existsInCloud) {
-            try {
-              final supabase = Supabase.instance.client;
-              await supabase.from('riwayat_personal').insert({
-                'user_id': userId,
-                'juz': juz,
-                'description': localLog['description'],
-                'type': type,
-                'is_juz_completion': localLog['isJuzCompletion'] ?? false,
-                'is_khatam_completion': localLog['isKhatamCompletion'] ?? false,
-                'created_at': timestamp,
-              });
-              debugPrint('📝 [History Log] Uploaded local log to Supabase: Juz $juz');
-            } catch (e) {
-              debugPrint('⚠️ [History Log] Upload of local log to Supabase failed: $e');
-            }
-          }
-        }
-      }
-
-      return mergedList;
+      return localLogs;
     } catch (e) {
       debugPrint('📝 [History Log] Error loading history: $e');
       return [];
     }
   }
 
-  // Get Khatam count with dynamic self-healing directly from history log
+  // Get Khatam count from Supabase (single source of truth) with local fallback
   static Future<int> getKhatamCount(String userId) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final key = '$_keyPrefix$userId';
-      
-      // Hitung log dari data gabungan (yang sudah disinkronkan)
-      final rawList = prefs.getStringList(key) ?? [];
-      
-      int trueCount = 0;
-      for (final itemJson in rawList) {
-        try {
-          final item = jsonDecode(itemJson) as Map<String, dynamic>;
-          // Hanya hitung khataman mandiri yang selesai penuh
-          if (item['isKhatamCompletion'] == true && item['type'] == 'Mandiri') {
-            trueCount++;
-          }
-        } catch (_) {}
+      // Try Supabase first
+      try {
+        final supabase = Supabase.instance.client;
+        if (supabase.auth.currentUser != null) {
+          final res = await supabase
+              .from('riwayat_personal')
+              .select('id')
+              .eq('user_id', userId)
+              .eq('type', 'Mandiri')
+              .eq('is_khatam_completion', true);
+
+          final count = (res as List).length;
+          // Cache the count locally
+          final prefs = await SharedPreferences.getInstance();
+          final khatamKey = '$_khatamCountPrefix$userId';
+          await prefs.setInt(khatamKey, count);
+          return count;
+        }
+      } catch (e) {
+        debugPrint('⚠️ [History Log] Cloud khatam count fetch failed: $e');
       }
-      
+
+      // Fallback to local
+      final prefs = await SharedPreferences.getInstance();
       final khatamKey = '$_khatamCountPrefix$userId';
-      await prefs.setInt(khatamKey, trueCount);
-      return trueCount;
+      return prefs.getInt(khatamKey) ?? 0;
     } catch (e) {
       debugPrint('📝 [History Log] Error loading khatam count: $e');
       return 0;

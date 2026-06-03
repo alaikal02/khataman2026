@@ -51,6 +51,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
     for (var log in sortedLocal) {
       if (log['type'] != 'Mandiri') continue;
       if (log['isKhatamCompletion'] == true) {
+        if (log['isJuzCompletion'] == true) {
+          currentJuzs.add(log);
+        }
         // Deduplikasi: hanya simpan 1 entri per juz dalam siklus ini
         final deduped = <int, Map<String, dynamic>>{};
         for (var j in currentJuzs) {

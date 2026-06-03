@@ -229,7 +229,7 @@ class _MandiriScreenState extends State<MandiriScreen> {
           OutlinedButton.icon(
             onPressed: () {
               Navigator.pop(ctx);
-              showDoaKhatamBottomSheet(context, onConfirmCompletion: _showDoaKhatamConfirmation);
+              showDoaKhatamBottomSheet(context, onConfirmCompletion: _confirmDoaKhatamMandiri);
             },
             icon: const Icon(Icons.auto_stories_rounded, size: 16),
             label: const Text('Belum, Baca Doa', style: TextStyle(fontWeight: FontWeight.w600)),
@@ -358,6 +358,7 @@ class _MandiriScreenState extends State<MandiriScreen> {
                   CongratulatoryCard(
                     onReset: _resetAllProgress,
                     resetLabel: 'Mulai Khataman Baru',
+                    showResetButton: false,
                     onDoaKhatam: _showDoaKhatamConfirmation,
                   ),
                 // Juz List
