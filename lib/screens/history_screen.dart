@@ -178,11 +178,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
             link: _infoLayerLink,
             showWhenUnlinked: false,
             // Offset to place the bubble right above and centered leftwards of the target icon
-            offset: const Offset(-210, -78),
+            offset: const Offset(-230, -92),
             child: Material(
               color: Colors.transparent,
               child: Container(
-                width: 220,
+                width: 240,
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                 decoration: BoxDecoration(
                   color: const Color(0xFF1E293B), // Sleek, premium dark slate bubble matching premium dark themes
@@ -197,7 +197,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   border: Border.all(color: Colors.white.withOpacity(0.12), width: 0.8),
                 ),
                 child: const Text(
-                  'Jumlah total dari penyelesaian Khataman Mandiri 30 Juz Anda.',
+                  'Jumlah total penyelesaian Khataman Al-Quran Anda, gabungan dari Khataman Mandiri dan kontribusi Khataman Grup.',
                   style: TextStyle(
                     color: Colors.white70,
                     fontSize: 11,

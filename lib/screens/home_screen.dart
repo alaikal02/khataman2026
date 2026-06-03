@@ -14,6 +14,7 @@ import '../services/personal_history_service.dart';
 import 'package:app_links/app_links.dart';
 import 'dart:async';
 import 'group_detail_screen.dart';
+import 'surah_info_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -480,34 +481,51 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       children: [
         Expanded(child: _statCard(context, '30', 'Total Juz', Icons.layers_rounded, AppTheme.primaryGreen)),
         const SizedBox(width: 12),
-        Expanded(child: _statCard(context, '114', 'Surah', Icons.menu_book_rounded, AppTheme.accentGold)),
+        Expanded(
+          child: _statCard(
+            context,
+            '114',
+            'Surah',
+            Icons.menu_book_rounded,
+            AppTheme.accentGold,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const SurahInfoScreen()),
+              );
+            },
+          ),
+        ),
         const SizedBox(width: 12),
         Expanded(child: _statCard(context, '6236', 'Ayat', Icons.format_list_numbered_rounded, AppTheme.accentTeal)),
       ],
     );
   }
 
-  Widget _statCard(BuildContext context, String value, String label, IconData icon, Color color) {
+  Widget _statCard(BuildContext context, String value, String label, IconData icon, Color color, {VoidCallback? onTap}) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: isDark 
-              ? AppTheme.primaryGreen.withOpacity(0.3) 
-              : AppTheme.primaryGreen.withOpacity(0.2),
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isDark 
+                ? AppTheme.primaryGreen.withOpacity(0.3) 
+                : AppTheme.primaryGreen.withOpacity(0.2),
+          ),
         ),
-      ),
-      child: Column(
-        children: [
-          Icon(icon, color: color, size: 18),
-          const SizedBox(height: 4),
-          Text(value, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: color)),
-          const SizedBox(height: 2),
-          Text(label, style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant)),
-        ],
+        child: Column(
+          children: [
+            Icon(icon, color: color, size: 18),
+            const SizedBox(height: 4),
+            Text(value, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: color)),
+            const SizedBox(height: 2),
+            Text(label, style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+          ],
+        ),
       ),
     );
   }
