@@ -403,56 +403,6 @@ class _JuzAssignmentScreenState extends State<JuzAssignmentScreen> with SingleTi
   }
 
 
-  String _getInitials2(String name) {
-    final clean = name.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '').trim();
-    if (clean.isEmpty) return 'UM';
-    if (clean.length >= 2) {
-      return clean.substring(0, 2).toUpperCase();
-    }
-    return clean.toUpperCase();
-  }
-
-  bool _checkCollisionInGroup(String candidate, String currentName, List<String> group) {
-    for (var otherName in group) {
-      if (otherName == currentName) continue;
-      
-      final otherClean = otherName.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '').trim();
-      final otherCandidate = otherClean.length >= 3 
-          ? otherClean.substring(0, 3).toUpperCase() 
-          : '${otherClean}X'.toUpperCase().substring(0, 3);
-      
-      if (otherCandidate == candidate) return true;
-    }
-    return false;
-  }
-
-  String _getInitials3(String name, List<String> duplicateGroup) {
-    final clean = name.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '').trim();
-    if (clean.isEmpty) return 'UMM';
-    
-    String candidate = clean.length >= 3 
-        ? clean.substring(0, 3).toUpperCase() 
-        : '${clean}X'.toUpperCase().substring(0, 3);
-        
-    int attempts = 2; // start using character at index 2 (3rd char)
-    String currentCandidate = candidate;
-    bool hasCollision = _checkCollisionInGroup(currentCandidate, name, duplicateGroup);
-    
-    while (hasCollision && attempts < clean.length) {
-      final nextChar = clean[attempts].toUpperCase();
-      currentCandidate = '${clean.substring(0, 2).toUpperCase()}$nextChar';
-      hasCollision = _checkCollisionInGroup(currentCandidate, name, duplicateGroup);
-      attempts++;
-    }
-    
-    if (hasCollision) {
-      final idx = duplicateGroup.indexOf(name);
-      currentCandidate = '${clean.substring(0, 2).toUpperCase()}${idx + 1}';
-    }
-    
-    return currentCandidate;
-  }
-
   String _getInitials(String? name) {
     if (name == null || name.isEmpty) return '??';
     final cleanName = name.replaceAll(RegExp(r'[^a-zA-Z0-9\s]'), '').trim();
@@ -479,26 +429,46 @@ class _JuzAssignmentScreenState extends State<JuzAssignmentScreen> with SingleTi
       _memberColors[userId] = color;
     }
 
-    // 2. Generate unique initials (2 letters by default, 3 letters if duplicates found)
-    final Map<String, List<String>> reverseMap = {}; // initials -> list of usernames
-    for (var member in _members) {
-      final user = member['users'] as Map<String, dynamic>? ?? {};
-      final username = user['username'] as String? ?? 'Umum';
-      final initials = _getInitials2(username);
-      reverseMap.putIfAbsent(initials, () => []).add(username);
-    }
-
+    // 2. Generate unique initials (2-3 characters) using an assigned registry
+    final Set<String> assigned = {};
     for (var member in _members) {
       final user = member['users'] as Map<String, dynamic>? ?? {};
       final username = user['username'] as String? ?? 'Umum';
       final userId = member['user_id'] as String;
-      final initials = _getInitials2(username);
 
-      if (reverseMap[initials]!.length > 1) {
-        _uniqueInitials[userId] = _getInitials3(username, reverseMap[initials]!);
+      final clean = username.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '').trim();
+      String initial = '';
+      if (clean.length >= 2) {
+        initial = clean.substring(0, 2).toUpperCase();
+      } else if (clean.isNotEmpty) {
+        initial = '${clean.toUpperCase()}X'.substring(0, 2);
       } else {
-        _uniqueInitials[userId] = initials;
+        initial = 'UM';
       }
+
+      // If initial is already assigned, try 3 characters
+      if (assigned.contains(initial)) {
+        if (clean.length >= 3) {
+          initial = clean.substring(0, 3).toUpperCase();
+        } else if (clean.length >= 2) {
+          initial = '${clean.substring(0, 2)}1'.toUpperCase();
+        }
+      }
+
+      // If still colliding, append sequential numbers starting from 1
+      int suffix = 1;
+      while (assigned.contains(initial)) {
+        if (clean.length >= 2) {
+          final prefix = clean.substring(0, 2).toUpperCase();
+          initial = '$prefix$suffix';
+        } else {
+          initial = 'UM$suffix';
+        }
+        suffix++;
+      }
+
+      assigned.add(initial);
+      _uniqueInitials[userId] = initial;
     }
   }
 
@@ -1351,13 +1321,13 @@ class _JuzAssignmentScreenState extends State<JuzAssignmentScreen> with SingleTi
                                     decoration: BoxDecoration(
                                       color: hasClaim 
                                           ? (isPending 
-                                              ? Colors.amber.withOpacity(isDark ? 0.08 : 0.15)
+                                              ? claimerColor.withOpacity(isDark ? 0.05 : 0.09)
                                               : claimerColor.withOpacity(isDark ? 0.12 : 0.20))
                                           : cardBg,
                                       borderRadius: BorderRadius.circular(12),
                                       border: Border.all(
                                         color: isPending
-                                            ? Colors.amber.withOpacity(_pulseAnimation.value)
+                                            ? claimerColor.withOpacity(0.2 + (_pulseAnimation.value * 0.7))
                                             : (hasClaim
                                                 ? claimerColor.withOpacity(isDark ? 0.4 : 0.6)
                                                 : (isDark ? Colors.white10 : Colors.grey.shade300)),
@@ -1366,7 +1336,7 @@ class _JuzAssignmentScreenState extends State<JuzAssignmentScreen> with SingleTi
                                       boxShadow: isPending
                                           ? [
                                               BoxShadow(
-                                                color: Colors.amber.withOpacity(0.3 * _pulseAnimation.value),
+                                                color: claimerColor.withOpacity(0.4 * _pulseAnimation.value),
                                                 blurRadius: 6,
                                                 spreadRadius: 1,
                                               )
@@ -1422,7 +1392,7 @@ class _JuzAssignmentScreenState extends State<JuzAssignmentScreen> with SingleTi
                                         child: Icon(
                                           Icons.hourglass_empty_rounded,
                                           size: 11,
-                                          color: Colors.amber.shade700,
+                                          color: claimerColor.withOpacity(0.5 + (_pulseAnimation.value * 0.5)),
                                         ),
                                       ),
 
