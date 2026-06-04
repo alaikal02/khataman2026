@@ -237,7 +237,7 @@ class PersonalHistoryService {
 
       final completedGroupSlots = await supabase
           .from('slot_khataman')
-          .select('putaran_id, putaran_siklus!inner(id_putaran, group_id, status_aktif_selesai, groups(visibility))')
+          .select('putaran_id, putaran_siklus!inner(id_putaran, group_id, status_aktif_selesai, groups(visibility, tipe_grup))')
           .eq('user_id', userId)
           .eq('putaran_siklus.status_aktif_selesai', 'SELESAI');
 
@@ -249,8 +249,9 @@ class PersonalHistoryService {
         final g = p?['groups'] as Map<String, dynamic>?;
         final pId = s['putaran_id'];
 
+        final isRutin = g?['tipe_grup'] == 'RUTIN';
         final localArchived = prefs.getBool('archived_group_${p?['group_id']}_$pId') ?? false;
-        return g?['visibility'] == 'ARCHIVED' || localArchived;
+        return isRutin || g?['visibility'] == 'ARCHIVED' || localArchived;
       }).toList();
 
       final cyclesMap = <dynamic, List<Map<String, dynamic>>>{};

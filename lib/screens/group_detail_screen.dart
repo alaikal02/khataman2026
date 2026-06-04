@@ -39,6 +39,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
   late ScrollController _scrollController;
   double _shrinkFactor = 0.0;
   bool _isExited = false;
+  bool _hasConfirmedDoa = false;
 
   final _memberSearchController = TextEditingController();
 
@@ -281,6 +282,17 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
         return;
       }
 
+      bool hasConfirmedDoa = false;
+      if (pData != null) {
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          hasConfirmedDoa = prefs.getBool('doa_confirmed_${pData['id_putaran']}') ?? false;
+          debugPrint('📖 [Preferences] Reading doa_confirmed_${pData['id_putaran']} = $hasConfirmedDoa');
+        } catch (e) {
+          debugPrint('🚨 [Preferences] Error reading local flag: $e');
+        }
+      }
+
       if (mounted) {
         setState(() {
           _group = groupData;
@@ -289,6 +301,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
           _members = membersList;
           _pendingCount = pCount;
           _completedCount = completedCount;
+          _hasConfirmedDoa = hasConfirmedDoa;
           _isLoading = false;
         });
       }
@@ -585,6 +598,35 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
     }
   }
 
+  Widget _buildHorizontalButton({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onPressed,
+  }) {
+    return ElevatedButton.icon(
+      onPressed: onPressed,
+      icon: Icon(icon, size: 14, color: Colors.white),
+      label: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Text(
+          label,
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+            fontSize: 12,
+          ),
+        ),
+      ),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: color,
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        elevation: 0,
+      ),
+    );
+  }
+
   Future<void> _showNewPutaranDialog() async {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final isRutinGroup = _group?['tipe_grup'] == 'RUTIN';
@@ -592,54 +634,141 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: Theme.of(context).colorScheme.surface,
-        title: Text('Mulai Putaran Baru?', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
-        content: Text(
-          'Grup Anda telah menyelesaikan siklus khataman ini.\n\nSilakan pilih metode pembagian Juz untuk putaran berikutnya:',
-          style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, height: 1.5),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          'Mulai Putaran Baru?',
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurface,
+            fontWeight: FontWeight.bold,
+          ),
         ),
-        actionsPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Grup Anda telah menyelesaikan siklus khataman ini.\n\nSilakan pilih metode pembagian Juz untuk putaran berikutnya:',
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  height: 1.5,
+                  fontSize: 14,
+                ),
+              ),
+              const SizedBox(height: 20),
+              if (isRutinGroup) ...[
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildHorizontalButton(
+                        icon: Icons.shuffle_rounded,
+                        label: 'Rolling Juz',
+                        color: const Color(0xFF7C3AED),
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          _startNewPutaran(3);
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _buildHorizontalButton(
+                        icon: Icons.group_work_rounded,
+                        label: 'Bagi Rata',
+                        color: AppTheme.primaryGreen,
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          _startNewPutaran(0);
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildHorizontalButton(
+                        icon: Icons.edit_note_rounded,
+                        label: 'Bagi Manual',
+                        color: isDark ? const Color(0xFF0D5257) : const Color(0xFF007A7C),
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          _startNewPutaran(2);
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _buildHorizontalButton(
+                        icon: Icons.touch_app_rounded,
+                        label: 'Klaim Mandiri',
+                        color: AppTheme.accentGold,
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          _startNewPutaran(1);
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ] else ...[
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildHorizontalButton(
+                        icon: Icons.group_work_rounded,
+                        label: 'Bagi Rata',
+                        color: AppTheme.primaryGreen,
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          _startNewPutaran(0);
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _buildHorizontalButton(
+                        icon: Icons.edit_note_rounded,
+                        label: 'Bagi Manual',
+                        color: isDark ? const Color(0xFF0D5257) : const Color(0xFF007A7C),
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          _startNewPutaran(2);
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: _buildHorizontalButton(
+                    icon: Icons.touch_app_rounded,
+                    label: 'Klaim Mandiri',
+                    color: AppTheme.accentGold,
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      _startNewPutaran(1);
+                    },
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text('Batal', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
-          ),
-          if (isRutinGroup)
-            ElevatedButton.icon(
-              onPressed: () {
-                Navigator.pop(ctx);
-                _startNewPutaran(3);
-              },
-              icon: const Icon(Icons.shuffle_rounded, size: 16),
-              label: const Text('Rolling Juz', style: TextStyle(color: Colors.white)),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF7C3AED),
+            child: Text(
+              'Batal',
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                fontWeight: FontWeight.bold,
               ),
             ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              _startNewPutaran(0);
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primaryGreen),
-            child: const Text('Bagi Rata', style: TextStyle(color: Colors.white)),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              _startNewPutaran(2);
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: isDark ? const Color(0xFF0D5257) : const Color(0xFF007A7C),
-            ),
-            child: const Text('Bagi Manual', style: TextStyle(color: Colors.white)),
-          ),
-          OutlinedButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              _startNewPutaran(1);
-            },
-            style: OutlinedButton.styleFrom(side: const BorderSide(color: AppTheme.accentGold)),
-            child: const Text('Klaim Mandiri', style: TextStyle(color: AppTheme.accentGold)),
           ),
         ],
       ),
@@ -1603,6 +1732,75 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                                                     ),
                                                   ],
                                                   IconButton(
+                                                    icon: Icon(Icons.admin_panel_settings_rounded, color: AppTheme.accentGold.withOpacity(0.8), size: 20),
+                                                    tooltip: 'Transfer Admin',
+                                                    onPressed: () async {
+                                                      final confirm = await showDialog<bool>(
+                                                        context: context,
+                                                        builder: (ctx) => AlertDialog(
+                                                          backgroundColor: Theme.of(context).colorScheme.surface,
+                                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                                          title: const Text('Transfer Admin?'),
+                                                          content: Text('Apakah Anda yakin ingin menyerahkan kepemilikan admin kepada ${user['username'] ?? 'anggota ini'}?\n\nSetelah transfer, Anda akan menjadi anggota biasa.'),
+                                                          actions: [
+                                                            TextButton(
+                                                              onPressed: () => Navigator.pop(ctx, false),
+                                                              child: Text('Batal', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                                                            ),
+                                                            ElevatedButton(
+                                                              onPressed: () => Navigator.pop(ctx, true),
+                                                              style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primaryGreen),
+                                                              child: const Text('Ya, Transfer', style: TextStyle(color: Colors.white)),
+                                                            ),
+                                                          ],
+                                                        ),
+                                                      );
+                                                      if (confirm != true) return;
+
+                                                      final targetUserId = member['user_id'] as String;
+                                                      _showLoadingDialog(context);
+                                                      try {
+                                                        final gName = widget.groupName ?? _group?['nama_grup'] ?? 'Grup';
+
+                                                        // 1. Update groups creator_id ke admin baru
+                                                        await _supabase
+                                                            .from('groups')
+                                                            .update({'creator_id': targetUserId})
+                                                            .eq('id_group', widget.groupId);
+
+                                                        // 2. Kirim notifikasi promosi admin
+                                                        try {
+                                                          await NotificationService.send(
+                                                            userId: targetUserId,
+                                                            type: 'JOIN_APPROVED',
+                                                            title: 'Promosi Admin 👑',
+                                                            body: 'Anda telah dijadikan Admin baru untuk grup "$gName" oleh admin sebelumnya.',
+                                                            groupId: widget.groupId,
+                                                          );
+                                                        } catch (_) {}
+
+                                                        if (mounted) {
+                                                          Navigator.pop(context); // Dismiss loading dialog
+                                                          Navigator.pop(sheetContext); // Close manage members dialog
+                                                          ScaffoldMessenger.of(context).showSnackBar(
+                                                            SnackBar(
+                                                              content: Text('Hak admin berhasil ditransfer ke ${user['username']}'),
+                                                              backgroundColor: AppTheme.primaryGreen,
+                                                            ),
+                                                          );
+                                                          _fetchData(silent: false);
+                                                        }
+                                                      } catch (err) {
+                                                        if (mounted) {
+                                                          Navigator.pop(context); // Dismiss loading dialog
+                                                          ScaffoldMessenger.of(context).showSnackBar(
+                                                            SnackBar(content: Text('Gagal mentransfer admin: $err'), backgroundColor: Colors.redAccent),
+                                                          );
+                                                        }
+                                                      }
+                                                    },
+                                                  ),
+                                                  IconButton(
                                                     icon: Icon(Icons.person_remove_rounded, color: Colors.redAccent.withOpacity(0.7), size: 20),
                                                     tooltip: 'Keluarkan Anggota',
                                                     onPressed: () async {
@@ -2153,6 +2351,23 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                           },
                         ),
                         dangerZoneDivider,
+                        ListTile(
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+                          leading: const Icon(Icons.exit_to_app_rounded, color: Colors.redAccent),
+                          title: const Text('Keluar dari Grup', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+                          subtitle: Text(
+                            'Keluar dan serahkan kepemilikan admin ke anggota lain',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: isDark ? Colors.white70 : const Color(0xFF5F6E65),
+                            ),
+                          ),
+                          onTap: () {
+                            Navigator.pop(ctx);
+                            _confirmLeaveGroupAsAdmin();
+                          },
+                        ),
+                        menuDivider,
                         ListTile(
                           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
                           leading: const Icon(Icons.delete_forever_rounded, color: Colors.redAccent),
@@ -3305,7 +3520,13 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
           OutlinedButton.icon(
             onPressed: () {
               Navigator.pop(ctx);
-              showDoaKhatamBottomSheet(context, onConfirmCompletion: _showDoaKhatamGroupConfirmation);
+              showDoaKhatamBottomSheet(
+                context,
+                onConfirmCompletion: _archiveGroup,
+                confirmationMessage: isRutin
+                    ? 'Tindakan ini akan menyelesaikan putaran siklus ini dan mencatatnya ke riwayat grup. Anda dapat langsung memulai putaran berikutnya. Lanjutkan?'
+                    : 'Tindakan ini akan menyelesaikan progres khataman, mengarsipkan grup ini secara permanen, dan mencatatnya ke riwayat seluruh anggota. Lanjutkan?',
+              );
             },
             icon: const Icon(Icons.auto_stories_rounded, size: 16),
             label: const Text('Belum, Baca Doa', style: TextStyle(fontWeight: FontWeight.w600)),
@@ -3336,10 +3557,24 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
     );
   }
 
-  /// Mengarsipkan grup atau menyelesaikan putaran RUTIN: update status, kirim notifikasi, refresh.
   Future<void> _archiveGroup() async {
     try {
       final bool isRutin = _group?['tipe_grup'] == 'RUTIN';
+
+      if (_putaran != null) {
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setBool('doa_confirmed_${_putaran!['id_putaran']}', true);
+          debugPrint('💾 [Preferences] Writing doa_confirmed_${_putaran!['id_putaran']} = true');
+        } catch (prefErr) {
+          debugPrint('Error saving local doa confirmed flag: $prefErr');
+        }
+      }
+      if (mounted) {
+        setState(() {
+          _hasConfirmedDoa = true;
+        });
+      }
 
       // 1. Update group visibility to ARCHIVED (hanya untuk INSIDENTAL)
       if (!isRutin) {
@@ -3401,6 +3636,10 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
             backgroundColor: AppTheme.primaryGreen,
           ),
         );
+        if (isRutin) {
+          // Tampilkan dialog putaran baru otomatis
+          _showNewPutaranDialog();
+        }
       }
     } catch (e) {
       debugPrint('🚨 [Archive Group Error] Failed to archive/complete cycle: $e');
@@ -3447,7 +3686,6 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
     final approvedMembersCount = _members.where((m) => m['approval_status'] == 'APPROVED').length;
     final memberCount = approvedMembersCount == 0 ? 1 : approvedMembersCount;
     final maxSlots = (30 / memberCount).ceil();
-    final isCreator = _group?['creator_id'] == currentUserId;
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardBgGradient = isDark
@@ -3712,7 +3950,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
             title: 'Maa Syaa Allah, Grup Anda Khatam! \uD83C\uDF89',
             description: 'Alhamdulillah! Grup "${_group?['nama_grup'] ?? 'Grup'}" telah menyelesaikan siklus khataman 30 Juz Al-Quran.',
             resetLabel: 'Putaran Baru',
-            showResetButton: isCreator,
+            showResetButton: _hasConfirmedDoa,
             onReset: _showNewPutaranDialog,
             onDoaKhatam: _showDoaKhatamGroupConfirmation,
           ),
@@ -3787,6 +4025,321 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
         ),
       ],
     );
+  }
+
+  // ── HELPER DIALOGS & ADMIN TRANSFER ──
+  void _showLoadingDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(
+        child: CircularProgressIndicator(color: AppTheme.primaryGreen),
+      ),
+    );
+  }
+
+  Future<String?> _showChooseNewAdminDialog(
+      BuildContext context, String groupName, List<Map<String, dynamic>> members) async {
+    return showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        String? selectedUserId;
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            return AlertDialog(
+              backgroundColor: Theme.of(context).colorScheme.surface,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              title: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(Icons.stars_rounded, color: AppTheme.accentGold, size: 28),
+                      SizedBox(width: 8),
+                      Text('Pilih Admin Baru', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Anda adalah Admin grup "$groupName". Pilih anggota aktif untuk menggantikan kepemimpinan Anda sebelum keluar:',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      height: 1.5,
+                    ),
+                  ),
+                ],
+              ),
+              content: SizedBox(
+                width: double.maxFinite,
+                height: 280,
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: members.length,
+                  itemBuilder: (context, idx) {
+                    final m = members[idx];
+                    final user = m['users'] as Map<String, dynamic>? ?? {};
+                    final uid = user['id_user'] as String? ?? m['user_id'] as String;
+                    final username = user['username'] as String? ?? 'Anggota';
+                    final email = user['email'] as String? ?? '';
+                    final avatarUrl = user['avatar_url'] as String?;
+                    final isSelected = selectedUserId == uid;
+
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? AppTheme.primaryGreen.withOpacity(0.08)
+                            : Theme.of(context).colorScheme.surfaceContainerLow,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: isSelected
+                              ? AppTheme.primaryGreen
+                              : Theme.of(context).dividerColor.withOpacity(0.2),
+                          width: isSelected ? 1.5 : 1.0,
+                        ),
+                      ),
+                      child: ListTile(
+                        onTap: () {
+                          setStateDialog(() {
+                            selectedUserId = uid;
+                          });
+                        },
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                        leading: CircleAvatar(
+                          backgroundImage: avatarUrl != null ? NetworkImage(avatarUrl) : null,
+                          onBackgroundImageError: (_, __) {},
+                          child: avatarUrl == null ? const Icon(Icons.person) : null,
+                        ),
+                        title: Text(
+                          username,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: Theme.of(context).colorScheme.onSurface,
+                          ),
+                        ),
+                        subtitle: email.isNotEmpty
+                            ? Text(
+                                email,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              )
+                            : null,
+                        trailing: Radio<String>(
+                          value: uid,
+                          groupValue: selectedUserId,
+                          activeColor: AppTheme.primaryGreen,
+                          onChanged: (val) {
+                            setStateDialog(() {
+                              selectedUserId = val;
+                            });
+                          },
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              actions: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(ctx, null),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.redAccent,
+                          side: const BorderSide(color: Colors.redAccent),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        child: const Text('Batal', style: TextStyle(fontWeight: FontWeight.w600)),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: selectedUserId == null
+                            ? null
+                            : () => Navigator.pop(ctx, selectedUserId),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppTheme.primaryGreen,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          textStyle: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        child: const Text('Konfirmasi & Lanjut'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _deleteGroupDirectly() async {
+    setState(() => _isLoading = true);
+    try {
+      await _supabase
+          .from('groups')
+          .delete()
+          .eq('id_group', widget.groupId);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Grup berhasil dihapus'), backgroundColor: AppTheme.primaryGreen),
+        );
+        Navigator.pop(context, true); // Pop back to groups list
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal menghapus grup: $e'), backgroundColor: Colors.redAccent),
+        );
+      }
+    }
+  }
+
+  Future<void> _confirmLeaveGroupAsAdmin() async {
+    final currentUserId = _supabase.auth.currentUser!.id;
+
+    // 1. Dapatkan anggota APPROVED lainnya
+    final membersRes = await _supabase
+        .from('group_members')
+        .select('user_id, users(username, email, avatar_url)')
+        .eq('group_id', widget.groupId)
+        .eq('approval_status', 'APPROVED')
+        .neq('user_id', currentUserId);
+
+    final otherMembers = List<Map<String, dynamic>>.from(
+      (membersRes as List).map((m) => {
+        'user_id': m['user_id'],
+        'users': m['users'],
+      }),
+    );
+
+    if (!mounted) return;
+
+    if (otherMembers.isEmpty) {
+      // Kasus 1: Tidak ada anggota lain -> Hapus grup secara permanen setelah konfirmasi
+      final confirmDelete = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: Theme.of(context).colorScheme.surface,
+          title: const Text('Keluar & Hapus Grup?'),
+          content: const Text(
+            'Anda adalah satu-satunya anggota di grup ini. Jika Anda keluar, '
+            'grup ini akan dihapus secara permanen dari server. Lanjutkan?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text('Batal', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+              child: const Text('Keluar & Hapus', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
+      );
+
+      if (confirmDelete == true) {
+        await _deleteGroupDirectly();
+      }
+    } else {
+      // Kasus 2: Ada anggota lain -> Tampilkan dialog pemilihan admin baru
+      final newAdminId = await _showChooseNewAdminDialog(
+        context,
+        _group?['nama_grup'] ?? 'Grup',
+        otherMembers,
+      );
+
+      if (newAdminId == null) {
+        // Batal
+        return;
+      }
+
+      if (!mounted) return;
+      _showLoadingDialog(context);
+
+      try {
+        final myMemberObj = _members.firstWhere(
+          (m) => m['user_id'] == currentUserId,
+          orElse: () => {},
+        );
+        final myUsername = myMemberObj['users']?['username'] as String?;
+        final gName = _group?['nama_grup'] ?? 'Grup';
+
+        // 1. Update groups creator_id ke admin baru
+        await _supabase
+            .from('groups')
+            .update({'creator_id': newAdminId})
+            .eq('id_group', widget.groupId);
+
+        // 2. Kirim notifikasi ke admin baru
+        try {
+          await NotificationService.send(
+            userId: newAdminId,
+            type: 'JOIN_APPROVED',
+            title: 'Promosi Admin 👑',
+            body: 'Anda telah ditunjuk sebagai Admin baru untuk grup "$gName" oleh admin sebelumnya.',
+            groupId: widget.groupId,
+          );
+        } catch (_) {}
+
+        // 3. Lepaskan slot-slot milik admin lama di putaran aktif
+        if (_putaran != null) {
+          try {
+            await _supabase
+                .from('slot_khataman')
+                .update({
+                  'user_id': null, 
+                  'ayat_terakhir_input': 0, 
+                  'status_checklist': false,
+                  'username_sebelumnya': myUsername,
+                })
+                .eq('putaran_id', _putaran!['id_putaran'])
+                .eq('user_id', currentUserId);
+          } catch (_) {}
+        }
+
+        // 4. Hapus admin lama dari group_members
+        await _supabase
+            .from('group_members')
+            .delete()
+            .eq('group_id', widget.groupId)
+            .eq('user_id', currentUserId);
+
+        if (mounted) {
+          Navigator.pop(context); // Dismiss loading dialog
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Berhasil menyerahkan admin dan keluar dari grup.'), backgroundColor: AppTheme.primaryGreen),
+          );
+          Navigator.pop(context, true); // Pop back to groups list
+        }
+      } catch (e) {
+        if (mounted) {
+          Navigator.pop(context); // Dismiss loading dialog
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Gagal keluar dari grup: $e'), backgroundColor: Colors.redAccent),
+          );
+        }
+      }
+    }
   }
 }
 

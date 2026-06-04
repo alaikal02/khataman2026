@@ -81,20 +81,21 @@ class _HistoryScreenState extends State<HistoryScreen> {
     try {
       final completedGroupSlots = await _supabase
           .from('slot_khataman')
-          .select('putaran_id, nomor_juz, updated_at, putaran_siklus!inner(id_putaran, group_id, nomor_putaran, start_date, target_deadline, status_aktif_selesai, groups(nama_grup, visibility))')
+          .select('putaran_id, nomor_juz, updated_at, putaran_siklus!inner(id_putaran, group_id, nomor_putaran, start_date, target_deadline, status_aktif_selesai, groups(nama_grup, visibility, tipe_grup))')
           .eq('user_id', userId)
           .eq('putaran_siklus.status_aktif_selesai', 'SELESAI');
 
       final slotsList = List<Map<String, dynamic>>.from(completedGroupSlots as List);
-      // Filter hanya grup yang sudah diarsipkan di DB atau ditandai selesai/arsip lokal
+      // Filter hanya grup yang sudah diarsipkan di DB atau ditandai selesai/arsip lokal (untuk RUTIN tidak perlu diarsip)
       final prefs = await SharedPreferences.getInstance();
       final archivedSlots = slotsList.where((s) {
         final p = s['putaran_siklus'] as Map<String, dynamic>?;
         final g = p?['groups'] as Map<String, dynamic>?;
         final pId = s['putaran_id'];
         
+        final isRutin = g?['tipe_grup'] == 'RUTIN';
         final localArchived = prefs.getBool('archived_group_${p?['group_id']}_$pId') ?? false;
-        return g?['visibility'] == 'ARCHIVED' || localArchived;
+        return isRutin || g?['visibility'] == 'ARCHIVED' || localArchived;
       }).toList();
 
       final cyclesMap = <dynamic, List<Map<String, dynamic>>>{};

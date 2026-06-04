@@ -53,3 +53,15 @@ CREATE TRIGGER on_username_updated
   AFTER UPDATE OF username ON public.users
   FOR EACH ROW
   EXECUTE FUNCTION public.handle_update_username();
+
+-- F. Perbaiki kebijakan RLS (Row Level Security) pada tabel public.groups agar admin dapat melakukan transfer kepemilikan (creator_id)
+-- Supabase secara default membatasi CHECK constraint pada new row agar sesuai USING. Kita perlu melonggarkan WITH CHECK menjadi true.
+DROP POLICY IF EXISTS "Allow creator to update groups" ON public.groups;
+DROP POLICY IF EXISTS "Enable update for users based on creator_id" ON public.groups;
+DROP POLICY IF EXISTS "Allow creators to update their groups" ON public.groups;
+
+CREATE POLICY "Allow creator to update groups" ON public.groups
+  FOR UPDATE
+  TO authenticated
+  USING (auth.uid() = creator_id)
+  WITH CHECK (true);

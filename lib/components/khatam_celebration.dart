@@ -3,7 +3,11 @@ import '../theme/app_theme.dart';
 
 /// Membuka bottom sheet premium doa khatam Al-Quran.
 /// Komponen ini reusable dan dapat dipanggil dari mana saja.
-void showDoaKhatamBottomSheet(BuildContext context, {VoidCallback? onConfirmCompletion}) {
+void showDoaKhatamBottomSheet(
+  BuildContext context, {
+  VoidCallback? onConfirmCompletion,
+  String? confirmationMessage,
+}) {
   showModalBottomSheet(
     context: context,
     isScrollControlled: true,
@@ -133,9 +137,45 @@ void showDoaKhatamBottomSheet(BuildContext context, {VoidCallback? onConfirmComp
               child: SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
-                  onPressed: () {
-                    Navigator.pop(ctx);
-                    onConfirmCompletion();
+                  onPressed: () async {
+                    final confirm = await showDialog<bool>(
+                      context: context,
+                      builder: (dialogCtx) => AlertDialog(
+                        backgroundColor: Theme.of(context).colorScheme.surface,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        title: const Text(
+                          'Selesaikan Khataman?',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        content: Text(
+                          confirmationMessage ?? 'Tindakan ini akan mencatat khataman ke riwayat dan menyelesaikan progres putaran saat ini. Lanjutkan?',
+                          style: const TextStyle(height: 1.5),
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(dialogCtx, false),
+                            child: Text(
+                              'Batal',
+                              style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                            ),
+                          ),
+                          ElevatedButton(
+                            onPressed: () => Navigator.pop(dialogCtx, true),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppTheme.primaryGreen,
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                            ),
+                            child: const Text('Ya, Selesaikan', style: TextStyle(fontWeight: FontWeight.bold)),
+                          ),
+                        ],
+                      ),
+                    );
+
+                    if (confirm == true) {
+                      Navigator.pop(ctx);
+                      onConfirmCompletion();
+                    }
                   },
                   icon: const Icon(Icons.check_circle_rounded, size: 18),
                   label: const Text(
@@ -243,74 +283,91 @@ class CongratulatoryCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () {
-                    if (onDoaKhatam != null) {
-                      onDoaKhatam!();
-                    } else {
-                      showDoaKhatamBottomSheet(context);
-                    }
-                  },
-                  icon: Icon(
-                    Icons.menu_book_rounded, 
-                    size: 16, 
-                    color: isDark ? Colors.white : const Color(0xFF8B6508),
-                  ),
-                  label: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text(
-                      'Doa Khatam', 
-                      maxLines: 1,
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold, 
-                        fontSize: 13,
-                        color: isDark ? Colors.white : const Color(0xFF8B6508),
-                      ),
+          if (showResetButton) ...[
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: onReset,
+                icon: const Icon(Icons.restart_alt_rounded, size: 18),
+                label: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    resetLabel, 
+                    maxLines: 1,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
                     ),
                   ),
-                  style: OutlinedButton.styleFrom(
-                    side: BorderSide(
-                      color: isDark ? Colors.white : AppTheme.accentGold.withOpacity(0.35), 
-                      width: 1.2,
-                    ),
-                    backgroundColor: isDark ? Colors.transparent : AppTheme.accentGold.withOpacity(0.12),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: isDark ? Colors.white : const Color(0xFFC5891C),
+                  foregroundColor: isDark ? const Color(0xFF9E680E) : Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  elevation: 0,
                 ),
               ),
-              if (showResetButton) ...[
-                const SizedBox(width: 10),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: onReset,
-                    icon: const Icon(Icons.restart_alt_rounded, size: 16),
-                    label: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Text(
-                        resetLabel, 
-                        maxLines: 1,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: isDark ? Colors.white : const Color(0xFFC5891C),
-                      foregroundColor: isDark ? const Color(0xFF9E680E) : Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      elevation: 0,
-                    ),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: TextButton.icon(
+                onPressed: () {
+                  if (onDoaKhatam != null) {
+                    onDoaKhatam!();
+                  } else {
+                    showDoaKhatamBottomSheet(context);
+                  }
+                },
+                icon: Icon(
+                  Icons.menu_book_rounded, 
+                  size: 16, 
+                  color: isDark ? Colors.white70 : const Color(0xFF8B6508),
+                ),
+                label: Text(
+                  'Doa Khatam', 
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold, 
+                    fontSize: 13,
+                    color: isDark ? Colors.white70 : const Color(0xFF8B6508),
                   ),
                 ),
-              ],
-            ],
-          ),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ),
+          ] else ...[
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  if (onDoaKhatam != null) {
+                    onDoaKhatam!();
+                  } else {
+                    showDoaKhatamBottomSheet(context);
+                  }
+                },
+                icon: const Icon(Icons.menu_book_rounded, size: 18),
+                label: const Text(
+                  'Doa Khatam', 
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold, 
+                    fontSize: 14,
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: isDark ? Colors.white : const Color(0xFFC5891C),
+                  foregroundColor: isDark ? const Color(0xFF9E680E) : Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  elevation: 0,
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );

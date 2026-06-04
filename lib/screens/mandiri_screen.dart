@@ -229,7 +229,11 @@ class _MandiriScreenState extends State<MandiriScreen> {
           OutlinedButton.icon(
             onPressed: () {
               Navigator.pop(ctx);
-              showDoaKhatamBottomSheet(context, onConfirmCompletion: _confirmDoaKhatamMandiri);
+              showDoaKhatamBottomSheet(
+                context,
+                onConfirmCompletion: _confirmDoaKhatamMandiri,
+                confirmationMessage: 'Tindakan ini akan mencatat khataman Mandiri Anda ke riwayat, lalu mereset seluruh progres kembali ke Juz 1 untuk memulai putaran baru. Lanjutkan?',
+              );
             },
             icon: const Icon(Icons.auto_stories_rounded, size: 16),
             label: const Text('Belum, Baca Doa', style: TextStyle(fontWeight: FontWeight.w600)),
