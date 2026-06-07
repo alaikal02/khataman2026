@@ -4,7 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../providers/auth_provider.dart';
 import '../theme/app_theme.dart';
 import '../services/notification_service.dart';
-import 'group_screen.dart';
+import '../features/group/presentation/group_list_screen.dart';
 import 'mandiri_screen.dart';
 import 'profile_screen.dart';
 import 'settings_screen.dart';
@@ -13,7 +13,7 @@ import 'history_screen.dart';
 import '../services/personal_history_service.dart';
 import 'package:app_links/app_links.dart';
 import 'dart:async';
-import 'group_detail_screen.dart';
+import '../features/group/presentation/group_detail_screen.dart';
 import 'surah_info_screen.dart';
 
 class HomeScreen extends StatefulWidget {

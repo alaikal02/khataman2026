@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/notification_service.dart';
 import '../theme/app_theme.dart';
-import 'group_detail_screen.dart';
-import 'juz_assignment_screen.dart';
+import '../features/group/presentation/group_detail_screen.dart';
+import '../features/group/presentation/juz_assignment_screen.dart';
 
 class NotificationScreen extends StatefulWidget {
   const NotificationScreen({Key? key}) : super(key: key);
