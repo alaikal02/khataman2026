@@ -318,7 +318,7 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
     final isComplete = absoluteIndex == _totalAyat;
 
     // PROTEKSI ANTI-REDUCTION: Jangan izinkan progres mundur dari posisi tersimpan
-    if (widget.isGroupMode && absoluteIndex < widget.lastAyat && widget.lastAyat > 0) {
+    if (absoluteIndex < _localLastAyat && _localLastAyat > 0) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -1170,16 +1170,16 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
                         max: 20.0,
                         divisions: 19,
                         onChanged: (double val) {
-                          if (widget.isGroupMode) {
-                            final fraction = val / 20.0;
-                            final targetIndex = (fraction * _totalAyat).round();
-                            if (targetIndex < _localLastAyat) {
-                              return; // Lock backward dragging
-                            }
+                          final fraction = val / 20.0;
+                          final targetIndex = (fraction * _totalAyat).round();
+                          if (targetIndex < _localLastAyat) {
+                            return; // Lock backward dragging
                           }
                           setState(() {
                             _sliderValue = val;
                           });
+                        },
+                        onChangeEnd: (double val) {
                           final fraction = val / 20.0;
                           final targetIndex = (fraction * _totalAyat).round();
                           _setFormProgressFromAbsoluteIndex(targetIndex);
@@ -1201,7 +1201,7 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
                           icon: const Icon(Icons.keyboard_arrow_down_rounded, color: AppTheme.primaryGreen),
                           items: _surahsInJuz.entries.map((entry) {
                             final bounds = entry.value;
-                            final isEnabled = !widget.isGroupMode || entry.key >= savedSurah;
+                            final isEnabled = entry.key >= savedSurah;
                             return DropdownMenuItem<int>(
                               value: entry.key,
                               enabled: isEnabled,
@@ -1217,13 +1217,31 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
                           }).toList(),
                           onChanged: (val) {
                             if (val == null) return;
-                            if (widget.isGroupMode && val < savedSurah) return;
+                            if (val < savedSurah) return;
                             setState(() {
                               _selectedSurah = val;
-                              if (widget.isGroupMode && val == savedSurah) {
-                                _ayatController.text = savedAyat.toString();
+                              final int targetAyat;
+                              if (val == savedSurah) {
+                                targetAyat = savedAyat;
                               } else {
-                                _ayatController.text = _surahsInJuz[val]![0].toString();
+                                targetAyat = _surahsInJuz[val]![0];
+                              }
+                              _ayatController.text = targetAyat > 0 ? targetAyat.toString() : '';
+                              
+                              if (_totalAyat > 0) {
+                                int absoluteIndex = 0;
+                                for (var entry in _surahsInJuz.entries) {
+                                  int surah = entry.key;
+                                  int start = entry.value[0];
+                                  int end = entry.value[1];
+                                  if (surah == val) {
+                                    absoluteIndex += (targetAyat - start + 1).clamp(0, end - start + 1);
+                                    break;
+                                  } else {
+                                    absoluteIndex += (end - start + 1);
+                                  }
+                                }
+                                _sliderValue = ((absoluteIndex / _totalAyat) * 20.0).roundToDouble().clamp(1.0, 20.0);
                               }
                             });
                           },
@@ -1237,9 +1255,9 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
                       style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
                       decoration: InputDecoration(
                         hintText: _selectedSurah != null 
-                            ? 'Ayat terakhir (Min ${widget.isGroupMode && _selectedSurah == savedSurah ? savedAyat : _surahsInJuz[_selectedSurah]![0]}, Max ${_surahsInJuz[_selectedSurah]![1]})'
+                            ? 'Ayat terakhir (Min ${_selectedSurah == savedSurah ? savedAyat : _surahsInJuz[_selectedSurah]![0]}, Max ${_surahsInJuz[_selectedSurah]![1]})'
                             : 'Pilih surat dulu',
-                        helperText: widget.isGroupMode && _selectedSurah == savedSurah && savedAyat > 0
+                        helperText: _selectedSurah == savedSurah && savedAyat > 0
                             ? 'Minimal ayat: $savedAyat (posisi tersimpan)'
                             : null,
                         helperStyle: const TextStyle(color: AppTheme.accentGold, fontSize: 10, fontWeight: FontWeight.bold),

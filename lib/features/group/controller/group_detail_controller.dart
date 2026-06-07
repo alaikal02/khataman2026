@@ -98,12 +98,8 @@ class GroupDetailController extends ChangeNotifier {
         );
 
     _subscription?.subscribe((status, [error]) {
-      if (status == RealtimeSubscribeStatus.channelError ||
-          status == RealtimeSubscribeStatus.closed ||
-          status == RealtimeSubscribeStatus.timedOut) {
-        Future.delayed(const Duration(seconds: 3), () {
-          setupRealtime(groupId);
-        });
+      if (error != null) {
+        debugPrint('🔄 [Realtime Group] Subscription status: $status, error: $error');
       }
     });
   }

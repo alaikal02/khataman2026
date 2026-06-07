@@ -17,7 +17,7 @@ class GroupRepository {
     final data = await _supabase
         .from('groups')
         .select('*')
-        .eq('id_grup', groupId)
+        .eq('id_group', groupId)
         .single();
     return GroupModel.fromJson(data);
   }
@@ -27,8 +27,8 @@ class GroupRepository {
     final List<dynamic> data = await _supabase
         .from('putaran_siklus')
         .select('*')
-        .eq('id_grup', groupId)
-        .eq('status_selesai', false);
+        .eq('group_id', groupId)
+        .eq('status_aktif_selesai', 'AKTIF');
     if (data.isEmpty) return null;
     return PutaranModel.fromJson(data.first as Map<String, dynamic>);
   }
@@ -47,7 +47,7 @@ class GroupRepository {
     final List<dynamic> data = await _supabase
         .from('slot_khataman')
         .select('*, users(*)')
-        .eq('id_putaran', putaranId);
+        .eq('putaran_id', putaranId);
     
     final slots = data.map((json) => SlotKhatamanModel.fromJson(json as Map<String, dynamic>)).toList();
     slots.sort((a, b) => a.nomorJuz.compareTo(b.nomorJuz));
@@ -59,7 +59,7 @@ class GroupRepository {
     await _supabase
         .from('groups')
         .update({'limit_juz': limitJuz})
-        .eq('id_grup', groupId);
+        .eq('id_group', groupId);
   }
 
   // 6. Bulk Save/Update Slots
@@ -111,7 +111,7 @@ class GroupRepository {
     await _supabase
         .from('groups')
         .update({'creator_id': newAdminId})
-        .eq('id_grup', groupId);
+        .eq('id_group', groupId);
   }
 
   // 10. Delete Group
@@ -119,7 +119,7 @@ class GroupRepository {
     await _supabase
         .from('groups')
         .delete()
-        .eq('id_grup', groupId);
+        .eq('id_group', groupId);
   }
 
   // 11. Leave Group (Member)
@@ -140,7 +140,7 @@ class GroupRepository {
       await _supabase
           .from('slot_khataman')
           .update({'user_id': null, 'approval_lepas_status': null})
-          .eq('id_putaran', activePutaran.idPutaran)
+          .eq('putaran_id', activePutaran.idPutaran)
           .eq('user_id', userId);
     }
   }

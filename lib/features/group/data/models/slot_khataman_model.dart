@@ -25,8 +25,8 @@ class SlotKhatamanModel {
 
   factory SlotKhatamanModel.fromJson(Map<String, dynamic> json) {
     return SlotKhatamanModel(
-      idSlot: json['id_slot'] as String? ?? '',
-      idPutaran: json['id_putaran'] as String? ?? '',
+      idSlot: json['id_slot']?.toString() ?? '',
+      idPutaran: (json['putaran_id'] ?? json['id_putaran'] ?? json['putaran_siklus']?['id_putaran'])?.toString() ?? '',
       nomorJuz: json['nomor_juz'] as int? ?? 1,
       userId: json['user_id'] as String?,
       ayatTerakhirInput: json['ayat_terakhir_input'] as int? ?? 0,
@@ -41,6 +41,7 @@ class SlotKhatamanModel {
 
   Map<String, dynamic> toJson() => {
         'id_slot': idSlot,
+        'putaran_id': idPutaran,
         'id_putaran': idPutaran,
         'nomor_juz': nomorJuz,
         'user_id': userId,

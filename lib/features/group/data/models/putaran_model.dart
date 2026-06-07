@@ -16,9 +16,9 @@ class PutaranModel {
   factory PutaranModel.fromJson(Map<String, dynamic> json) {
     return PutaranModel(
       idPutaran: json['id_putaran'] as String? ?? '',
-      idGrup: json['id_grup'] as String? ?? '',
+      idGrup: (json['group_id'] ?? json['id_grup']) as String? ?? '',
       nomorPutaran: json['nomor_putaran'] as int? ?? 1,
-      statusSelesai: json['status_selesai'] == true,
+      statusSelesai: json['status_aktif_selesai'] == 'SELESAI' || json['status_selesai'] == true,
       createdAt: json['created_at'] != null
           ? DateTime.parse(json['created_at'] as String)
           : DateTime.now(),
@@ -27,8 +27,10 @@ class PutaranModel {
 
   Map<String, dynamic> toJson() => {
         'id_putaran': idPutaran,
+        'group_id': idGrup,
         'id_grup': idGrup,
         'nomor_putaran': nomorPutaran,
+        'status_aktif_selesai': statusSelesai ? 'SELESAI' : 'AKTIF',
         'status_selesai': statusSelesai,
         'created_at': createdAt.toIso8601String(),
       };

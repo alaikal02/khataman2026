@@ -34,7 +34,6 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
   Map<String, dynamic>? _putaran;
   List<dynamic> _slots = [];
   List<dynamic> _members = [];
-  RealtimeChannel? _subscription;
   bool _isLoading = true;
   int _pendingCount = 0;
   int _completedCount = 0;
@@ -51,7 +50,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _controller = GroupDetailController();
-    _controller.fetchData(widget.groupId);
+    _controller.addListener(_onControllerChanged);
     _controller.setupRealtime(widget.groupId);
     _shimmerController = AnimationController(
       vsync: this,
@@ -60,20 +59,13 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
     _scrollController = ScrollController();
     _scrollController.addListener(_scrollListener);
     _fetchData();
-    _setupRealtime();
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _controller.removeListener(_onControllerChanged);
     _controller.dispose();
-    if (_subscription != null) {
-      try {
-        _supabase.removeChannel(_subscription!);
-      } catch (e) {
-        debugPrint('🔄 [Realtime Group] Error removing channel on dispose: $e');
-      }
-    }
     _scrollController.removeListener(_scrollListener);
     _scrollController.dispose();
     _shimmerController.dispose();
@@ -95,85 +87,51 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      debugPrint('🔄 [App Lifecycle] App resumed in Group Detail. Refreshing data and subscription...');
+      debugPrint('🔄 [App Lifecycle] App resumed in Group Detail. Refreshing data...');
       _fetchData(silent: true);
-      _setupRealtime();
     }
   }
 
-  void _setupRealtime() {
-    final channelName = 'group_detail_${widget.groupId}';
-    // debugPrint('🔄 [Realtime Group] Menghubungkan ke channel: $channelName...');
+  void _onControllerChanged() {
+    if (!mounted) return;
 
-    // Bersihkan subscription lama jika ada
-    if (_subscription != null) {
-      try {
-        _supabase.removeChannel(_subscription!);
-      } catch (e) {
-        debugPrint('🔄 [Realtime Group] Error removing old channel: $e');
-      }
+    bool showCelebrationDialog = false;
+    if (_putaran != null &&
+        _putaran!['status_aktif_selesai'] == 'AKTIF' &&
+        _controller.putaran != null &&
+        _controller.putaran!.statusSelesai) {
+      showCelebrationDialog = true;
     }
 
-    _subscription = _supabase.channel(channelName)
-        .onPostgresChanges(
-          event: PostgresChangeEvent.all,
-          schema: 'public',
-          table: 'slot_khataman',
-          callback: (payload) {
-            debugPrint('🔄 [Realtime Group] Slot khataman changed. Refreshing...');
-            if (mounted) _fetchData(silent: true);
-          },
-        )
-        .onPostgresChanges(
-          event: PostgresChangeEvent.all,
-          schema: 'public',
-          table: 'putaran_siklus',
-          callback: (payload) {
-            debugPrint('🔄 [Realtime Group] Putaran siklus changed. Refreshing...');
-            if (mounted) _fetchData(silent: true);
-          },
-        )
-        .onPostgresChanges(
-          event: PostgresChangeEvent.all,
-          schema: 'public',
-          table: 'group_members',
-          callback: (payload) {
-            debugPrint('🔄 [Realtime Group] Group members changed. Refreshing...');
-            if (mounted) _fetchData(silent: true);
-          },
-        )
-        .onPostgresChanges(
-          event: PostgresChangeEvent.all,
-          schema: 'public',
-          table: 'groups',
-          callback: (payload) {
-            debugPrint('🔄 [Realtime Group] Group metadata changed. Refreshing...');
-            if (mounted) _fetchData(silent: true);
-          },
-        );
-
-    _subscription?.subscribe((status, [error]) {
-      // debugPrint('🔄 [Realtime Group] Status: $status${error != null ? ', Error: $error' : ''}');
-      
-      // Re-koneksi otomatis jika terjadi error atau timeout
-      if (status == RealtimeSubscribeStatus.channelError || 
-          status == RealtimeSubscribeStatus.closed ||
-          status == RealtimeSubscribeStatus.timedOut) {
-        // debugPrint('🔄 [Realtime Group] Terputus. Menghubungkan kembali dalam 3 detik...');
-        Future.delayed(const Duration(seconds: 3), () {
-          if (mounted) {
-            _setupRealtime();
-          }
-        });
+    setState(() {
+      _group = _controller.group?.toJson();
+      if (_group != null) {
+        _group!['id_group'] = _controller.group!.idGrup; // Compatibility mapping
       }
-    });
-  }
+      _putaran = _controller.putaran?.toJson();
+      if (_putaran != null) {
+        _putaran!['status_aktif_selesai'] = _controller.putaran!.statusSelesai ? 'SELESAI' : 'AKTIF';
+      }
+      _slots = _controller.slots.map((s) {
+        final json = s.toJson();
+        if (s.user != null) {
+          json['users'] = s.user!.toJson();
+        }
+        return json;
+      }).toList();
+      _members = _controller.members.map((m) {
+        final json = m.toJson();
+        if (m.user != null) {
+          json['users'] = m.user!.toJson();
+        }
+        return json;
+      }).toList();
+      _isLoading = _controller.isLoading;
+      _pendingCount = _controller.pendingCount;
+      _completedCount = _controller.completedCount;
+      _hasConfirmedDoa = _controller.hasConfirmedDoa;
 
-  Future<void> _fetchData({bool silent = false}) async {
-    try {
-      await _controller.fetchData(widget.groupId, silent: silent);
-      
-      if (_controller.isExited && !_isExited && mounted) {
+      if (_controller.isExited && !_isExited) {
         _isExited = true;
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -182,50 +140,17 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
             backgroundColor: Colors.redAccent,
           ),
         );
-        return;
       }
+    });
 
-      bool showCelebrationDialog = false;
-      if (_putaran != null &&
-          _putaran!['status_aktif_selesai'] == 'AKTIF' &&
-          _controller.putaran != null &&
-          _controller.putaran!.statusSelesai) {
-        showCelebrationDialog = true;
-      }
+    if (showCelebrationDialog) {
+      _showCelebration();
+    }
+  }
 
-      if (mounted) {
-        setState(() {
-          _group = _controller.group?.toJson();
-          if (_group != null) {
-            _group!['id_group'] = _controller.group!.idGrup; // Compatibility mapping
-          }
-          _putaran = _controller.putaran?.toJson();
-          if (_putaran != null) {
-            _putaran!['status_aktif_selesai'] = _controller.putaran!.statusSelesai ? 'SELESAI' : 'AKTIF';
-          }
-          _slots = _controller.slots.map((s) {
-            final json = s.toJson();
-            if (s.user != null) {
-              json['users'] = s.user!.toJson();
-            }
-            return json;
-          }).toList();
-          _members = _controller.members.map((m) {
-            final json = m.toJson();
-            if (m.user != null) {
-              json['users'] = m.user!.toJson();
-            }
-            return json;
-          }).toList();
-          _isLoading = _controller.isLoading;
-          _pendingCount = _controller.pendingCount;
-          _completedCount = _controller.completedCount;
-          _hasConfirmedDoa = _controller.hasConfirmedDoa;
-        });
-        if (showCelebrationDialog) {
-          _showCelebration();
-        }
-      }
+  Future<void> _fetchData({bool silent = false}) async {
+    try {
+      await _controller.fetchData(widget.groupId, silent: silent);
     } catch (e) {
       debugPrint('Error fetching data: $e');
       if (mounted) {
@@ -770,7 +695,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
   /// Admin langsung melepas slot (digunakan oleh admin approval)
   Future<void> _releaseSlot(int slotId) async {
     final slotObj = _slots.firstWhere(
-      (s) => s['id_slot'] == slotId,
+      (s) => s['id_slot'].toString() == slotId.toString(),
       orElse: () => <String, dynamic>{},
     );
     final Map<String, dynamic> slotMap = slotObj is Map<String, dynamic> ? slotObj : {};
@@ -812,7 +737,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
           final senderName = username.isNotEmpty ? '@$username' : 'Admin';
           final gName = _group?['nama_grup'] ?? 'Grup';
           final slotObj = _slots.firstWhere(
-            (s) => s['id_slot'] == slotId,
+            (s) => s['id_slot'].toString() == slotId.toString(),
             orElse: () => <String, dynamic>{},
           );
           final Map<String, dynamic> slotMap = slotObj is Map<String, dynamic> ? slotObj : {};
@@ -877,7 +802,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
         final senderName = username.isNotEmpty ? '@$username' : 'Anggota';
         final gName = _group?['nama_grup'] ?? 'Grup';
         final slotObj = _slots.firstWhere(
-          (s) => s['id_slot'] == slotId,
+          (s) => s['id_slot'].toString() == slotId.toString(),
           orElse: () => <String, dynamic>{},
         );
         final Map<String, dynamic> slotMap = slotObj is Map<String, dynamic> ? slotObj : {};
@@ -3930,7 +3855,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                   isAdmin: currentUserId == _group?['creator_id'],
                   memberName: memberName,
                   usernameSebelumnya: slot['username_sebelumnya'] as String?,
-                  slotId: slot['id_slot'] as int?,
+                  slotId: int.tryParse(slot['id_slot'].toString()),
                   groupId: widget.groupId,
                   groupName: _group?['nama_grup'],
                   onRelease: _releaseSlot,

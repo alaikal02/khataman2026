@@ -253,18 +253,21 @@ class _NotificationScreenState extends State<NotificationScreen> {
   }
 
   Future<void> _deleteNotification(String notifId) async {
+    final index = _notifications.indexWhere((n) => n['id'] == notifId);
+    if (index == -1) return;
+    
+    // Save a copy in case we need to roll back
+    final removedNotif = _notifications[index];
+
+    // Optimistically and synchronously remove from state to prevent Dismissible error
     setState(() {
-      _processingNotifIds.add(notifId);
+      _notifications.removeAt(index);
     });
 
     try {
       await NotificationService.delete(notifId);
       
       if (mounted) {
-        setState(() {
-          _notifications.removeWhere((n) => n['id'] == notifId);
-          _processingNotifIds.remove(notifId);
-        });
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Notifikasi berhasil dihapus 🗑️'),
@@ -274,9 +277,10 @@ class _NotificationScreenState extends State<NotificationScreen> {
         );
       }
     } catch (e) {
+      // Roll back if deletion failed
       if (mounted) {
         setState(() {
-          _processingNotifIds.remove(notifId);
+          _notifications.insert(index, removedNotif);
         });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

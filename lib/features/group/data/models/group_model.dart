@@ -21,7 +21,7 @@ class GroupModel {
 
   factory GroupModel.fromJson(Map<String, dynamic> json) {
     return GroupModel(
-      idGrup: json['id_grup'] as String? ?? '',
+      idGrup: (json['id_group'] ?? json['id_grup']) as String? ?? '',
       namaGrup: json['nama_grup'] as String? ?? '',
       deskripsi: json['deskripsi'] as String?,
       creatorId: json['creator_id'] as String? ?? '',
@@ -35,6 +35,7 @@ class GroupModel {
   }
 
   Map<String, dynamic> toJson() => {
+        'id_group': idGrup,
         'id_grup': idGrup,
         'nama_grup': namaGrup,
         'deskripsi': deskripsi,
