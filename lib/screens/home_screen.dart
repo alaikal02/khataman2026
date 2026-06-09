@@ -15,6 +15,8 @@ import 'package:app_links/app_links.dart';
 import 'dart:async';
 import '../features/group/presentation/group_detail_screen.dart';
 import 'surah_info_screen.dart';
+import 'package:quran/quran.dart' as quran;
+import 'active_khataman_list_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -29,6 +31,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   RealtimeChannel? _notificationChannel;
   final AppLinks _appLinks = AppLinks();
   StreamSubscription<Uri>? _linkSubscription;
+  List<Map<String, dynamic>> _activePrograms = [];
+  bool _loadingActivePrograms = true;
 
   @override
   void initState() {
@@ -36,6 +40,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     _fetchUnreadCount();
     _loadPersonalStats();
+    _loadActivePrograms();
     _subscribeToNotifications();
     _initDeepLinkListener();
   }
@@ -46,6 +51,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       debugPrint('🔔 [App Lifecycle] App resumed (foreground). Refreshing notifications...');
       _fetchUnreadCount();
       _loadPersonalStats();
+      _loadActivePrograms();
       _subscribeToNotifications();
     }
   }
@@ -92,6 +98,178 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         _unreadNotificationsCount = count;
       });
     }
+  }
+
+  Future<void> _loadActivePrograms() async {
+    if (!mounted) return;
+    setState(() {
+      _loadingActivePrograms = true;
+    });
+
+    try {
+      final programs = await _fetchActivePrograms();
+      if (mounted) {
+        setState(() {
+          _activePrograms = programs;
+          _loadingActivePrograms = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading active programs: $e');
+      if (mounted) {
+        setState(() {
+          _loadingActivePrograms = false;
+        });
+      }
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> _fetchActivePrograms() async {
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId == null) return [];
+
+    List<Map<String, dynamic>> programs = [];
+
+    // 1. Fetch Mandiri
+    try {
+      final mandiriRes = await Supabase.instance.client
+          .from('khataman_mandiri')
+          .select()
+          .eq('user_id', userId);
+
+      if (mandiriRes.isNotEmpty) {
+        final completedCount = mandiriRes.where((p) => p['selesai'] == true).length;
+        if (completedCount < 30) {
+          double totalProgressSum = 0.0;
+          DateTime latestUpdated = DateTime.fromMillisecondsSinceEpoch(0);
+          
+          for (var row in mandiriRes) {
+            final updatedAtStr = row['updated_at'] as String?;
+            if (updatedAtStr != null) {
+              final parsedDate = DateTime.parse(updatedAtStr);
+              if (parsedDate.isAfter(latestUpdated)) {
+                latestUpdated = parsedDate;
+              }
+            }
+
+            if (row['selesai'] == true) {
+              totalProgressSum += 1.0;
+            } else {
+              final lastAyat = row['ayat_terakhir'] as int? ?? 0;
+              if (lastAyat > 0) {
+                final juzNum = row['nomor_juz'] as int;
+                final surahsInJuz = quran.getSurahAndVersesFromJuz(juzNum);
+                int totalAyatInJuz = 0;
+                surahsInJuz.forEach((surah, bounds) {
+                  totalAyatInJuz += (bounds[1] - bounds[0] + 1);
+                });
+                if (totalAyatInJuz > 0) {
+                  double fraction = lastAyat / totalAyatInJuz;
+                  totalProgressSum += fraction > 1.0 ? 1.0 : fraction;
+                }
+              }
+            }
+          }
+
+          final progressPercent = (totalProgressSum / 30.0) * 100;
+          programs.add({
+            'type': 'MANDIRI',
+            'title': 'Khataman Mandiri',
+            'code': null,
+            'progress': progressPercent,
+            'updated_at': latestUpdated,
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching active mandiri: $e');
+    }
+
+    // 2. Fetch Active Group slots
+    try {
+      final slotsRes = await Supabase.instance.client
+          .from('slot_khataman')
+          .select('*, putaran_siklus!inner(*)')
+          .eq('user_id', userId)
+          .eq('status_checklist', false)
+          .eq('putaran_siklus.status_aktif_selesai', 'AKTIF');
+
+      final slotsList = slotsRes as List;
+      if (slotsList.isNotEmpty) {
+        // Group by group_id
+        Map<String, List<Map<String, dynamic>>> slotsByGroup = {};
+        for (var s in slotsList) {
+          final putaran = s['putaran_siklus'] as Map<String, dynamic>;
+          final groupId = putaran['group_id'] as String;
+          slotsByGroup.putIfAbsent(groupId, () => []).add(s);
+        }
+
+        if (slotsByGroup.isNotEmpty) {
+          final groupIds = slotsByGroup.keys.toList();
+          final groupsRes = await Supabase.instance.client
+              .from('groups')
+              .select('*')
+              .inFilter('id_group', groupIds);
+
+          final groupsList = groupsRes as List;
+          Map<String, Map<String, dynamic>> groupsMap = {
+            for (var g in groupsList) g['id_group'] as String: g
+          };
+
+          final putaranIds = slotsList.map((s) => s['putaran_id'] as String).toSet().toList();
+          final allSlotsRes = await Supabase.instance.client
+              .from('slot_khataman')
+              .select('putaran_id, status_checklist')
+              .inFilter('putaran_id', putaranIds);
+
+          final allSlotsList = allSlotsRes as List;
+          
+          Map<String, int> completedSlotsCount = {};
+          for (var s in allSlotsList) {
+            final pId = s['putaran_id'] as String;
+            if (s['status_checklist'] == true) {
+              completedSlotsCount[pId] = (completedSlotsCount[pId] ?? 0) + 1;
+            }
+          }
+
+          for (var entry in slotsByGroup.entries) {
+            final groupId = entry.key;
+            final groupSlots = entry.value;
+            final groupData = groupsMap[groupId];
+            if (groupData == null) continue;
+
+            DateTime latestUpdated = DateTime.fromMillisecondsSinceEpoch(0);
+            for (var s in groupSlots) {
+              final updatedAtStr = s['updated_at'] as String?;
+              if (updatedAtStr != null) {
+                final parsedDate = DateTime.parse(updatedAtStr);
+                if (parsedDate.isAfter(latestUpdated)) {
+                  latestUpdated = parsedDate;
+                }
+              }
+            }
+
+            final putaranId = groupSlots.first['putaran_id'] as String;
+            final completedCount = completedSlotsCount[putaranId] ?? 0;
+            final progressPercent = (completedCount / 30.0) * 100;
+
+            programs.add({
+              'type': 'GROUP',
+              'title': groupData['nama_grup'] as String,
+              'code': groupData['kode_gk_unik'] as String?,
+              'progress': progressPercent,
+              'updated_at': latestUpdated,
+              'groupId': groupId,
+            });
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching active group slots: $e');
+    }
+
+    programs.sort((a, b) => (b['updated_at'] as DateTime).compareTo(a['updated_at'] as DateTime));
+    return programs;
   }
 
   void _subscribeToNotifications() {
@@ -182,11 +360,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   // Header
                   _buildHeader(context, displayName, avatarUrl, authProvider),
                   const SizedBox(height: 18),
-                  // Greeting Card
-                  _buildGreetingCard(context, displayName),
-                  const SizedBox(height: 12),
                   // Personal History Card
                   _buildPersonalHistoryCard(context),
+                  // Active Khataman Section
+                  _buildActiveKhatamanSection(context),
                   const SizedBox(height: 18),
                   // Section Title
                   Text(
@@ -198,7 +375,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     ),
                   ),
                   const SizedBox(height: 12),
-                                  _buildFeatureCard(
+                  _buildFeatureCard(
                     context,
                     icon: Icons.person_rounded,
                     title: 'Khataman Mandiri',
@@ -208,7 +385,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
-                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const MandiriScreen())),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const MandiriScreen()),
+                    ).then((_) {
+                      _loadActivePrograms();
+                      _loadPersonalStats();
+                    }),
                   ),
                   const SizedBox(height: 10),
                   _buildFeatureCard(
@@ -221,7 +404,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
-                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const GroupScreen())),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const GroupScreen()),
+                    ).then((_) {
+                      _loadActivePrograms();
+                      _loadPersonalStats();
+                    }),
                   ),
                   const SizedBox(height: 18),
                   // Stats Row
@@ -332,78 +521,226 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
-  Widget _buildGreetingCard(BuildContext context, String name) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardBgGradient = isDark
-        ? const LinearGradient(
-            colors: [Color(0xFF1A3A2A), Color(0xFF0D2118)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          )
-        : const LinearGradient(
-            colors: [Color(0xFFEBFDF3), Color(0xFFD4F8E6)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          );
-    final headerTextColor = isDark ? AppTheme.primaryGreen : AppTheme.darkGreen;
-    final bodyTextColor = isDark ? Colors.white : const Color(0xFF1A1A2E);
-    final subtitleTextColor = isDark ? Colors.white70 : const Color(0xFF757575);
-    final iconBgColor = isDark ? AppTheme.primaryGreen.withOpacity(0.15) : AppTheme.primaryGreen.withOpacity(0.12);
-    final iconColor = isDark ? AppTheme.primaryGreen : AppTheme.darkGreen;
-    final borderColor = isDark ? AppTheme.primaryGreen.withOpacity(0.3) : AppTheme.primaryGreen.withOpacity(0.2);
-    final shadowColor = isDark ? AppTheme.primaryGreen.withOpacity(0.15) : AppTheme.primaryGreen.withOpacity(0.06);
+  Widget _buildActiveKhatamanSection(BuildContext context) {
+    if (_loadingActivePrograms) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 20),
+        child: Center(
+          child: SizedBox(
+            width: 24,
+            height: 24,
+            child: CircularProgressIndicator(
+              color: AppTheme.primaryGreen,
+              strokeWidth: 2,
+            ),
+          ),
+        ),
+      );
+    }
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
-        gradient: cardBgGradient,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: borderColor),
-        boxShadow: [
-          BoxShadow(color: shadowColor, blurRadius: 30, spreadRadius: 2),
-        ],
-      ),
-      child: Row(
+    if (_activePrograms.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final hasMoreThanTwo = _activePrograms.length > 2;
+    final displayItems = _activePrograms.take(2).toList();
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '📖  Al-Quran Al-Karim',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: headerTextColor,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 1,
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Khataman Aktif Anda',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
+              ),
+              if (hasMoreThanTwo)
+                TextButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const ActiveKhatamanListScreen(),
+                      ),
+                    ).then((_) {
+                      _loadActivePrograms();
+                      _loadPersonalStats();
+                    });
+                  },
+                  child: const Text(
+                    'Lihat Semua',
+                    style: TextStyle(
+                      color: AppTheme.primaryGreen,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  '"Dan bacalah Al-Quran dengan tartil."',
-                  style: TextStyle(fontSize: 15, color: bodyTextColor, fontStyle: FontStyle.italic, height: 1.5),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '— QS. Al-Muzzammil: 4',
-                  style: TextStyle(fontSize: 12, color: subtitleTextColor),
-                ),
-              ],
-            ),
+            ],
           ),
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: iconBgColor,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Icon(Icons.auto_stories_rounded, color: iconColor, size: 36),
-          ),
+          const SizedBox(height: 10),
+          ...displayItems.map((item) => _buildShortcutCard(context, item)).toList(),
         ],
       ),
     );
+
   }
+
+  Widget _buildShortcutCard(BuildContext context, Map<String, dynamic> item) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isGroup = item['type'] == 'GROUP';
+    final progress = item['progress'] as double;
+    final progressText = '${progress.toStringAsFixed(1)}%';
+
+    return GestureDetector(
+      onTap: () {
+        if (isGroup) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => GroupDetailScreen(groupId: item['groupId'] as String),
+            ),
+          ).then((_) {
+            _loadActivePrograms();
+            _loadPersonalStats();
+          });
+        } else {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const MandiriScreen(),
+            ),
+          ).then((_) {
+            _loadActivePrograms();
+            _loadPersonalStats();
+          });
+        }
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isDark 
+                ? AppTheme.primaryGreen.withOpacity(0.3) 
+                : Colors.grey.withOpacity(0.2),
+            width: 1.0,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(isDark ? 0.2 : 0.04),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: isGroup
+                              ? const Color(0xFF6C63FF).withOpacity(isDark ? 0.18 : 0.1)
+                              : const Color(0xFF2ECC71).withOpacity(isDark ? 0.18 : 0.1),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: isGroup
+                                ? const Color(0xFF6C63FF).withOpacity(0.3)
+                                : const Color(0xFF2ECC71).withOpacity(0.3),
+                            width: 0.8,
+                          ),
+                        ),
+                        child: Text(
+                          isGroup ? 'Grup' : 'Mandiri',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: isGroup ? const Color(0xFF6C63FF) : const Color(0xFF2ECC71),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          item['title'] as String,
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                            color: Theme.of(context).colorScheme.onSurface,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (isGroup && item['code'] != null) ...[
+                        const SizedBox(width: 6),
+                        Text(
+                          '#${item['code']}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.6),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(4),
+                          child: LinearProgressIndicator(
+                            value: progress / 100,
+                            minHeight: 6,
+                            backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              isGroup ? const Color(0xFF6C63FF) : const Color(0xFF2ECC71),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        progressText,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: Theme.of(context).colorScheme.onSurface,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Icon(
+              Icons.chevron_right_rounded,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              size: 24,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
 
   Widget _buildFeatureCard(
     BuildContext context, {
@@ -565,7 +902,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         Navigator.push(
           context,
           MaterialPageRoute(builder: (_) => const HistoryScreen()),
-        ).then((_) => _loadPersonalStats());
+        ).then((_) {
+          _loadPersonalStats();
+          _loadActivePrograms();
+        });
       },
       child: Container(
         width: double.infinity,
@@ -712,7 +1052,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             MaterialPageRoute(
               builder: (_) => GroupDetailScreen(groupId: groupId),
             ),
-          );
+          ).then((_) {
+            _loadActivePrograms();
+            _loadPersonalStats();
+          });
         } else if (status == 'PENDING') {
           _showSnackbarHome('Permintaan Anda bergabung di "$groupName" masih PENDING persetujuan Admin.');
           Navigator.push(
@@ -720,7 +1063,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             MaterialPageRoute(
               builder: (_) => const GroupScreen(),
             ),
-          );
+          ).then((_) {
+            _loadActivePrograms();
+            _loadPersonalStats();
+          });
         } else {
           _showSnackbarHome('Keanggotaan Anda di "$groupName" ditolak/ditangguhkan.', isError: true);
         }
@@ -857,9 +1203,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         _showSnackbarHome('Permintaan bergabung terkirim! Tunggu persetujuan Admin.');
       } else {
         _showSnackbarHome('Berhasil bergabung dengan "$groupName"!');
-        Navigator.push(context, MaterialPageRoute(
-          builder: (_) => GroupDetailScreen(groupId: groupId),
-        ));
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => GroupDetailScreen(groupId: groupId),
+          ),
+        ).then((_) {
+          _loadActivePrograms();
+          _loadPersonalStats();
+        });
       }
     } catch (e) {
       if (mounted) {
