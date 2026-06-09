@@ -75,6 +75,9 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
   late bool _localIsComplete;
   double _sliderValue = 2.0;
 
+  final LayerLink _layerLink = LayerLink();
+  OverlayEntry? _tooltipOverlayEntry;
+
   @override
   void initState() {
     super.initState();
@@ -223,6 +226,7 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
 
   @override
   void dispose() {
+    _hideTooltip();
     _ayatController.dispose();
     _expandController.dispose();
     super.dispose();
@@ -693,6 +697,138 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
     return p > 100 ? 100 : p;
   }
 
+  void _toggleTooltip() {
+    if (_tooltipOverlayEntry != null) {
+      _hideTooltip();
+    } else {
+      _showTooltip();
+    }
+  }
+
+  void _showTooltip() {
+    final surahDetails = _surahsInJuz.entries.map((entry) {
+      final name = quran.getSurahName(entry.key);
+      final bounds = entry.value;
+      return '• $name (Ayat ${bounds[0]} - ${bounds[1]})';
+    }).join('\n');
+    final tooltipMessage = 'Daftar Surat di Juz ${widget.juzNumber}:\n$surahDetails';
+
+    // Measure screen position to determine if we should show the tooltip above or below the badge
+    final renderBox = context.findRenderObject() as RenderBox?;
+    bool isBottomHalf = false;
+    double screenHeight = 800;
+    if (renderBox != null) {
+      final position = renderBox.localToGlobal(Offset.zero);
+      screenHeight = MediaQuery.of(context).size.height;
+      isBottomHalf = position.dy > screenHeight * 0.55;
+    }
+
+    _tooltipOverlayEntry = OverlayEntry(
+      builder: (context) {
+        return Stack(
+          children: [
+            Positioned.fill(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: _hideTooltip,
+              ),
+            ),
+            CompositedTransformFollower(
+              link: _layerLink,
+              showWhenUnlinked: false,
+              targetAnchor: isBottomHalf ? Alignment.topLeft : Alignment.bottomLeft,
+              followerAnchor: isBottomHalf ? Alignment.bottomLeft : Alignment.topLeft,
+              offset: Offset(0, isBottomHalf ? -6 : 6),
+              child: Material(
+                color: Colors.transparent,
+                child: IntrinsicWidth(
+                  child: Container(
+                    constraints: const BoxConstraints(
+                      maxWidth: 240,
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1E293B), // Premium Dark Slate
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.3),
+                          blurRadius: 8,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Text(
+                      tooltipMessage,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        height: 1.4,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+    Overlay.of(context).insert(_tooltipOverlayEntry!);
+  }
+
+  void _hideTooltip() {
+    _tooltipOverlayEntry?.remove();
+    _tooltipOverlayEntry = null;
+  }
+
+  Widget _buildIndividualSurahBadge() {
+    if (_surahsInJuz.isEmpty) return const SizedBox.shrink();
+
+    final count = _surahsInJuz.length;
+
+    return CompositedTransformTarget(
+      link: _layerLink,
+      child: GestureDetector(
+        onTap: _toggleTooltip,
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+            decoration: BoxDecoration(
+              color: AppTheme.primaryGreen.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(
+                color: AppTheme.primaryGreen.withOpacity(0.2),
+                width: 0.8,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  '$count Surat',
+                  style: const TextStyle(
+                    color: AppTheme.primaryGreen,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(width: 2),
+                const Icon(
+                  Icons.info_outline_rounded,
+                  size: 11,
+                  color: AppTheme.primaryGreen,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     // 1. Is this an unclaimed slot?
@@ -705,7 +841,6 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final isComplete = _localIsComplete;
     final progress = isComplete ? 100 : _calculateProgress();
-    final surahAwal = _surahsInJuz.isNotEmpty ? quran.getSurahName(_surahsInJuz.keys.first) : '';
     final savedPosition = _getSurahAndAyatFromAbsolute(_localLastAyat);
     final savedSurah = savedPosition['surah'] ?? 0;
     final savedAyat = savedPosition['ayat'] ?? 0;
@@ -852,6 +987,10 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
                                 fontSize: 15, fontWeight: FontWeight.w700, color: primaryTextColor,
                               ),
                             ),
+                            if (!widget.isGroupMode) ...[
+                              const SizedBox(width: 8),
+                              _buildIndividualSurahBadge(),
+                            ],
                             if (isComplete) ...[
                               const SizedBox(width: 6),
                               Container(
@@ -986,13 +1125,13 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
                             ],
                           ],
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          widget.isGroupMode
-                              ? (widget.memberName != null ? '@${widget.memberName}' : 'Slot Kosong')
-                              : surahAwal,
-                          style: TextStyle(fontSize: 12, color: secondaryTextColor),
-                        ),
+                        if (widget.isGroupMode) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            widget.memberName != null ? '@${widget.memberName}' : 'Slot Kosong',
+                            style: TextStyle(fontSize: 12, color: secondaryTextColor),
+                          ),
+                        ],
                         const SizedBox(height: 8),
                         // Progress Bar
                         ClipRRect(

@@ -104,9 +104,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   Future<void> _loadActivePrograms() async {
     if (!mounted) return;
-    setState(() {
-      _loadingActivePrograms = true;
-    });
+    if (_activePrograms.isEmpty) {
+      setState(() {
+        _loadingActivePrograms = true;
+      });
+    }
 
     try {
       final programs = await _fetchActivePrograms();
