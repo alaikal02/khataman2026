@@ -11,6 +11,7 @@ import 'providers/auth_provider.dart' as app_auth;
 import 'providers/settings_provider.dart';
 import 'theme/app_theme.dart';
 import 'widgets/custom_loading_screen.dart';
+import 'services/azan_notification_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -22,6 +23,9 @@ Future<void> main() async {
     url: dotenv.env['SUPABASE_URL'] ?? '',
     anonKey: dotenv.env['SUPABASE_ANON_KEY'] ?? '',
   );
+
+  // Initialize timezone & azan notification scheduling
+  await AzanNotificationService.initialize();
 
   runApp(
     MultiProvider(

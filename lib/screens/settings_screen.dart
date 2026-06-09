@@ -4,9 +4,47 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../theme/app_theme.dart';
 import '../providers/settings_provider.dart';
+import '../services/azan_notification_service.dart';
+import '../services/prayer_time_service.dart';
 
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends StatefulWidget {
   const SettingsScreen({Key? key}) : super(key: key);
+
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  bool _azanEnabled = false;
+  Map<String, bool> _azanToggles = {
+    'Subuh': true, 'Dzuhur': true, 'Ashar': true, 'Maghrib': true, 'Isya': true,
+  };
+  String _azanSound = 'default';
+  String _calcMethod = 'muslim_world_league';
+  String _madhab = 'syafii';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAzanSettings();
+  }
+
+  Future<void> _loadAzanSettings() async {
+    final enabled = await AzanNotificationService.isAzanEnabled();
+    final toggles = await AzanNotificationService.getAzanToggles();
+    final sound = await AzanNotificationService.getAzanSound();
+    final method = await PrayerTimeService.getCalcMethod();
+    final madhab = await PrayerTimeService.getMadhab();
+    if (mounted) {
+      setState(() {
+        _azanEnabled = enabled;
+        _azanToggles = toggles;
+        _azanSound = sound;
+        _calcMethod = method;
+        _madhab = madhab;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -140,6 +178,93 @@ class SettingsScreen extends StatelessWidget {
                 activeThumbColor: AppTheme.primaryGreen,
                 onChanged: settings.setGroupNotif,
               ),
+            ),
+          ]),
+
+          // ── SHALAT & AZAN ────────────────────────────────────
+          _sectionHeader(context, 'Shalat & Azan'),
+          _buildCard(context, [
+            // Master Azan Toggle
+            _buildTileLeading(context, 
+              icon: Icons.mosque_rounded,
+              iconColor: const Color(0xFF00BCD4),
+              title: 'Notifikasi Azan',
+              subtitle: _azanEnabled ? 'Aktif' : 'Nonaktif',
+              trailing: Switch(
+                value: _azanEnabled,
+                activeThumbColor: AppTheme.primaryGreen,
+                onChanged: (val) async {
+                  await AzanNotificationService.setAzanEnabled(val);
+                  setState(() => _azanEnabled = val);
+                },
+              ),
+            ),
+            if (_azanEnabled) ...[
+              _divider(context),
+              // Per-prayer toggles
+              ..._azanToggles.entries.map((entry) {
+                return Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+                      child: Row(
+                        children: [
+                          const SizedBox(width: 40),
+                          Expanded(
+                            child: Text(
+                              'Azan ${entry.key}',
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Theme.of(context).colorScheme.onSurface,
+                              ),
+                            ),
+                          ),
+                          Switch(
+                            value: entry.value,
+                            activeThumbColor: AppTheme.primaryGreen,
+                            onChanged: (val) async {
+                              await AzanNotificationService.setAzanToggle(entry.key, val);
+                              setState(() {
+                                _azanToggles[entry.key] = val;
+                              });
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                );
+              }),
+              _divider(context),
+              // Sound selection
+              _buildTileLeading(context, 
+                icon: Icons.volume_up_rounded,
+                iconColor: const Color(0xFFFF9800),
+                title: 'Suara Azan',
+                subtitle: AzanNotificationService.azanSoundOptions[_azanSound] ?? 'Default',
+                trailing: Icon(Icons.chevron_right_rounded, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                onTap: () => _showAzanSoundPicker(context),
+              ),
+            ],
+            _divider(context),
+            // Calculation method
+            _buildTileLeading(context, 
+              icon: Icons.calculate_rounded,
+              iconColor: const Color(0xFF6C63FF),
+              title: 'Metode Kalkulasi',
+              subtitle: PrayerTimeService.calcMethodOptions[_calcMethod] ?? _calcMethod,
+              trailing: Icon(Icons.chevron_right_rounded, color: Theme.of(context).colorScheme.onSurfaceVariant),
+              onTap: () => _showCalcMethodPicker(context),
+            ),
+            _divider(context),
+            // Madhab
+            _buildTileLeading(context, 
+              icon: Icons.school_rounded,
+              iconColor: const Color(0xFF4CAF50),
+              title: 'Madhab',
+              subtitle: PrayerTimeService.madhabOptions[_madhab] ?? _madhab,
+              trailing: Icon(Icons.chevron_right_rounded, color: Theme.of(context).colorScheme.onSurfaceVariant),
+              onTap: () => _showMadhabPicker(context),
             ),
           ]),
 
@@ -357,6 +482,168 @@ class SettingsScreen extends StatelessWidget {
         ),
         child,
       ],
+    );
+  }
+  void _showAzanSoundPicker(BuildContext context) {
+    String selected = _azanSound;
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setStateDialog) {
+          return AlertDialog(
+            backgroundColor: Theme.of(context).colorScheme.surface,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: Row(
+              children: [
+                const Icon(Icons.volume_up_rounded, color: Color(0xFFFF9800)),
+                const SizedBox(width: 8),
+                Text('Suara Azan', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Theme.of(context).colorScheme.onSurface)),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: AzanNotificationService.azanSoundOptions.entries.map((e) {
+                return RadioListTile<String>(
+                  title: Text(e.value, style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurface)),
+                  value: e.key,
+                  groupValue: selected,
+                  activeColor: AppTheme.primaryGreen,
+                  onChanged: (val) {
+                    if (val != null) setStateDialog(() => selected = val);
+                  },
+                );
+              }).toList(),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: Text('Batal', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  await AzanNotificationService.setAzanSound(selected);
+                  setState(() => _azanSound = selected);
+                  Navigator.pop(ctx);
+                },
+                style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primaryGreen),
+                child: const Text('Simpan', style: TextStyle(color: Colors.white)),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  void _showCalcMethodPicker(BuildContext context) {
+    String selected = _calcMethod;
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setStateDialog) {
+          return AlertDialog(
+            backgroundColor: Theme.of(context).colorScheme.surface,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: Row(
+              children: [
+                const Icon(Icons.calculate_rounded, color: Color(0xFF6C63FF)),
+                const SizedBox(width: 8),
+                Text('Metode Kalkulasi', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Theme.of(context).colorScheme.onSurface)),
+              ],
+            ),
+            content: SizedBox(
+              width: double.maxFinite,
+              height: 360,
+              child: ListView(
+                shrinkWrap: true,
+                children: PrayerTimeService.calcMethodOptions.entries.map((e) {
+                  return RadioListTile<String>(
+                    title: Text(e.value, style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurface)),
+                    value: e.key,
+                    groupValue: selected,
+                    activeColor: AppTheme.primaryGreen,
+                    onChanged: (val) {
+                      if (val != null) setStateDialog(() => selected = val);
+                    },
+                  );
+                }).toList(),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: Text('Batal', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  await PrayerTimeService.setCalcMethod(selected);
+                  setState(() => _calcMethod = selected);
+                  Navigator.pop(ctx);
+                },
+                style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primaryGreen),
+                child: const Text('Simpan', style: TextStyle(color: Colors.white)),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  void _showMadhabPicker(BuildContext context) {
+    String selected = _madhab;
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setStateDialog) {
+          return AlertDialog(
+            backgroundColor: Theme.of(context).colorScheme.surface,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: Row(
+              children: [
+                const Icon(Icons.school_rounded, color: Color(0xFF4CAF50)),
+                const SizedBox(width: 8),
+                Text('Madhab', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Theme.of(context).colorScheme.onSurface)),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: PrayerTimeService.madhabOptions.entries.map((e) {
+                return RadioListTile<String>(
+                  title: Text(e.value, style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurface)),
+                  subtitle: Text(
+                    e.key == 'syafii'
+                        ? 'Digunakan di Indonesia, Malaysia, dll.'
+                        : 'Digunakan di Turki, Pakistan, dll.',
+                    style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                  ),
+                  value: e.key,
+                  groupValue: selected,
+                  activeColor: AppTheme.primaryGreen,
+                  onChanged: (val) {
+                    if (val != null) setStateDialog(() => selected = val);
+                  },
+                );
+              }).toList(),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: Text('Batal', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  await PrayerTimeService.setMadhab(selected);
+                  setState(() => _madhab = selected);
+                  Navigator.pop(ctx);
+                },
+                style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primaryGreen),
+                child: const Text('Simpan', style: TextStyle(color: Colors.white)),
+              ),
+            ],
+          );
+        },
+      ),
     );
   }
 

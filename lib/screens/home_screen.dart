@@ -15,6 +15,8 @@ import 'package:app_links/app_links.dart';
 import 'dart:async';
 import '../features/group/presentation/group_detail_screen.dart';
 import 'surah_info_screen.dart';
+import 'prayer_time_screen.dart';
+import 'qibla_screen.dart';
 import 'package:quran/quran.dart' as quran;
 
 class HomeScreen extends StatefulWidget {
@@ -413,6 +415,41 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       _loadActivePrograms();
                       _loadPersonalStats();
                     }),
+                  ),
+                  const SizedBox(height: 10),
+                  _buildFeatureCard(
+                    context,
+                    icon: Icons.access_time_rounded,
+                    title: 'Jadwal Shalat',
+                    subtitle: 'Waktu shalat, countdown, & notifikasi azan',
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF00BCD4), Color(0xFF00838F)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const PrayerTimeScreen()),
+                    ).then((_) {
+                      _loadActivePrograms();
+                      _loadPersonalStats();
+                    }),
+                  ),
+                  const SizedBox(height: 10),
+                  _buildFeatureCard(
+                    context,
+                    icon: Icons.explore_rounded,
+                    title: 'Arah Kiblat',
+                    subtitle: 'Kompas digital penunjuk arah Ka\'bah',
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFFFF9800), Color(0xFFE65100)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const QiblaScreen()),
+                    ),
                   ),
                   const SizedBox(height: 18),
                   // Stats Row
@@ -838,7 +875,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 children: [
                   Text(title, style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: Theme.of(context).colorScheme.onSurface)),
                   const SizedBox(height: 6),
-                  Text(subtitle, style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant, height: 1.5)),
+                  Container(
+                    constraints: const BoxConstraints(minHeight: 39),
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      subtitle,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        height: 1.5,
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
