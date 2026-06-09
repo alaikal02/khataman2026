@@ -188,13 +188,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       debugPrint('Error fetching active mandiri: $e');
     }
 
-    // 2. Fetch Active Group slots
+    // 2. Fetch Active Group slots (fetch all user slots in active cycles to get correct latest updated_at)
     try {
       final slotsRes = await Supabase.instance.client
           .from('slot_khataman')
           .select('*, putaran_siklus!inner(*)')
           .eq('user_id', userId)
-          .eq('status_checklist', false)
           .eq('putaran_siklus.status_aktif_selesai', 'AKTIF');
 
       final slotsList = slotsRes as List;
