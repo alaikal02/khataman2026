@@ -16,7 +16,6 @@ import 'dart:async';
 import '../features/group/presentation/group_detail_screen.dart';
 import 'surah_info_screen.dart';
 import 'package:quran/quran.dart' as quran;
-import 'active_khataman_list_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -33,6 +32,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   StreamSubscription<Uri>? _linkSubscription;
   List<Map<String, dynamic>> _activePrograms = [];
   bool _loadingActivePrograms = true;
+  bool _isExpanded = false;
 
   @override
   void initState() {
@@ -112,6 +112,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         setState(() {
           _activePrograms = programs;
           _loadingActivePrograms = false;
+          if (programs.length <= 2) {
+            _isExpanded = false;
+          }
         });
       }
     } catch (e) {
@@ -543,54 +546,88 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
 
     final hasMoreThanTwo = _activePrograms.length > 2;
-    final displayItems = _activePrograms.take(2).toList();
 
     return Padding(
       padding: const EdgeInsets.only(top: 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Khataman Aktif Anda',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: Theme.of(context).colorScheme.onSurface,
-                ),
-              ),
-              if (hasMoreThanTwo)
-                TextButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const ActiveKhatamanListScreen(),
-                      ),
-                    ).then((_) {
-                      _loadActivePrograms();
-                      _loadPersonalStats();
-                    });
-                  },
-                  child: const Text(
-                    'Lihat Semua',
-                    style: TextStyle(
-                      color: AppTheme.primaryGreen,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-            ],
+          Text(
+            'Khataman Aktif Anda',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: Theme.of(context).colorScheme.onSurface,
+            ),
           ),
+
           const SizedBox(height: 10),
-          ...displayItems.map((item) => _buildShortcutCard(context, item)).toList(),
+          _buildActiveKhatamanList(),
+          if (hasMoreThanTwo) ...[
+            const SizedBox(height: 4),
+            _buildExpandCollapseButton(),
+          ],
         ],
       ),
     );
-
   }
+
+  Widget _buildActiveKhatamanList() {
+    if (_isExpanded) {
+      return ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.45,
+        ),
+        child: SingleChildScrollView(
+          physics: const ClampingScrollPhysics(),
+          child: Column(
+            children: _activePrograms.map((item) => _buildShortcutCard(context, item)).toList(),
+          ),
+        ),
+      );
+    } else {
+      final displayItems = _activePrograms.take(2).toList();
+      return Column(
+        children: displayItems.map((item) => _buildShortcutCard(context, item)).toList(),
+      );
+    }
+  }
+
+  Widget _buildExpandCollapseButton() {
+    return InkWell(
+      onTap: () {
+        setState(() {
+          _isExpanded = !_isExpanded;
+        });
+      },
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              _isExpanded ? 'Tampilkan Lebih Sedikit' : 'Tampilkan Lebih Banyak',
+              style: const TextStyle(
+                color: AppTheme.primaryGreen,
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Icon(
+              _isExpanded
+                  ? Icons.keyboard_arrow_up_rounded
+                  : Icons.keyboard_arrow_down_rounded,
+              color: AppTheme.primaryGreen,
+              size: 20,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
 
   Widget _buildShortcutCard(BuildContext context, Map<String, dynamic> item) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
