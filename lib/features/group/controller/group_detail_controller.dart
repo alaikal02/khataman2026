@@ -7,6 +7,8 @@ import '../data/models/group_member_model.dart';
 import '../data/models/group_model.dart';
 import '../data/models/putaran_model.dart';
 import '../data/models/slot_khataman_model.dart';
+import '../presentation/group_list_screen.dart';
+import '../../../screens/active_khataman_list_screen.dart';
 
 class GroupDetailController extends ChangeNotifier {
   final GroupRepository _repository;
@@ -66,6 +68,8 @@ class GroupDetailController extends ChangeNotifier {
           table: 'slot_khataman',
           callback: (payload) {
             debugPrint('🔄 [Realtime Group] Slot changed. Refreshing...');
+            GroupScreen.invalidateCache();
+            ActiveKhatamanListScreen.invalidateCache();
             fetchData(groupId, silent: true);
           },
         )
@@ -75,6 +79,8 @@ class GroupDetailController extends ChangeNotifier {
           table: 'putaran_siklus',
           callback: (payload) {
             debugPrint('🔄 [Realtime Group] Putaran changed. Refreshing...');
+            GroupScreen.invalidateCache();
+            ActiveKhatamanListScreen.invalidateCache();
             fetchData(groupId, silent: true);
           },
         )
@@ -84,6 +90,8 @@ class GroupDetailController extends ChangeNotifier {
           table: 'group_members',
           callback: (payload) {
             debugPrint('🔄 [Realtime Group] Members changed. Refreshing...');
+            GroupScreen.invalidateCache();
+            ActiveKhatamanListScreen.invalidateCache();
             fetchData(groupId, silent: true);
           },
         )
@@ -93,6 +101,8 @@ class GroupDetailController extends ChangeNotifier {
           table: 'groups',
           callback: (payload) {
             debugPrint('🔄 [Realtime Group] Group changed. Refreshing...');
+            GroupScreen.invalidateCache();
+            ActiveKhatamanListScreen.invalidateCache();
             fetchData(groupId, silent: true);
           },
         );
@@ -253,6 +263,8 @@ class GroupDetailController extends ChangeNotifier {
 
   // Confirm reading of Doa Khatam / Archive Group logic
   Future<void> archiveGroup(String groupId, {String? customGroupName}) async {
+    GroupScreen.invalidateCache();
+    ActiveKhatamanListScreen.invalidateCache();
     if (_putaran != null) {
       try {
         final prefs = await SharedPreferences.getInstance();
@@ -332,16 +344,22 @@ class GroupDetailController extends ChangeNotifier {
 
   // Transfer Ownership (Admin promotion)
   Future<void> transferAdmin(String groupId, String newAdminId) async {
+    GroupScreen.invalidateCache();
+    ActiveKhatamanListScreen.invalidateCache();
     await _repository.transferAdmin(groupId: groupId, newAdminId: newAdminId);
   }
 
   // Delete Group
   Future<void> deleteGroup(String groupId) async {
+    GroupScreen.invalidateCache();
+    ActiveKhatamanListScreen.invalidateCache();
     await _repository.deleteGroup(groupId);
   }
 
   // Leave Group
   Future<void> leaveGroup(String groupId, String userId) async {
+    GroupScreen.invalidateCache();
+    ActiveKhatamanListScreen.invalidateCache();
     await _repository.leaveGroup(groupId: groupId, userId: userId);
   }
 

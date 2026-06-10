@@ -5,15 +5,34 @@ import '../../../theme/app_theme.dart';
 import '../../../services/notification_service.dart';
 import 'dart:math';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../../screens/active_khataman_list_screen.dart';
+import 'dart:io';
+import 'dart:async';
 
 class GroupScreen extends StatefulWidget {
   const GroupScreen({Key? key}) : super(key: key);
+
+  static void invalidateCache() {
+    _GroupScreenState.invalidateCache();
+  }
 
   @override
   State<GroupScreen> createState() => _GroupScreenState();
 }
 
 class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStateMixin, WidgetsBindingObserver {
+  static List<Map<String, dynamic>>? _cachedAllGroups;
+  static Set<String>? _cachedMyGroupIds;
+  static Map<String, String>? _cachedMyMemberStatus;
+  static String? _cachedUserId;
+
+  static void invalidateCache() {
+    _cachedAllGroups = null;
+    _cachedMyGroupIds = null;
+    _cachedMyMemberStatus = null;
+    _cachedUserId = null;
+  }
+
   final Set<String> _selectedUsersForInvite = {};
   final _supabase = Supabase.instance.client;
   final _namaGrupController = TextEditingController();
@@ -23,6 +42,8 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
   // Map groupId -> approval_status ('APPROVED','PENDING','REJECTED')
   Map<String, String> _myMemberStatus = {};
   bool _isLoading = true;
+  bool _isOffline = false;
+  Timer? _offlineRetryTimer;
   final Set<String> _expandedGroupIds = {};
   final Map<String, String> _selectedMemberNamePerGroup = {};
   String _groupVisibility = 'PUBLIC'; // untuk form buat grup
@@ -35,6 +56,20 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _tabController = TabController(length: 3, vsync: this);
+
+    final userId = _supabase.auth.currentUser?.id;
+    if (userId != _cachedUserId) {
+      _cachedUserId = userId;
+      _cachedAllGroups = null;
+      _cachedMyGroupIds = null;
+      _cachedMyMemberStatus = null;
+    }
+
+    _allGroups = _cachedAllGroups ?? [];
+    _myGroupIds = _cachedMyGroupIds ?? {};
+    _myMemberStatus = _cachedMyMemberStatus ?? {};
+    _isLoading = _cachedAllGroups == null;
+
     _fetchData();
     _searchController.addListener(() => setState(() {}));
   }
@@ -45,6 +80,7 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
     _tabController.dispose();
     _namaGrupController.dispose();
     _searchController.dispose();
+    _offlineRetryTimer?.cancel();
     super.dispose();
   }
 
@@ -67,6 +103,18 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
     if (userId == null) return;
 
     try {
+      final isOnline = await _checkInternet();
+      if (!isOnline) {
+        if (mounted) {
+          setState(() {
+            _isOffline = true;
+            _isLoading = false;
+          });
+          _startOfflineRetryTimer();
+        }
+        return;
+      }
+
       final allGroupsData = await _supabase
           .from('groups')
           .select('''
@@ -123,21 +171,68 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
         processedAllGroups.addAll(List<Map<String, dynamic>>.from(allGroupsData));
       }
 
-      setState(() {
-        _allGroups = processedAllGroups;
-        _myGroupIds = Set<String>.from(
-          myGroupsData.map((item) => item['group_id'].toString()),
-        );
-        _myMemberStatus = {
-          for (final item in myGroupsData)
-            item['group_id'].toString(): (item['approval_status'] ?? 'APPROVED') as String
-        };
-        _isLoading = false;
-      });
+      _cachedAllGroups = processedAllGroups;
+      _cachedMyGroupIds = Set<String>.from(
+        myGroupsData.map((item) => item['group_id'].toString()),
+      );
+      _cachedMyMemberStatus = {
+        for (final item in myGroupsData)
+          item['group_id'].toString(): (item['approval_status'] ?? 'APPROVED') as String
+      };
+
+      if (mounted) {
+        setState(() {
+          _allGroups = _cachedAllGroups!;
+          _myGroupIds = _cachedMyGroupIds!;
+          _myMemberStatus = _cachedMyMemberStatus!;
+          _isLoading = false;
+          _isOffline = false;
+        });
+      }
+      _offlineRetryTimer?.cancel();
+      _offlineRetryTimer = null;
     } catch (e) {
-      setState(() => _isLoading = false);
-      _showSnackbar('Gagal memuat data: $e', isError: true);
+      final isOnline = await _checkInternet();
+      if (!isOnline) {
+        if (mounted) {
+          setState(() {
+            _isOffline = true;
+            _isLoading = false;
+          });
+          _startOfflineRetryTimer();
+        }
+      } else {
+        if (mounted) {
+          setState(() => _isLoading = false);
+          _showSnackbar('Gagal memuat data: $e', isError: true);
+        }
+      }
     }
+  }
+
+  Future<bool> _checkInternet() async {
+    try {
+      final result = await InternetAddress.lookup('dns.google').timeout(const Duration(seconds: 2));
+      return result.isNotEmpty && result[0].rawAddress.isNotEmpty;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  void _startOfflineRetryTimer() {
+    _offlineRetryTimer?.cancel();
+    _offlineRetryTimer = Timer.periodic(const Duration(seconds: 10), (timer) async {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      final isOnline = await _checkInternet();
+      if (isOnline) {
+        timer.cancel();
+        _offlineRetryTimer = null;
+        _fetchData();
+      }
+    });
   }
 
   Future<void> _createGroup() async {
@@ -169,6 +264,8 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
       _groupVisibility = 'PUBLIC';
       _groupType = 'INSIDENTAL';
       _showSnackbar('Grup "$namaGrup" berhasil dibuat! Kode: $uniqueCode');
+      invalidateCache();
+      ActiveKhatamanListScreen.invalidateCache();
       await _fetchData();
 
       if (mounted) {
@@ -186,7 +283,10 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
     void navigateToDetail() {
       if (hasNavigated) return;
       hasNavigated = true;
-      Navigator.push(context, MaterialPageRoute(builder: (_) => GroupDetailScreen(groupId: groupId)));
+      Navigator.push(context, MaterialPageRoute(builder: (_) => GroupDetailScreen(groupId: groupId)))
+          .then((_) {
+            if (mounted) _fetchData();
+          });
     }
     
     showModalBottomSheet(
@@ -727,6 +827,8 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
         print('Error sending join notification: $notifErr');
       }
 
+      invalidateCache();
+      ActiveKhatamanListScreen.invalidateCache();
       await _fetchData();
 
       if (isPrivate) {
@@ -736,7 +838,9 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
         if (mounted) {
           Navigator.push(context, MaterialPageRoute(
             builder: (_) => GroupDetailScreen(groupId: groupId),
-          ));
+          )).then((_) {
+            if (mounted) _fetchData();
+          });
         }
       }
     } catch (e) {
@@ -764,6 +868,8 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
       );
 
       _showSnackbar('Permintaan bergabung ke "$groupName" berhasil dibatalkan.');
+      invalidateCache();
+      ActiveKhatamanListScreen.invalidateCache();
       await _fetchData();
     } catch (e) {
       _showSnackbar('Gagal membatalkan permintaan: $e', isError: true);
@@ -888,12 +994,19 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator(color: AppTheme.primaryGreen))
-          : TabBarView(
-              controller: _tabController,
+          : Column(
               children: [
-                _buildAllGroupsTab(),
-                _buildMyGroupsTab(),
-                _buildArchivedGroupsTab(),
+                _buildOfflineBanner(),
+                Expanded(
+                  child: TabBarView(
+                    controller: _tabController,
+                    children: [
+                      _buildAllGroupsTab(),
+                      _buildMyGroupsTab(),
+                      _buildArchivedGroupsTab(),
+                    ],
+                  ),
+                ),
               ],
             ),
     );
@@ -2111,6 +2224,26 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildOfflineBanner() {
+    if (!_isOffline) return const SizedBox.shrink();
+    return Container(
+      width: double.infinity,
+      color: Colors.redAccent.withOpacity(0.9),
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+      child: const Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.wifi_off_rounded, color: Colors.white, size: 16),
+          SizedBox(width: 8),
+          Text(
+            'Koneksi Terputus. Menampilkan data offline terakhir.',
+            style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+          ),
+        ],
       ),
     );
   }

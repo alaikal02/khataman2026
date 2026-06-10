@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:audioplayers/audioplayers.dart';
 import '../theme/app_theme.dart';
@@ -14,8 +15,57 @@ class PrayerTimeScreen extends StatefulWidget {
 
 class _PrayerTimeScreenState extends State<PrayerTimeScreen>
     with SingleTickerProviderStateMixin {
+  static Map<String, DateTime>? _cachedPrayerTimes;
+  static double? _cachedLatitude;
+  static double? _cachedLongitude;
+  static String? _cachedCityName;
+
+  static DailyPrayerTimes? _reconstructFromCache() {
+    if (_cachedPrayerTimes == null ||
+        _cachedLatitude == null ||
+        _cachedLongitude == null ||
+        _cachedCityName == null) {
+      return null;
+    }
+
+    final staticMetadata = {
+      'Imsak': {'arabic': 'إمساك', 'fard': false},
+      'Subuh': {'arabic': 'الفجر', 'fard': true},
+      'Syuruk': {'arabic': 'الشروق', 'fard': false},
+      'Dhuha': {'arabic': 'الضحى', 'fard': false},
+      'Dzuhur': {'arabic': 'الظهر', 'fard': true},
+      'Ashar': {'arabic': 'العصر', 'fard': true},
+      'Maghrib': {'arabic': 'المغرب', 'fard': true},
+      'Isya': {'arabic': 'العشاء', 'fard': true},
+    };
+
+    final entries = <PrayerTimeEntry>[];
+    staticMetadata.forEach((name, meta) {
+      final time = _cachedPrayerTimes![name];
+      if (time != null) {
+        entries.add(PrayerTimeEntry(
+          name: name,
+          arabicName: meta['arabic'] as String,
+          time: time,
+          isFard: meta['fard'] as bool,
+        ));
+      }
+    });
+
+    return DailyPrayerTimes(
+      entries: entries,
+      locationName: _cachedCityName!,
+      latitude: _cachedLatitude!,
+      longitude: _cachedLongitude!,
+      date: _cachedPrayerTimes!.values.first,
+    );
+  }
+
   DailyPrayerTimes? _prayerTimes;
   bool _isLoading = true;
+  bool _isBackgroundRefreshing = false;
+  bool _isOffline = false;
+  Timer? _offlineRetryTimer;
   String? _errorMessage;
   Timer? _countdownTimer;
   Duration _timeUntilNext = Duration.zero;
@@ -43,6 +93,27 @@ class _PrayerTimeScreenState extends State<PrayerTimeScreen>
       vsync: this,
       duration: const Duration(milliseconds: 1500),
     )..repeat(reverse: true);
+
+    final today = DateTime.now();
+    if (_cachedPrayerTimes != null) {
+      final cachedDate = _cachedPrayerTimes!.values.first;
+      if (cachedDate.year != today.year ||
+          cachedDate.month != today.month ||
+          cachedDate.day != today.day) {
+        _cachedPrayerTimes = null;
+        _cachedLatitude = null;
+        _cachedLongitude = null;
+        _cachedCityName = null;
+      }
+    }
+
+    _prayerTimes = _reconstructFromCache();
+    _isLoading = _prayerTimes == null;
+
+    if (_prayerTimes != null) {
+      _startCountdown();
+    }
+
     _loadSettings();
   }
 
@@ -96,14 +167,41 @@ class _PrayerTimeScreenState extends State<PrayerTimeScreen>
     });
   }
 
-  Future<void> _loadPrayerTimes() async {
+  Future<void> _loadPrayerTimes({bool isManual = false}) async {
     if (!mounted) return;
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
+
+    if (isManual) {
+      _cachedPrayerTimes = null;
+      _cachedLatitude = null;
+      _cachedLongitude = null;
+      _cachedCityName = null;
+    }
 
     try {
+      final isOnline = await _checkInternet();
+      if (!isOnline) {
+        if (mounted) {
+          setState(() {
+            _isOffline = true;
+            _isLoading = false;
+            _isBackgroundRefreshing = false;
+          });
+          _startOfflineRetryTimer();
+        }
+        return;
+      }
+
+      if (_cachedPrayerTimes == null) {
+        setState(() {
+          _isLoading = true;
+          _errorMessage = null;
+        });
+      } else if (!isManual) {
+        setState(() {
+          _isBackgroundRefreshing = true;
+        });
+      }
+
       double? lat, lng;
       String locationName = 'Lokasi Tidak Diketahui';
 
@@ -156,25 +254,77 @@ class _PrayerTimeScreenState extends State<PrayerTimeScreen>
         madhab: _madhab,
       );
 
+      _cachedPrayerTimes = {
+        for (final entry in prayerTimes.entries) entry.name: entry.time
+      };
+      _cachedLatitude = lat;
+      _cachedLongitude = lng;
+      _cachedCityName = locationName;
+
       if (mounted) {
         setState(() {
           _prayerTimes = prayerTimes;
           _isLoading = false;
+          _isBackgroundRefreshing = false;
+          _isOffline = false;
         });
         _startCountdown();
 
         // Schedule azan notifications
         await AzanNotificationService.scheduleAzanNotifications(prayerTimes);
       }
+      _offlineRetryTimer?.cancel();
+      _offlineRetryTimer = null;
     } catch (e) {
-      debugPrint('Error loading prayer times: $e');
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-          _errorMessage = 'Gagal memuat jadwal shalat: $e';
-        });
+      final isOnline = await _checkInternet();
+      if (!isOnline) {
+        if (mounted) {
+          setState(() {
+            _isOffline = true;
+            _isLoading = false;
+            _isBackgroundRefreshing = false;
+          });
+          _startOfflineRetryTimer();
+        }
+      } else {
+        debugPrint('Error loading prayer times: $e');
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+            _isBackgroundRefreshing = false;
+            _isOffline = false;
+            _errorMessage = 'Gagal memuat jadwal shalat: $e';
+          });
+        }
+        _offlineRetryTimer?.cancel();
+        _offlineRetryTimer = null;
       }
     }
+  }
+
+  Future<bool> _checkInternet() async {
+    try {
+      final result = await InternetAddress.lookup('dns.google').timeout(const Duration(seconds: 2));
+      return result.isNotEmpty && result[0].rawAddress.isNotEmpty;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  void _startOfflineRetryTimer() {
+    _offlineRetryTimer?.cancel();
+    _offlineRetryTimer = Timer.periodic(const Duration(seconds: 10), (timer) async {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      final isOnline = await _checkInternet();
+      if (isOnline) {
+        timer.cancel();
+        _offlineRetryTimer = null;
+        _loadPrayerTimes();
+      }
+    });
   }
 
   void _startCountdown() {
@@ -212,6 +362,7 @@ class _PrayerTimeScreenState extends State<PrayerTimeScreen>
     _countdownTimer?.cancel();
     _pulseController.dispose();
     _audioPlayer.dispose();
+    _offlineRetryTimer?.cancel();
     super.dispose();
   }
 
@@ -240,6 +391,7 @@ class _PrayerTimeScreenState extends State<PrayerTimeScreen>
           child: Column(
             children: [
               _buildAppBar(context),
+              _buildOfflineBanner(),
               Expanded(
                 child: _isLoading
                     ? const Center(
@@ -249,7 +401,7 @@ class _PrayerTimeScreenState extends State<PrayerTimeScreen>
                         ? _buildErrorWidget()
                         : RefreshIndicator(
                             color: AppTheme.primaryGreen,
-                            onRefresh: _loadPrayerTimes,
+                            onRefresh: () => _loadPrayerTimes(isManual: true),
                             child: SingleChildScrollView(
                               physics: const AlwaysScrollableScrollPhysics(),
                               padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -349,7 +501,7 @@ class _PrayerTimeScreenState extends State<PrayerTimeScreen>
           ),
         ),
         TextButton.icon(
-          onPressed: _loadPrayerTimes,
+          onPressed: () => _loadPrayerTimes(isManual: true),
           icon: const Icon(Icons.refresh_rounded, size: 16),
           label: const Text('Refresh'),
           style: TextButton.styleFrom(foregroundColor: AppTheme.primaryGreen),
@@ -400,14 +552,30 @@ class _PrayerTimeScreenState extends State<PrayerTimeScreen>
       ),
       child: Column(
         children: [
-          Text(
-            hasNext ? 'Waktu Shalat Berikutnya' : 'Semua Shalat Hari Ini Selesai',
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-              color: Colors.white.withOpacity(0.85),
-              letterSpacing: 0.5,
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                hasNext ? 'Waktu Shalat Berikutnya' : 'Semua Shalat Hari Ini Selesai',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.white.withOpacity(0.85),
+                  letterSpacing: 0.5,
+                ),
+              ),
+              if (_isBackgroundRefreshing) ...[
+                const SizedBox(width: 8),
+                const SizedBox(
+                  width: 12,
+                  height: 12,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 1.5,
+                    color: Colors.white70,
+                  ),
+                ),
+              ],
+            ],
           ),
           if (hasNext) ...[
             const SizedBox(height: 6),
@@ -710,7 +878,7 @@ class _PrayerTimeScreenState extends State<PrayerTimeScreen>
             ),
             const SizedBox(height: 16),
             ElevatedButton.icon(
-              onPressed: _loadPrayerTimes,
+              onPressed: () => _loadPrayerTimes(isManual: true),
               icon: const Icon(Icons.refresh_rounded),
               label: const Text('Coba Lagi'),
             ),
@@ -1038,7 +1206,7 @@ class _PrayerTimeScreenState extends State<PrayerTimeScreen>
                               _azanToggles = Map.from(localAzanToggles);
                               _azanSound = localAzanSound;
                             });
-                            _loadPrayerTimes();
+                            _loadPrayerTimes(isManual: true);
                           }
                         },
                         style: ElevatedButton.styleFrom(
@@ -1065,5 +1233,25 @@ class _PrayerTimeScreenState extends State<PrayerTimeScreen>
       _audioPlayer.stop();
       _isPlayingPreview = false;
     });
+  }
+
+  Widget _buildOfflineBanner() {
+    if (!_isOffline) return const SizedBox.shrink();
+    return Container(
+      width: double.infinity,
+      color: Colors.redAccent.withOpacity(0.9),
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+      child: const Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.wifi_off_rounded, color: Colors.white, size: 16),
+          SizedBox(width: 8),
+          Text(
+            'Koneksi Terputus. Menampilkan data offline terakhir.',
+            style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+          ),
+        ],
+      ),
+    );
   }
 }

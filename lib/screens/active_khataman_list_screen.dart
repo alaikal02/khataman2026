@@ -8,31 +8,55 @@ import '../features/group/presentation/group_detail_screen.dart';
 class ActiveKhatamanListScreen extends StatefulWidget {
   const ActiveKhatamanListScreen({Key? key}) : super(key: key);
 
+  static void invalidateCache() {
+    _ActiveKhatamanListScreenState.invalidateCache();
+  }
+
   @override
   State<ActiveKhatamanListScreen> createState() => _ActiveKhatamanListScreenState();
 }
 
 class _ActiveKhatamanListScreenState extends State<ActiveKhatamanListScreen> {
+  static List<Map<String, dynamic>>? _cachedActivePrograms;
+  static String? _cachedUserId;
+
+  static void invalidateCache() {
+    _cachedActivePrograms = null;
+    _cachedUserId = null;
+  }
+
   List<Map<String, dynamic>> _activePrograms = [];
   bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId != _cachedUserId) {
+      _cachedUserId = userId;
+      _cachedActivePrograms = null;
+    }
+
+    _activePrograms = _cachedActivePrograms ?? [];
+    _isLoading = _cachedActivePrograms == null;
+
     _loadActivePrograms();
   }
 
   Future<void> _loadActivePrograms() async {
     if (!mounted) return;
-    setState(() {
-      _isLoading = true;
-    });
+    if (_cachedActivePrograms == null) {
+      setState(() {
+        _isLoading = true;
+      });
+    }
 
     final programs = await _fetchActivePrograms();
 
+    _cachedActivePrograms = programs;
     if (mounted) {
       setState(() {
-        _activePrograms = programs;
+        _activePrograms = _cachedActivePrograms!;
         _isLoading = false;
       });
     }

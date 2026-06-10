@@ -4,6 +4,8 @@ import '../data/group_repository.dart';
 import '../data/models/group_member_model.dart';
 import '../data/models/putaran_model.dart';
 import '../data/models/slot_khataman_model.dart';
+import '../presentation/group_list_screen.dart';
+import '../../../screens/active_khataman_list_screen.dart';
 
 class JuzAssignmentController extends ChangeNotifier {
   final GroupRepository _repository;
@@ -223,6 +225,8 @@ class JuzAssignmentController extends ChangeNotifier {
 
       if (changedSlots.isNotEmpty) {
         await _repository.updateSlots(changedSlots);
+        GroupScreen.invalidateCache();
+        ActiveKhatamanListScreen.invalidateCache();
       }
 
       _originalSlots = _slots.map((s) => SlotKhatamanModel.fromJson(s.toJson())).toList();
@@ -241,6 +245,8 @@ class JuzAssignmentController extends ChangeNotifier {
 
     try {
       await _repository.updateLimitJuz(groupId, val);
+      GroupScreen.invalidateCache();
+      ActiveKhatamanListScreen.invalidateCache();
     } catch (e) {
       _limitJuz = originalVal;
       notifyListeners();
@@ -398,6 +404,8 @@ class JuzAssignmentController extends ChangeNotifier {
     required String claimedUsername,
     required int juzNo,
   }) async {
+    GroupScreen.invalidateCache();
+    ActiveKhatamanListScreen.invalidateCache();
     await _repository.approveRelease(slotId: slotId, usernameSebelumnya: claimedUsername);
 
     if (claimedUserId != null) {
@@ -435,6 +443,8 @@ class JuzAssignmentController extends ChangeNotifier {
     required String groupName,
     required int juzNo,
   }) async {
+    GroupScreen.invalidateCache();
+    ActiveKhatamanListScreen.invalidateCache();
     await _repository.rejectRelease(slotId);
 
     if (claimedUserId != null) {

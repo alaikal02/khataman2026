@@ -12,6 +12,8 @@ import '../../../services/rolling_juz_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../controller/group_detail_controller.dart';
+import 'group_list_screen.dart';
+import '../../../screens/active_khataman_list_screen.dart';
 
 import 'juz_assignment_screen.dart';
 
@@ -150,6 +152,8 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
 
   Future<void> _fetchData({bool silent = false}) async {
     try {
+      GroupScreen.invalidateCache();
+      ActiveKhatamanListScreen.invalidateCache();
       await _controller.fetchData(widget.groupId, silent: silent);
     } catch (e) {
       debugPrint('Error fetching data: $e');

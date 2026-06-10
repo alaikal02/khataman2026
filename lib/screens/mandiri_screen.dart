@@ -5,18 +5,35 @@ import '../components/juz_progress_card.dart';
 import '../components/khatam_celebration.dart';
 import '../theme/app_theme.dart';
 import '../services/personal_history_service.dart';
+import 'active_khataman_list_screen.dart';
+import 'dart:io';
+import 'dart:async';
 
 class MandiriScreen extends StatefulWidget {
   const MandiriScreen({Key? key}) : super(key: key);
+
+  static void invalidateCache() {
+    _MandiriScreenState.invalidateCache();
+  }
 
   @override
   State<MandiriScreen> createState() => _MandiriScreenState();
 }
 
 class _MandiriScreenState extends State<MandiriScreen> {
+  static List<Map<String, dynamic>>? _cachedProgress;
+  static String? _cachedUserId;
+
+  static void invalidateCache() {
+    _cachedProgress = null;
+    _cachedUserId = null;
+  }
+
   final _supabase = Supabase.instance.client;
   List<Map<String, dynamic>> _progress = [];
   bool _isLoading = true;
+  bool _isOffline = false;
+  Timer? _offlineRetryTimer;
   late ScrollController _scrollController;
   double _shrinkFactor = 0.0;
 
@@ -25,6 +42,16 @@ class _MandiriScreenState extends State<MandiriScreen> {
     super.initState();
     _scrollController = ScrollController();
     _scrollController.addListener(_scrollListener);
+
+    final userId = _supabase.auth.currentUser?.id;
+    if (userId != _cachedUserId) {
+      _cachedUserId = userId;
+      _cachedProgress = null;
+    }
+
+    _progress = _cachedProgress ?? [];
+    _isLoading = _cachedProgress == null;
+
     _loadProgress();
   }
 
@@ -32,6 +59,7 @@ class _MandiriScreenState extends State<MandiriScreen> {
   void dispose() {
     _scrollController.removeListener(_scrollListener);
     _scrollController.dispose();
+    _offlineRetryTimer?.cancel();
     super.dispose();
   }
 
@@ -51,23 +79,83 @@ class _MandiriScreenState extends State<MandiriScreen> {
     if (userId == null) return;
 
     try {
+      final isOnline = await _checkInternet();
+      if (!isOnline) {
+        if (mounted) {
+          setState(() {
+            _isOffline = true;
+            _isLoading = false;
+          });
+          _startOfflineRetryTimer();
+        }
+        return;
+      }
+
       final data = await _supabase
           .from('khataman_mandiri')
           .select()
           .eq('user_id', userId)
           .order('nomor_juz');
 
-      setState(() {
-        _progress = List<Map<String, dynamic>>.from(data);
-        _isLoading = false;
-      });
+      _cachedProgress = List<Map<String, dynamic>>.from(data);
+      if (mounted) {
+        setState(() {
+          _progress = _cachedProgress!;
+          _isLoading = false;
+          _isOffline = false;
+        });
+      }
+      _offlineRetryTimer?.cancel();
+      _offlineRetryTimer = null;
     } catch (e) {
-      // Table might not exist yet, create fresh state
-      setState(() {
-        _progress = [];
-        _isLoading = false;
-      });
+      final isOnline = await _checkInternet();
+      if (!isOnline) {
+        if (mounted) {
+          setState(() {
+            _isOffline = true;
+            _isLoading = false;
+          });
+          _startOfflineRetryTimer();
+        }
+      } else {
+        // Table might not exist yet, create fresh state
+        _cachedProgress = [];
+        if (mounted) {
+          setState(() {
+            _progress = [];
+            _isLoading = false;
+            _isOffline = false;
+          });
+        }
+        _offlineRetryTimer?.cancel();
+        _offlineRetryTimer = null;
+      }
     }
+  }
+
+  Future<bool> _checkInternet() async {
+    try {
+      final result = await InternetAddress.lookup('dns.google').timeout(const Duration(seconds: 2));
+      return result.isNotEmpty && result[0].rawAddress.isNotEmpty;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  void _startOfflineRetryTimer() {
+    _offlineRetryTimer?.cancel();
+    _offlineRetryTimer = Timer.periodic(const Duration(seconds: 10), (timer) async {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      final isOnline = await _checkInternet();
+      if (isOnline) {
+        timer.cancel();
+        _offlineRetryTimer = null;
+        _loadProgress();
+      }
+    });
   }
 
   Future<void> _saveProgress(int juzNumber, int ayat, int total) async {
@@ -95,6 +183,10 @@ class _MandiriScreenState extends State<MandiriScreen> {
         'selesai': isComplete,
         'updated_at': DateTime.now().toIso8601String(),
       }, onConflict: 'user_id,nomor_juz');
+
+      // Invalidate cache immediately on user mutation
+      _cachedProgress = null;
+      ActiveKhatamanListScreen.invalidateCache();
 
       if (isComplete) {
         final desc = 'Alhamdulillah, telah menyelesaikan Juz $juzNumber!';
@@ -172,6 +264,10 @@ class _MandiriScreenState extends State<MandiriScreen> {
           .from('khataman_mandiri')
           .delete()
           .eq('user_id', userId);
+
+      // Invalidate cache immediately on user mutation
+      _cachedProgress = null;
+      ActiveKhatamanListScreen.invalidateCache();
 
       setState(() {
         _progress = [];
@@ -286,6 +382,10 @@ class _MandiriScreenState extends State<MandiriScreen> {
           .delete()
           .eq('user_id', userId);
 
+      // Invalidate cache immediately on user mutation
+      _cachedProgress = null;
+      ActiveKhatamanListScreen.invalidateCache();
+
       setState(() {
         _progress = [];
       });
@@ -356,6 +456,7 @@ class _MandiriScreenState extends State<MandiriScreen> {
           ? const Center(child: CircularProgressIndicator(color: AppTheme.primaryGreen))
           : Column(
               children: [
+                _buildOfflineBanner(),
                 // Summary Card
                 _buildSummaryCard(completed, realProgressValue, totalPercent),
                 if (completed == 30)
@@ -524,4 +625,23 @@ class _MandiriScreenState extends State<MandiriScreen> {
     );
   }
 
+  Widget _buildOfflineBanner() {
+    if (!_isOffline) return const SizedBox.shrink();
+    return Container(
+      width: double.infinity,
+      color: Colors.redAccent.withOpacity(0.9),
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+      child: const Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.wifi_off_rounded, color: Colors.white, size: 16),
+          SizedBox(width: 8),
+          Text(
+            'Koneksi Terputus. Menampilkan data offline terakhir.',
+            style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+          ),
+        ],
+      ),
+    );
+  }
 }
