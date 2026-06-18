@@ -4,6 +4,8 @@ import '../services/notification_service.dart';
 import '../theme/app_theme.dart';
 import '../features/group/presentation/group_detail_screen.dart';
 import '../features/group/presentation/juz_assignment_screen.dart';
+import '../features/group/presentation/group_list_screen.dart';
+import 'active_khataman_list_screen.dart';
 
 class NotificationScreen extends StatefulWidget {
   const NotificationScreen({Key? key}) : super(key: key);
@@ -80,6 +82,53 @@ class _NotificationScreenState extends State<NotificationScreen> {
 
     try {
       final client = Supabase.instance.client;
+
+      // 1. Anti-Race Condition Check: Check notification itself
+      final notifCheck = await client
+          .from('notifications')
+          .select('type')
+          .eq('id', notifId)
+          .maybeSingle();
+
+      if (notifCheck == null || notifCheck['type'] != 'JOIN_REQUEST') {
+        if (mounted) {
+          setState(() {
+            notif['is_processed'] = true;
+            _processingNotifIds.remove(notifId);
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Permintaan telah diproses'),
+              backgroundColor: Colors.orangeAccent,
+            ),
+          );
+        }
+        return;
+      }
+
+      // 2. Anti-Race Condition Check: Check member status in group_members
+      final memberCheck = await client
+          .from('group_members')
+          .select('approval_status')
+          .eq('group_id', groupId)
+          .eq('user_id', senderId)
+          .maybeSingle();
+
+      if (memberCheck == null || memberCheck['approval_status'] != 'PENDING') {
+        if (mounted) {
+          setState(() {
+            notif['is_processed'] = true;
+            _processingNotifIds.remove(notifId);
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Permintaan telah diproses'),
+              backgroundColor: Colors.orangeAccent,
+            ),
+          );
+        }
+        return;
+      }
       
       // Update status keanggotaan
       await client
@@ -117,10 +166,15 @@ class _NotificationScreenState extends State<NotificationScreen> {
       // Tandai notifikasi pembuat/admin sebagai telah dibaca
       await NotificationService.markAsRead(notifId);
 
+      // Invalidate caches
+      GroupScreen.invalidateCache();
+      ActiveKhatamanListScreen.invalidateCache();
+
       // Update state lokal
       if (mounted) {
         setState(() {
           _memberStatuses['${groupId}_$senderId'] = 'APPROVED';
+          notif['mutation_success'] = 'APPROVED';
           // Mark notification as read locally and set type
           final idx = _notifications.indexWhere((element) => element['id'] == notifId);
           if (idx != -1) {
@@ -187,6 +241,53 @@ class _NotificationScreenState extends State<NotificationScreen> {
 
     try {
       final client = Supabase.instance.client;
+
+      // 1. Anti-Race Condition Check: Check notification itself
+      final notifCheck = await client
+          .from('notifications')
+          .select('type')
+          .eq('id', notifId)
+          .maybeSingle();
+
+      if (notifCheck == null || notifCheck['type'] != 'JOIN_REQUEST') {
+        if (mounted) {
+          setState(() {
+            notif['is_processed'] = true;
+            _processingNotifIds.remove(notifId);
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Permintaan telah diproses'),
+              backgroundColor: Colors.orangeAccent,
+            ),
+          );
+        }
+        return;
+      }
+
+      // 2. Anti-Race Condition Check: Check member status in group_members
+      final memberCheck = await client
+          .from('group_members')
+          .select('approval_status')
+          .eq('group_id', groupId)
+          .eq('user_id', senderId)
+          .maybeSingle();
+
+      if (memberCheck == null || memberCheck['approval_status'] != 'PENDING') {
+        if (mounted) {
+          setState(() {
+            notif['is_processed'] = true;
+            _processingNotifIds.remove(notifId);
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Permintaan telah diproses'),
+              backgroundColor: Colors.orangeAccent,
+            ),
+          );
+        }
+        return;
+      }
       
       // Hapus data keanggotaan
       await client
@@ -204,13 +305,35 @@ class _NotificationScreenState extends State<NotificationScreen> {
           })
           .eq('id', notifId);
 
+      // Kirim notifikasi balasan penolakan ke HP pemohon
+      try {
+        String groupName = 'Grup';
+        if (notif['groups'] != null && notif['groups']['nama_grup'] != null) {
+          groupName = notif['groups']['nama_grup'] as String;
+        }
+        await NotificationService.send(
+          userId: senderId,
+          type: 'JOIN_REJECTED',
+          title: 'Permintaan Bergabung Ditolak ⚠️',
+          body: 'Maaf, permintaan Anda bergabung ke grup "$groupName" telah ditolak oleh admin.',
+          groupId: groupId,
+        );
+      } catch (notifErr) {
+        debugPrint('Error sending rejected notification: $notifErr');
+      }
+
       // Tandai notifikasi sebagai telah dibaca
       await NotificationService.markAsRead(notifId);
+
+      // Invalidate caches
+      GroupScreen.invalidateCache();
+      ActiveKhatamanListScreen.invalidateCache();
 
       // Update state lokal
       if (mounted) {
         setState(() {
-          _memberStatuses.remove('${groupId}_$senderId'); // status menjadi null (artinya ditolak/dihapus)
+          _memberStatuses.remove('${groupId}_$senderId');
+          notif['mutation_success'] = 'REJECTED';
           // Mark notification as read locally and set type
           final idx = _notifications.indexWhere((element) => element['id'] == notifId);
           if (idx != -1) {
@@ -235,6 +358,320 @@ class _NotificationScreenState extends State<NotificationScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Gagal menolak permintaan: $e'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _approveReleaseRequest(Map<String, dynamic> notif) async {
+    final notifId = notif['id'] as String;
+    final groupId = notif['group_id'] as String?;
+    final senderId = notif['sender_id'] as String?;
+    final body = notif['body'] as String? ?? '';
+
+    if (groupId == null || senderId == null) return;
+
+    // Extract Juz number from the body text
+    final match = RegExp(r'Juz\s+(\d+)').firstMatch(body);
+    final juzNo = match != null ? int.tryParse(match.group(1) ?? '') : null;
+    if (juzNo == null) return;
+
+    setState(() {
+      _processingNotifIds.add(notifId);
+    });
+
+    try {
+      final client = Supabase.instance.client;
+
+      // 1. Database Check (Anti-Race Condition) - Check notification type
+      final notifCheck = await client
+          .from('notifications')
+          .select('type')
+          .eq('id', notifId)
+          .maybeSingle();
+
+      if (notifCheck == null || notifCheck['type'] != 'RELEASE_REQUEST') {
+        if (mounted) {
+          setState(() {
+            notif['is_processed'] = true;
+            _processingNotifIds.remove(notifId);
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Permintaan telah diproses'),
+              backgroundColor: Colors.orangeAccent,
+            ),
+          );
+        }
+        return;
+      }
+
+      // 2. Database Check (Anti-Race Condition) - Find slot and verify its PENDING release status
+      final slotCheck = await client
+          .from('slot_khataman')
+          .select('id_slot, approval_lepas_status, user_id, putaran_siklus!inner(group_id, status_aktif_selesai)')
+          .eq('nomor_juz', juzNo)
+          .eq('user_id', senderId)
+          .eq('putaran_siklus.group_id', groupId)
+          .eq('putaran_siklus.status_aktif_selesai', 'AKTIF')
+          .maybeSingle();
+
+      if (slotCheck == null || slotCheck['approval_lepas_status'] != 'PENDING') {
+        if (mounted) {
+          setState(() {
+            notif['is_processed'] = true;
+            _processingNotifIds.remove(notifId);
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Permintaan telah diproses'),
+              backgroundColor: Colors.orangeAccent,
+            ),
+          );
+        }
+        return;
+      }
+
+      final String slotId = slotCheck['id_slot'].toString();
+
+      // Get user username
+      final userCheck = await client
+          .from('users')
+          .select('username')
+          .eq('id_user', senderId)
+          .maybeSingle();
+      final username = userCheck?['username'] as String? ?? 'Anggota';
+
+      // 3. Mutate: Release the slot in database
+      await client
+          .from('slot_khataman')
+          .update({
+            'user_id': null,
+            'approval_lepas_status': null,
+            'username_sebelumnya': username,
+          })
+          .eq('id_slot', slotId);
+
+      // 4. Send reply notification to the requester
+      String groupName = 'Grup';
+      if (notif['groups'] != null && notif['groups']['nama_grup'] != null) {
+        groupName = notif['groups']['nama_grup'] as String;
+      }
+      try {
+        await NotificationService.send(
+          userId: senderId,
+          type: 'RELEASE_APPROVED',
+          title: 'Pengajuan Lepas Juz Disetujui 💚',
+          body: 'Pengajuan pelepasan Juz $juzNo Anda di grup "$groupName" telah disetujui oleh admin.',
+          groupId: groupId,
+        );
+      } catch (notifErr) {
+        debugPrint('Error sending release approval reply: $notifErr');
+      }
+
+      // 5. Update the original notification type and mark as read
+      await client
+          .from('notifications')
+          .update({
+            'type': 'RELEASE_APPROVED',
+            'title': 'Pengajuan Lepas Juz Disetujui',
+            'is_read': true,
+          })
+          .eq('id', notifId);
+
+      // Invalidate caches
+      GroupScreen.invalidateCache();
+      ActiveKhatamanListScreen.invalidateCache();
+
+      // 6. Update local UI state
+      if (mounted) {
+        setState(() {
+          notif['mutation_success'] = 'APPROVED';
+          notif['is_read'] = true;
+          notif['type'] = 'RELEASE_APPROVED';
+          notif['title'] = 'Pengajuan Lepas Juz Disetujui';
+          _processingNotifIds.remove(notifId);
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Pengajuan lepas Juz berhasil disetujui'),
+            backgroundColor: AppTheme.primaryGreen,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _processingNotifIds.remove(notifId);
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal menyetujui pelepasan: $e'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _rejectReleaseRequest(Map<String, dynamic> notif) async {
+    final notifId = notif['id'] as String;
+    final groupId = notif['group_id'] as String?;
+    final senderId = notif['sender_id'] as String?;
+    final body = notif['body'] as String? ?? '';
+
+    if (groupId == null || senderId == null) return;
+
+    // Extract Juz number from the body text
+    final match = RegExp(r'Juz\s+(\d+)').firstMatch(body);
+    final juzNo = match != null ? int.tryParse(match.group(1) ?? '') : null;
+    if (juzNo == null) return;
+
+    // Confirm dialog before rejection
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Tolak Pengajuan?'),
+        content: Text('Apakah Anda yakin ingin menolak pengajuan pelepasan Juz $juzNo ini?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Batal', style: TextStyle(color: AppTheme.textSecondary)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+            child: const Text('Tolak'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    setState(() {
+      _processingNotifIds.add(notifId);
+    });
+
+    try {
+      final client = Supabase.instance.client;
+
+      // 1. Database Check (Anti-Race Condition) - Check notification type
+      final notifCheck = await client
+          .from('notifications')
+          .select('type')
+          .eq('id', notifId)
+          .maybeSingle();
+
+      if (notifCheck == null || notifCheck['type'] != 'RELEASE_REQUEST') {
+        if (mounted) {
+          setState(() {
+            notif['is_processed'] = true;
+            _processingNotifIds.remove(notifId);
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Permintaan telah diproses'),
+              backgroundColor: Colors.orangeAccent,
+            ),
+          );
+        }
+        return;
+      }
+
+      // 2. Database Check (Anti-Race Condition) - Find slot and verify its PENDING release status
+      final slotCheck = await client
+          .from('slot_khataman')
+          .select('id_slot, approval_lepas_status, user_id, putaran_siklus!inner(group_id, status_aktif_selesai)')
+          .eq('nomor_juz', juzNo)
+          .eq('user_id', senderId)
+          .eq('putaran_siklus.group_id', groupId)
+          .eq('putaran_siklus.status_aktif_selesai', 'AKTIF')
+          .maybeSingle();
+
+      if (slotCheck == null || slotCheck['approval_lepas_status'] != 'PENDING') {
+        if (mounted) {
+          setState(() {
+            notif['is_processed'] = true;
+            _processingNotifIds.remove(notifId);
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Permintaan telah diproses'),
+              backgroundColor: Colors.orangeAccent,
+            ),
+          );
+        }
+        return;
+      }
+
+      final String slotId = slotCheck['id_slot'].toString();
+
+      // 3. Mutate: Reset the release status in database
+      await client
+          .from('slot_khataman')
+          .update({
+            'approval_lepas_status': null,
+          })
+          .eq('id_slot', slotId);
+
+      // 4. Send reply notification to the requester
+      String groupName = 'Grup';
+      if (notif['groups'] != null && notif['groups']['nama_grup'] != null) {
+        groupName = notif['groups']['nama_grup'] as String;
+      }
+      try {
+        await NotificationService.send(
+          userId: senderId,
+          type: 'RELEASE_REJECTED',
+          title: 'Pengajuan Lepas Juz Ditolak ⚠️',
+          body: 'Pengajuan pelepasan Juz $juzNo Anda di grup "$groupName" ditolak oleh admin.',
+          groupId: groupId,
+        );
+      } catch (notifErr) {
+        debugPrint('Error sending release rejection reply: $notifErr');
+      }
+
+      // 5. Update the original notification type and mark as read
+      await client
+          .from('notifications')
+          .update({
+            'type': 'RELEASE_REJECTED',
+            'title': 'Pengajuan Lepas Juz Ditolak',
+            'is_read': true,
+          })
+          .eq('id', notifId);
+
+      // Invalidate caches
+      GroupScreen.invalidateCache();
+      ActiveKhatamanListScreen.invalidateCache();
+
+      // 6. Update local UI state
+      if (mounted) {
+        setState(() {
+          notif['mutation_success'] = 'REJECTED';
+          notif['is_read'] = true;
+          notif['type'] = 'RELEASE_REJECTED';
+          notif['title'] = 'Pengajuan Lepas Juz Ditolak';
+          _processingNotifIds.remove(notifId);
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Pengajuan lepas Juz berhasil ditolak'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _processingNotifIds.remove(notifId);
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal menolak pelepasan: $e'),
             backgroundColor: Colors.redAccent,
           ),
         );
@@ -574,7 +1011,42 @@ class _NotificationScreenState extends State<NotificationScreen> {
   Widget _buildActionButtons(Map<String, dynamic> notif, String notifId, String groupId, String senderId, String? approvalStatus, String type) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    // 1. Jika tipe notifikasi sudah permanen JOIN_CANCELLED, JOIN_REJECTED, atau JOIN_APPROVED
+    // 1. Anti-race condition UI state
+    if (notif['is_processed'] == true) {
+      return _buildStatusBadge(
+        context,
+        icon: Icons.info_outline_rounded,
+        text: 'Permintaan telah diproses',
+        color: isDark ? Colors.white60 : Colors.grey.shade700,
+        bgColor: Colors.grey.withOpacity(0.12),
+        borderColor: Colors.grey.withOpacity(0.35),
+      );
+    }
+
+    // 2. Local mutation success states (Amendment 2: Show direct successful state badges)
+    if (notif['mutation_success'] == 'APPROVED') {
+      return _buildStatusBadge(
+        context,
+        icon: Icons.check_circle_rounded,
+        text: 'Berhasil Disetujui',
+        color: AppTheme.primaryGreen,
+        bgColor: AppTheme.primaryGreen.withOpacity(0.1),
+        borderColor: AppTheme.primaryGreen.withOpacity(0.3),
+      );
+    }
+
+    if (notif['mutation_success'] == 'REJECTED') {
+      return _buildStatusBadge(
+        context,
+        icon: Icons.cancel_rounded,
+        text: 'Berhasil Ditolak',
+        color: Colors.redAccent,
+        bgColor: Colors.redAccent.withOpacity(0.1),
+        borderColor: Colors.redAccent.withOpacity(0.3),
+      );
+    }
+
+    // 3. Jika tipe notifikasi sudah permanen JOIN_CANCELLED, JOIN_REJECTED, atau JOIN_APPROVED
     if (type == 'JOIN_CANCELLED') {
       return _buildStatusBadge(
         context,
@@ -597,7 +1069,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
       );
     }
 
-    if (type == 'JOIN_APPROVED' || approvalStatus == 'APPROVED') {
+    if (type == 'JOIN_APPROVED' || (type == 'JOIN_REQUEST' && approvalStatus == 'APPROVED')) {
       return _buildStatusBadge(
         context,
         icon: Icons.check_circle_rounded,
@@ -605,6 +1077,29 @@ class _NotificationScreenState extends State<NotificationScreen> {
         color: AppTheme.primaryGreen,
         bgColor: AppTheme.primaryGreen.withOpacity(0.1),
         borderColor: AppTheme.primaryGreen.withOpacity(0.3),
+      );
+    }
+
+    // 4. Release request final database states
+    if (type == 'RELEASE_APPROVED') {
+      return _buildStatusBadge(
+        context,
+        icon: Icons.check_circle_rounded,
+        text: 'Pengajuan lepas Juz disetujui',
+        color: AppTheme.primaryGreen,
+        bgColor: AppTheme.primaryGreen.withOpacity(0.1),
+        borderColor: AppTheme.primaryGreen.withOpacity(0.3),
+      );
+    }
+
+    if (type == 'RELEASE_REJECTED') {
+      return _buildStatusBadge(
+        context,
+        icon: Icons.cancel_rounded,
+        text: 'Pengajuan lepas Juz ditolak',
+        color: Colors.redAccent,
+        bgColor: Colors.redAccent.withOpacity(0.1),
+        borderColor: Colors.redAccent.withOpacity(0.3),
       );
     }
 
@@ -624,56 +1119,98 @@ class _NotificationScreenState extends State<NotificationScreen> {
       );
     }
 
-    if (approvalStatus == null) {
-      // Jika statusnya null (data keanggotaan terhapus di group_members),
-      // namun tipe notifikasi bukan JOIN_REJECTED (karena kalau ditolak oleh admin tipenya diubah ke JOIN_REJECTED),
-      // maka ini berarti permintaan dibatalkan oleh pemohon!
-      return _buildStatusBadge(
-        context,
-        icon: Icons.cancel_outlined,
-        text: 'Permintaan bergabung dibatalkan',
-        color: isDark ? Colors.white60 : Colors.grey.shade700,
-        bgColor: Colors.grey.withOpacity(0.12),
-        borderColor: Colors.grey.withOpacity(0.35),
+    // 5. Action buttons for RELEASE_REQUEST (Juz release requests)
+    if (type == 'RELEASE_REQUEST') {
+      return Padding(
+        padding: const EdgeInsets.only(top: 12),
+        child: Row(
+          children: [
+            SizedBox(
+              height: 32,
+              child: ElevatedButton.icon(
+                onPressed: () => _approveReleaseRequest(notif),
+                icon: const Icon(Icons.check_rounded, size: 14, color: Colors.white),
+                label: const Text('Setujui', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primaryGreen,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  elevation: 0,
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            SizedBox(
+              height: 32,
+              child: OutlinedButton.icon(
+                onPressed: () => _rejectReleaseRequest(notif),
+                icon: const Icon(Icons.close_rounded, size: 14, color: Colors.redAccent),
+                label: const Text('Tolak', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.redAccent)),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Colors.redAccent, width: 1.2),
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                ),
+              ),
+            ),
+          ],
+        ),
       );
     }
 
-    return Padding(
-      padding: const EdgeInsets.only(top: 12),
-      child: Row(
-        children: [
-          SizedBox(
-            height: 32,
-            child: ElevatedButton.icon(
-              onPressed: () => _approveJoinRequest(notif),
-              icon: const Icon(Icons.check_rounded, size: 14, color: Colors.white),
-              label: const Text('Setujui', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.primaryGreen,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                elevation: 0,
+    // 6. Action buttons for JOIN_REQUEST
+    if (type == 'JOIN_REQUEST') {
+      if (approvalStatus == null) {
+        return _buildStatusBadge(
+          context,
+          icon: Icons.cancel_outlined,
+          text: 'Permintaan bergabung dibatalkan',
+          color: isDark ? Colors.white60 : Colors.grey.shade700,
+          bgColor: Colors.grey.withOpacity(0.12),
+          borderColor: Colors.grey.withOpacity(0.35),
+        );
+      }
+
+      return Padding(
+        padding: const EdgeInsets.only(top: 12),
+        child: Row(
+          children: [
+            SizedBox(
+              height: 32,
+              child: ElevatedButton.icon(
+                onPressed: () => _approveJoinRequest(notif),
+                icon: const Icon(Icons.check_rounded, size: 14, color: Colors.white),
+                label: const Text('Setujui', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primaryGreen,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  elevation: 0,
+                ),
               ),
             ),
-          ),
-          const SizedBox(width: 12),
-          SizedBox(
-            height: 32,
-            child: OutlinedButton.icon(
-              onPressed: () => _rejectJoinRequest(notif),
-              icon: const Icon(Icons.close_rounded, size: 14, color: Colors.redAccent),
-              label: const Text('Tolak', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.redAccent)),
-              style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: Colors.redAccent, width: 1.2),
-                padding: const EdgeInsets.symmetric(horizontal: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            const SizedBox(width: 12),
+            SizedBox(
+              height: 32,
+              child: OutlinedButton.icon(
+                onPressed: () => _rejectJoinRequest(notif),
+                icon: const Icon(Icons.close_rounded, size: 14, color: Colors.redAccent),
+                label: const Text('Tolak', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.redAccent)),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Colors.redAccent, width: 1.2),
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                ),
               ),
             ),
-          ),
-        ],
-      ),
-    );
+          ],
+        ),
+      );
+    }
+
+    return const SizedBox.shrink();
   }
 
   Widget _buildBody() {
@@ -904,7 +1441,8 @@ class _NotificationScreenState extends State<NotificationScreen> {
                             height: 1.4,
                           ),
                         ),
-                        if ((type == 'JOIN_REQUEST' || type == 'JOIN_CANCELLED') && groupId != null && senderId != null)
+                        if ((type == 'JOIN_REQUEST' || type == 'JOIN_CANCELLED' || type == 'JOIN_APPROVED' || type == 'JOIN_REJECTED' ||
+                             type == 'RELEASE_REQUEST' || type == 'RELEASE_APPROVED' || type == 'RELEASE_REJECTED') && groupId != null && senderId != null)
                           GestureDetector(
                             onTap: () {}, // Mencegah tap card terpicu saat menekan tombol aksi
                             child: _buildActionButtons(

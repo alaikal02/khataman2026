@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../providers/auth_provider.dart';
+import '../providers/settings_provider.dart';
 import '../theme/app_theme.dart';
 import '../services/notification_service.dart';
+import '../services/prayer_time_service.dart';
 import '../features/group/presentation/group_list_screen.dart';
 import 'mandiri_screen.dart';
 import 'profile_screen.dart';
@@ -18,6 +20,7 @@ import 'surah_info_screen.dart';
 import 'prayer_time_screen.dart';
 import 'qibla_screen.dart';
 import 'package:quran/quran.dart' as quran;
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -27,6 +30,8 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
+  final FlutterLocalNotificationsPlugin _localNotifPlugin =
+      FlutterLocalNotificationsPlugin();
   int _unreadNotificationsCount = 0;
   int _personalKhatamCount = 0;
   RealtimeChannel? _notificationChannel;
@@ -39,12 +44,23 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
+    _initLocalNotifications();
     WidgetsBinding.instance.addObserver(this);
     _fetchUnreadCount();
     _loadPersonalStats();
     _loadActivePrograms();
     _subscribeToNotifications();
     _initDeepLinkListener();
+  }
+
+  Future<void> _initLocalNotifications() async {
+    try {
+      const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
+      const initSettings = InitializationSettings(android: androidInit);
+      await _localNotifPlugin.initialize(initSettings);
+    } catch (e) {
+      debugPrint('Error initializing local notifications in HomeScreen: $e');
+    }
   }
 
   @override
@@ -307,6 +323,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           callback: (payload) {
             debugPrint('🔔 [Realtime] Event diterima: ${payload.eventType} untuk user $userId. Memperbarui count...');
             _fetchUnreadCount();
+            if (payload.eventType == PostgresChangeEvent.insert) {
+              _showLocalNotification(payload.newRecord);
+            }
           },
         );
     
@@ -325,6 +344,101 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         });
       }
     });
+  }
+
+  Future<bool> _isWithinPrayerTimeRange() async {
+    try {
+      final savedLoc = await PrayerTimeService.getSavedLocation();
+      if (savedLoc == null) return false;
+
+      final lat = savedLoc['lat'];
+      final lng = savedLoc['lng'];
+      if (lat == null || lng == null) return false;
+
+      final city = await PrayerTimeService.getSavedCity() ?? 'Lokasi';
+      final calcMethod = await PrayerTimeService.getCalcMethod();
+      final madhab = await PrayerTimeService.getMadhab();
+
+      final prayerTimes = PrayerTimeService.calculatePrayerTimes(
+        lat: lat,
+        lng: lng,
+        date: DateTime.now(),
+        locationName: city,
+        calcMethod: calcMethod,
+        madhab: madhab,
+      );
+
+      final now = DateTime.now();
+      for (final entry in prayerTimes.entries) {
+        if (!entry.isFard) continue; // Dzuhur, Ashar, Maghrib, Isya, Subuh
+        final diff = entry.time.difference(now).abs();
+        if (diff.inMinutes <= 15) {
+          debugPrint('⏳ [Overlap Alert] Current time is within 15 minutes of ${entry.name} (${entry.time}). Notification will be silent.');
+          return true;
+        }
+      }
+    } catch (e) {
+      debugPrint('Error checking prayer time overlap: $e');
+    }
+    return false;
+  }
+
+  Future<void> _showLocalNotification(Map<String, dynamic> record) async {
+    final title = record['title'] as String? ?? 'Notifikasi Baru';
+    final body = record['body'] as String? ?? '';
+
+    // 1. Check settings
+    final settings = Provider.of<SettingsProvider>(context, listen: false);
+    if (!settings.groupNotifEnabled) {
+      debugPrint('🔔 [Local Notif] Group notifications are disabled in settings.');
+      return;
+    }
+
+    // 2. Check if the sender is current user
+    final myId = Supabase.instance.client.auth.currentUser?.id;
+    if (record['sender_id'] == myId) {
+      debugPrint('🔔 [Local Notif] Self-triggered notification. Skipping.');
+      return;
+    }
+
+    // 3. Check if we are within a prayer time window
+    final isSilent = await _isWithinPrayerTimeRange();
+
+    try {
+      final androidDetails = AndroidNotificationDetails(
+        isSilent ? 'group_notif_silent' : 'group_notif_default',
+        isSilent ? 'Notifikasi Grup (Hening)' : 'Notifikasi Grup (Suara)',
+        channelDescription: isSilent 
+            ? 'Notifikasi grup tanpa suara untuk menghindari overlap waktu shalat'
+            : 'Notifikasi grup dengan suara bawaan',
+        importance: Importance.high,
+        priority: Priority.high,
+        icon: '@mipmap/ic_launcher',
+        playSound: !isSilent,
+        enableVibration: !isSilent,
+      );
+
+      final iosDetails = DarwinNotificationDetails(
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: !isSilent,
+      );
+
+      final notifDetails = NotificationDetails(android: androidDetails, iOS: iosDetails);
+
+      // Generate unique notification ID
+      final notifId = record['id'].hashCode;
+
+      await _localNotifPlugin.show(
+        notifId,
+        title,
+        body,
+        notifDetails,
+      );
+      debugPrint('🔔 [Local Notif] Notification shown successfully (Silent: $isSilent).');
+    } catch (e) {
+      debugPrint('🔔 [Local Notif] Error showing notification: $e');
+    }
   }
 
   @override
