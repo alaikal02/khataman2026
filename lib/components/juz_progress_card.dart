@@ -4,6 +4,7 @@ import 'package:quran/quran.dart' as quran;
 import '../theme/app_theme.dart';
 import '../services/notification_service.dart';
 import '../services/personal_history_service.dart';
+import '../screens/mushaf_reader_screen.dart';
 
 class JuzProgressCard extends StatefulWidget {
   final int juzNumber;
@@ -1404,6 +1405,44 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
                       enabled: _selectedSurah != null,
                     ),
                     const SizedBox(height: 14),
+                    ElevatedButton.icon(
+                      key: const ValueKey('btn_read_in_mushaf'),
+                      onPressed: () async {
+                        await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => MushafReaderScreen(
+                              initialJuzNumber: widget.juzNumber,
+                              initialSurahNumber: _localLastAyat > 0 ? savedSurah : null,
+                              initialVerseNumber: _localLastAyat > 0 ? savedAyat : null,
+                              selectForMandiri: !widget.isGroupMode,
+                              selectForGroupId: widget.isGroupMode ? widget.groupId : null,
+                              groupName: widget.isGroupMode ? widget.groupName : null,
+                              slotId: widget.isGroupMode ? widget.slotId : null,
+                            ),
+                          ),
+                        );
+                        widget.onProgressUpdated?.call();
+                      },
+                      icon: const Icon(Icons.menu_book_rounded, size: 18),
+                      label: const Text('Baca di Mushaf Al-Quran'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.accentTeal.withOpacity(0.12),
+                        foregroundColor: isDark ? AppTheme.accentTeal : AppTheme.primaryGreen,
+                        shadowColor: Colors.transparent,
+                        elevation: 0,
+                        minimumSize: const Size(double.infinity, 48),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          side: BorderSide(
+                            color: AppTheme.accentTeal.withOpacity(0.4),
+                            width: 1.2,
+                          ),
+                        ),
+                        textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
                     ElevatedButton(
                       key: const ValueKey('btn_save_progress'),
                       onPressed: _handleSave,
@@ -1457,12 +1496,75 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
                         height: 1.4,
                       ),
                     ),
+                    const SizedBox(height: 12),
+                    ElevatedButton.icon(
+                      key: const ValueKey('btn_read_in_mushaf_other'),
+                      onPressed: () async {
+                        await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => MushafReaderScreen(
+                              initialJuzNumber: widget.juzNumber,
+                            ),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.menu_book_rounded, size: 16),
+                      label: const Text('Buka di Mushaf Al-Quran'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: isDark ? Colors.white.withOpacity(0.08) : Colors.grey.shade100,
+                        foregroundColor: Theme.of(context).colorScheme.onSurface,
+                        shadowColor: Colors.transparent,
+                        elevation: 0,
+                        minimumSize: const Size(double.infinity, 40),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
+                      ),
+                    ),
                   ] else ...[
                     // Completed by the current user
                     const SizedBox(height: 12),
                     const Text('✅ Juz ini sudah Anda selesaikan. Alhamdulillah!',
                       style: TextStyle(color: AppTheme.primaryGreen, fontSize: 13)),
                     const SizedBox(height: 12),
+                    ElevatedButton.icon(
+                      key: const ValueKey('btn_read_in_mushaf_completed'),
+                      onPressed: () async {
+                        await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => MushafReaderScreen(
+                              initialJuzNumber: widget.juzNumber,
+                              selectForMandiri: !widget.isGroupMode,
+                              selectForGroupId: widget.isGroupMode ? widget.groupId : null,
+                              groupName: widget.isGroupMode ? widget.groupName : null,
+                              slotId: widget.isGroupMode ? widget.slotId : null,
+                            ),
+                          ),
+                        );
+                        widget.onProgressUpdated?.call();
+                      },
+                      icon: const Icon(Icons.menu_book_rounded, size: 18),
+                      label: const Text('Buka di Mushaf Al-Quran'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.accentTeal.withOpacity(0.12),
+                        foregroundColor: isDark ? AppTheme.accentTeal : AppTheme.primaryGreen,
+                        shadowColor: Colors.transparent,
+                        elevation: 0,
+                        minimumSize: const Size(double.infinity, 44),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          side: BorderSide(
+                            color: AppTheme.accentTeal.withOpacity(0.4),
+                            width: 1.2,
+                          ),
+                        ),
+                        textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
                     OutlinedButton(
                       key: const ValueKey('btn_undo_finished'),
                       onPressed: () => _markAsFinished(false),

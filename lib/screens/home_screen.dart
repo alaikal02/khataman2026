@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../providers/auth_provider.dart';
 import '../providers/settings_provider.dart';
+import '../utils/localization.dart';
 import '../theme/app_theme.dart';
 import '../services/notification_service.dart';
 import '../services/prayer_time_service.dart';
@@ -21,6 +22,7 @@ import 'prayer_time_screen.dart';
 import 'qibla_screen.dart';
 import 'package:quran/quran.dart' as quran;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'mushaf_list_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -412,10 +414,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
     try {
       final androidDetails = AndroidNotificationDetails(
         isSilent ? 'group_notif_silent' : 'group_notif_default',
-        isSilent ? 'Notifikasi Grup (Hening)' : 'Notifikasi Grup (Suara)',
+        isSilent ? context.translate('home_notif_silent_title') : context.translate('home_notif_default_title'),
         channelDescription: isSilent 
-            ? 'Notifikasi grup tanpa suara untuk menghindari overlap waktu shalat'
-            : 'Notifikasi grup dengan suara bawaan',
+            ? context.translate('home_notif_silent_desc')
+            : context.translate('home_notif_default_desc'),
         importance: Importance.high,
         priority: Priority.high,
         icon: '@mipmap/ic_launcher',
@@ -464,10 +466,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
   @override
   Widget build(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context);
+    final settingsProvider = Provider.of<SettingsProvider>(context);
     final user = authProvider.user;
     final displayName = user?.userMetadata?['full_name'] as String? ??
         user?.email?.split('@')[0] ??
-        'Hamba Allah';
+        context.translate('home_fallback_name');
     final avatarUrl = user?.userMetadata?['avatar_url'] as String?;
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -493,7 +496,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
                   const SizedBox(height: 18),
                   // Section Title
                   Text(
-                    'Mulai Sekarang',
+                    context.translate('home_start_now'),
                     style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
@@ -503,9 +506,28 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
                   const SizedBox(height: 12),
                   _buildFeatureCard(
                     context,
+                    icon: Icons.menu_book_rounded,
+                    title: context.translate('home_feat_mushaf_title'),
+                    subtitle: context.translate('home_feat_mushaf_subtitle'),
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF009688), Color(0xFF004D40)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const MushafListScreen()),
+                    ).then((_) {
+                      _loadActivePrograms();
+                      _loadPersonalStats();
+                    }),
+                  ),
+                  const SizedBox(height: 10),
+                  _buildFeatureCard(
+                    context,
                     icon: Icons.person_rounded,
-                    title: 'Khataman Mandiri',
-                    subtitle: 'Lacak progres membaca Al-Quran pribadi Anda',
+                    title: context.translate('home_feat_mandiri_title'),
+                    subtitle: context.translate('home_feat_mandiri_subtitle'),
                     gradient: const LinearGradient(
                       colors: [Color(0xFF2ECC71), Color(0xFF1A8A4A)],
                       begin: Alignment.topLeft,
@@ -523,8 +545,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
                   _buildFeatureCard(
                     context,
                     icon: Icons.group_rounded,
-                    title: 'Khataman Grup',
-                    subtitle: 'Khataman Al-Quran bersama anggota grup',
+                    title: context.translate('home_feat_group_title'),
+                    subtitle: context.translate('home_feat_group_subtitle'),
                     gradient: const LinearGradient(
                       colors: [Color(0xFF6C63FF), Color(0xFF3F3D8B)],
                       begin: Alignment.topLeft,
@@ -542,8 +564,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
                   _buildFeatureCard(
                     context,
                     icon: Icons.access_time_rounded,
-                    title: 'Jadwal Shalat',
-                    subtitle: 'Waktu shalat, countdown, & notifikasi azan',
+                    title: context.translate('home_feat_prayer_title'),
+                    subtitle: context.translate('home_feat_prayer_subtitle'),
                     gradient: const LinearGradient(
                       colors: [Color(0xFF00BCD4), Color(0xFF00838F)],
                       begin: Alignment.topLeft,
@@ -561,8 +583,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
                   _buildFeatureCard(
                     context,
                     icon: Icons.explore_rounded,
-                    title: 'Arah Kiblat',
-                    subtitle: 'Kompas digital penunjuk arah Ka\'bah',
+                    title: context.translate('home_feat_qibla_title'),
+                    subtitle: context.translate('home_feat_qibla_subtitle'),
                     gradient: const LinearGradient(
                       colors: [Color(0xFFFF9800), Color(0xFFE65100)],
                       begin: Alignment.topLeft,
@@ -614,7 +636,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Assalamu\'alaikum,',
+                  context.translate('home_greeting'),
                   style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant),
                 ),
                 Text(
@@ -640,7 +662,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
                     ).then((_) => _fetchUnreadCount());
                   },
                   icon: Icon(Icons.notifications_rounded, color: Theme.of(context).colorScheme.onSurfaceVariant),
-                  tooltip: 'Notifikasi',
+                  tooltip: context.translate('home_tooltip_notification'),
                 ),
                 if (_unreadNotificationsCount > 0)
                   Positioned(
@@ -674,7 +696,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
             IconButton(
               onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen())),
               icon: Icon(Icons.settings_rounded, color: Theme.of(context).colorScheme.onSurfaceVariant),
-              tooltip: 'Pengaturan',
+              tooltip: context.translate('home_tooltip_settings'),
             ),
           ],
         ),
@@ -690,7 +712,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Khataman Aktif Anda',
+              context.translate('home_active_khataman'),
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
@@ -717,7 +739,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Khataman Aktif Anda',
+            context.translate('home_active_khataman'),
             style: TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.bold,
@@ -856,7 +878,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text(
-              _isExpanded ? 'Tampilkan Lebih Sedikit' : 'Tampilkan Lebih Banyak',
+              _isExpanded ? context.translate('home_show_less') : context.translate('home_show_more'),
               style: const TextStyle(
                 color: AppTheme.primaryGreen,
                 fontWeight: FontWeight.bold,
@@ -951,7 +973,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
                           ),
                         ),
                         child: Text(
-                          isGroup ? 'Grup' : 'Mandiri',
+                          isGroup ? context.translate('home_type_group') : context.translate('home_type_mandiri'),
                           style: TextStyle(
                             fontSize: 10,
                             fontWeight: FontWeight.bold,
@@ -1113,13 +1135,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
   Widget _buildStatsRow(BuildContext context) {
     return Row(
       children: [
-        Expanded(child: _statCard(context, '30', 'Total Juz', Icons.layers_rounded, AppTheme.primaryGreen)),
+        Expanded(child: _statCard(context, '30', context.translate('home_stat_total_juz'), Icons.layers_rounded, AppTheme.primaryGreen)),
         const SizedBox(width: 12),
         Expanded(
           child: _statCard(
             context,
             '114',
-            'Surah',
+            context.translate('home_stat_surah'),
             Icons.menu_book_rounded,
             AppTheme.accentGold,
             onTap: () {
@@ -1131,7 +1153,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
           ),
         ),
         const SizedBox(width: 12),
-        Expanded(child: _statCard(context, '6236', 'Ayat', Icons.format_list_numbered_rounded, AppTheme.accentTeal)),
+        Expanded(child: _statCard(context, '6236', context.translate('home_stat_ayat'), Icons.format_list_numbered_rounded, AppTheme.accentTeal)),
       ],
     );
   }
@@ -1189,7 +1211,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
             ),
           ]
         : null;
-
+ 
     final headerColor = isDark ? Colors.white70 : const Color(0xFF8B6508);
     final titleColor = isDark ? Colors.white : const Color(0xFF5C4008);
     final subtitleColor = isDark ? Colors.white70 : const Color(0xFF8B6508).withOpacity(0.85);
@@ -1230,7 +1252,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    '🏆  RIWAYAT & STATISTIK SAYA',
+                    context.translate('home_history_header'),
                     style: TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.bold,
@@ -1241,8 +1263,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
                   const SizedBox(height: 4),
                   Text(
                     _personalKhatamCount > 0
-                        ? 'Alhamdulillah, $_personalKhatamCount Kali Khatam Al-Quran'
-                        : 'Pantau Progres & Statistik Khataman Anda',
+                        ? context.translate('home_history_title_completed').replaceAll('{count}', '$_personalKhatamCount')
+                        : context.translate('home_history_title_empty'),
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.bold,
@@ -1251,7 +1273,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    'Lihat riwayat membaca minggu ini, bulan ini, & tahun ini ➔',
+                    context.translate('home_history_subtitle'),
                     style: TextStyle(fontSize: 10, color: subtitleColor),
                   ),
                 ],
@@ -1324,7 +1346,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
       Navigator.pop(context); // Close loading dialog
 
       if (response == null) {
-        _showSnackbarHome('Grup dengan kode "$code" tidak ditemukan.', isError: true);
+        _showSnackbarHome(context.translate('home_join_group_not_found').replaceAll('{code}', code), isError: true);
         return;
       }
 
@@ -1354,7 +1376,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
             _loadPersonalStats();
           });
         } else if (status == 'PENDING') {
-          _showSnackbarHome('Permintaan Anda bergabung di "$groupName" masih PENDING persetujuan Admin.');
+          _showSnackbarHome(context.translate('home_join_group_pending').replaceAll('{groupName}', groupName));
           Navigator.push(
             context,
             MaterialPageRoute(
@@ -1365,7 +1387,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
             _loadPersonalStats();
           });
         } else {
-          _showSnackbarHome('Keanggotaan Anda di "$groupName" ditolak/ditangguhkan.', isError: true);
+          _showSnackbarHome(context.translate('home_join_group_rejected').replaceAll('{groupName}', groupName), isError: true);
         }
       } else {
         _showJoinConfirmationDialog(groupId, groupName, visibility, code);
@@ -1373,7 +1395,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
     } catch (e) {
       if (mounted) {
         Navigator.pop(context); // Close loading dialog if open
-        _showSnackbarHome('Gagal memproses link: $e', isError: true);
+        _showSnackbarHome(context.translate('home_join_group_failed_link').replaceAll('{error}', e.toString()), isError: true);
       }
     }
   }
@@ -1392,7 +1414,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  'Gabung Grup',
+                  context.translate('home_join_dialog_title'),
                   style: TextStyle(
                     color: isDark ? Colors.white : const Color(0xFF1D2A22),
                     fontWeight: FontWeight.bold,
@@ -1402,7 +1424,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
             ],
           ),
           content: Text(
-            'Apakah Anda ingin mengajukan bergabung ke grup "$groupName" (Kode: $code)?',
+            context.translate('home_join_dialog_body').replaceAll('{groupName}', groupName).replaceAll('{code}', code),
             style: TextStyle(
               color: isDark ? Colors.white70 : const Color(0xFF5F6E65),
               fontSize: 14,
@@ -1412,7 +1434,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
             TextButton(
               onPressed: () => Navigator.pop(dialogContext),
               child: Text(
-                'Batal',
+                context.translate('home_join_dialog_cancel'),
                 style: TextStyle(color: isDark ? Colors.white60 : Colors.grey.shade600),
               ),
             ),
@@ -1425,7 +1447,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
                 Navigator.pop(dialogContext);
                 _joinGroupFromLink(groupId, groupName, visibility);
               },
-              child: const Text('Gabung', style: TextStyle(color: Colors.white)),
+              child: Text(context.translate('home_join_dialog_confirm'), style: const TextStyle(color: Colors.white)),
             ),
           ],
         );
@@ -1497,9 +1519,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
       Navigator.pop(context); // Close loading dialog
 
       if (isPrivate) {
-        _showSnackbarHome('Permintaan bergabung terkirim! Tunggu persetujuan Admin.');
+        _showSnackbarHome(context.translate('home_join_sent_pending'));
       } else {
-        _showSnackbarHome('Berhasil bergabung dengan "$groupName"!');
+        _showSnackbarHome(context.translate('home_join_success').replaceAll('{groupName}', groupName));
         Navigator.push(
           context,
           MaterialPageRoute(
@@ -1513,7 +1535,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
     } catch (e) {
       if (mounted) {
         Navigator.pop(context); // Close loading dialog
-        _showSnackbarHome('Gagal bergabung: $e', isError: true);
+        _showSnackbarHome(context.translate('home_join_failed').replaceAll('{error}', e.toString()), isError: true);
       }
     }
   }

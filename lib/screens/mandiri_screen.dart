@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:quran/quran.dart' as quran;
+import '../providers/settings_provider.dart';
+import '../utils/localization.dart';
 import '../components/juz_progress_card.dart';
 import '../components/khatam_celebration.dart';
 import '../theme/app_theme.dart';
@@ -166,7 +169,7 @@ class _MandiriScreenState extends State<MandiriScreen> {
     if (ayat > total) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Nomor ayat melebihi batas maksimal (Max: $total)'),
+          content: Text(context.translate('mandiri_max_ayat_error').replaceAll('{total}', total.toString())),
           backgroundColor: Colors.redAccent,
         ),
       );
@@ -189,7 +192,7 @@ class _MandiriScreenState extends State<MandiriScreen> {
       ActiveKhatamanListScreen.invalidateCache();
 
       if (isComplete) {
-        final desc = 'Alhamdulillah, telah menyelesaikan Juz $juzNumber!';
+        final desc = context.translate('mandiri_log_juz_completed').replaceAll('{juz}', juzNumber.toString());
         await PersonalHistoryService.logReading(
           userId: userId,
           juz: juzNumber,
@@ -208,7 +211,7 @@ class _MandiriScreenState extends State<MandiriScreen> {
       await _loadProgress();
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Gagal menyimpan: $e'), backgroundColor: Colors.redAccent),
+        SnackBar(content: Text(context.translate('mandiri_save_failed').replaceAll('{error}', e.toString())), backgroundColor: Colors.redAccent),
       );
     }
   }
@@ -233,15 +236,15 @@ class _MandiriScreenState extends State<MandiriScreen> {
       builder: (_) => AlertDialog(
         backgroundColor: Theme.of(context).colorScheme.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text('Mulai Khatam Baru?', style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontWeight: FontWeight.bold)),
+        title: Text(context.translate('mandiri_reset_dialog_title'), style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontWeight: FontWeight.bold)),
         content: Text(
-          'Progress bacaan saat ini akan dimulai kembali dari awal. Riwayat khatam sebelumnya tetap tersimpan.',
+          context.translate('mandiri_reset_dialog_body'),
           style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, height: 1.5),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: Text('Batal', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontWeight: FontWeight.w600)),
+            child: Text(context.translate('mandiri_reset_dialog_cancel'), style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontWeight: FontWeight.w600)),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
@@ -251,7 +254,7 @@ class _MandiriScreenState extends State<MandiriScreen> {
               elevation: 0,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             ),
-            child: const Text('Mulai Baru', style: TextStyle(fontWeight: FontWeight.bold)),
+            child: Text(context.translate('mandiri_reset_dialog_confirm'), style: const TextStyle(fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -275,8 +278,8 @@ class _MandiriScreenState extends State<MandiriScreen> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Progres berhasil direset. Bismillah, mulai lagi! \uD83C\uDF19'),
+          SnackBar(
+            content: Text(context.translate('mandiri_reset_success')),
             backgroundColor: AppTheme.primaryGreen,
           ),
         );
@@ -284,7 +287,7 @@ class _MandiriScreenState extends State<MandiriScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Gagal reset: \$e'), backgroundColor: Colors.redAccent),
+          SnackBar(content: Text(context.translate('mandiri_reset_failed').replaceAll('{error}', e.toString())), backgroundColor: Colors.redAccent),
         );
       }
     }
@@ -304,16 +307,14 @@ class _MandiriScreenState extends State<MandiriScreen> {
           size: 40,
         ),
         title: Text(
-          'Konfirmasi Khataman',
+          context.translate('mandiri_confirm_khatam_title'),
           style: TextStyle(
             color: Theme.of(context).colorScheme.onSurface,
             fontWeight: FontWeight.bold,
           ),
         ),
         content: Text(
-          'Apakah Anda sudah selesai membaca Doa Khatam Al-Quran?\n\n'
-          'Jika sudah, progres khataman akan dicatat ke dalam riwayat '
-          'dan di-reset kembali ke Juz 1.',
+          context.translate('mandiri_confirm_khatam_body'),
           style: TextStyle(
             color: Theme.of(context).colorScheme.onSurfaceVariant,
             height: 1.6,
@@ -328,11 +329,11 @@ class _MandiriScreenState extends State<MandiriScreen> {
               showDoaKhatamBottomSheet(
                 context,
                 onConfirmCompletion: _confirmDoaKhatamMandiri,
-                confirmationMessage: 'Tindakan ini akan mencatat khataman Mandiri Anda ke riwayat, lalu mereset seluruh progres kembali ke Juz 1 untuk memulai putaran baru. Lanjutkan?',
+                confirmationMessage: context.translate('mandiri_confirm_khatam_instruction'),
               );
             },
             icon: const Icon(Icons.auto_stories_rounded, size: 16),
-            label: const Text('Belum, Baca Doa', style: TextStyle(fontWeight: FontWeight.w600)),
+            label: Text(context.translate('mandiri_btn_read_doa'), style: const TextStyle(fontWeight: FontWeight.w600)),
             style: OutlinedButton.styleFrom(
               foregroundColor: AppTheme.accentGold,
               side: BorderSide(color: AppTheme.accentGold.withOpacity(0.5)),
@@ -346,7 +347,7 @@ class _MandiriScreenState extends State<MandiriScreen> {
               _confirmDoaKhatamMandiri();
             },
             icon: const Icon(Icons.check_circle_rounded, size: 16),
-            label: const Text('Ya, Sudah', style: TextStyle(fontWeight: FontWeight.bold)),
+            label: Text(context.translate('mandiri_btn_yes_done'), style: const TextStyle(fontWeight: FontWeight.bold)),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppTheme.primaryGreen,
               foregroundColor: Colors.white,
@@ -370,7 +371,7 @@ class _MandiriScreenState extends State<MandiriScreen> {
       await PersonalHistoryService.logReading(
         userId: userId,
         juz: 30,
-        description: '\uD83C\uDFC6 Menyelesaikan Khataman Mandiri 30 Juz! Alhamdulillah!',
+        description: context.translate('mandiri_log_khatam_completed'),
         type: 'Mandiri',
         isJuzCompletion: true,
         isKhatamCompletion: true,
@@ -392,8 +393,8 @@ class _MandiriScreenState extends State<MandiriScreen> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('\uD83C\uDFC6 Khataman berhasil dicatat! Bismillah, mulai lagi!'),
+          SnackBar(
+            content: Text(context.translate('mandiri_khatam_logged')),
             backgroundColor: AppTheme.primaryGreen,
           ),
         );
@@ -401,7 +402,7 @@ class _MandiriScreenState extends State<MandiriScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Gagal mencatat khataman: \$e'), backgroundColor: Colors.redAccent),
+          SnackBar(content: Text(context.translate('mandiri_khatam_failed').replaceAll('{error}', e.toString())), backgroundColor: Colors.redAccent),
         );
       }
     }
@@ -409,6 +410,7 @@ class _MandiriScreenState extends State<MandiriScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final settingsProvider = Provider.of<SettingsProvider>(context);
     double totalProgressSum = 0.0;
     for (int juzNum = 1; juzNum <= 30; juzNum++) {
       final progress = _getProgressForJuz(juzNum);
@@ -438,7 +440,7 @@ class _MandiriScreenState extends State<MandiriScreen> {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        title: const Text('Khataman Mandiri'),
+        title: Text(context.translate('mandiri_title')),
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         leading: IconButton(
           icon: Icon(Icons.arrow_back_ios_rounded, color: Theme.of(context).colorScheme.onSurface),
@@ -447,7 +449,7 @@ class _MandiriScreenState extends State<MandiriScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.restart_alt_rounded, color: Colors.redAccent),
-            tooltip: 'Reset Semua Progres',
+            tooltip: context.translate('mandiri_tooltip_reset'),
             onPressed: _resetAllProgress,
           ),
         ],
@@ -462,7 +464,7 @@ class _MandiriScreenState extends State<MandiriScreen> {
                 if (completed == 30)
                   CongratulatoryCard(
                     onReset: _resetAllProgress,
-                    resetLabel: 'Mulai Khataman Baru',
+                    resetLabel: context.translate('mandiri_btn_reset_khatam'),
                     showResetButton: false,
                     onDoaKhatam: _showDoaKhatamConfirmation,
                   ),
@@ -482,6 +484,7 @@ class _MandiriScreenState extends State<MandiriScreen> {
                         isComplete: progress?['selesai'] == true,
                         isGroupMode: false,
                         onSave: (absoluteIndex, total) => _saveProgress(juzNumber, absoluteIndex, total),
+                        onProgressUpdated: _loadProgress,
                       );
                     },
                   ),
@@ -542,7 +545,7 @@ class _MandiriScreenState extends State<MandiriScreen> {
                     child: Opacity(
                       opacity: labelOpacity,
                       child: Text(
-                        'Progres Khataman',
+                        context.translate('mandiri_progress_title'),
                         style: TextStyle(
                           color: titleTextColor,
                           fontSize: 13,
@@ -558,7 +561,7 @@ class _MandiriScreenState extends State<MandiriScreen> {
                     Opacity(
                       opacity: (1.0 - _shrinkFactor / 0.5).clamp(0.0, 1.0),
                       child: Text(
-                        '$completed / 30 Juz Selesai',
+                        context.translate('mandiri_juz_completed_count').replaceAll('{completed}', completed.toString()),
                         style: TextStyle(
                           fontSize: completedFontSize,
                           fontWeight: FontWeight.bold,
@@ -577,7 +580,7 @@ class _MandiriScreenState extends State<MandiriScreen> {
                           ),
                           const SizedBox(width: 6),
                           Text(
-                            'Progres Mandiri: $completed/30 Juz',
+                            context.translate('mandiri_progress_short').replaceAll('{completed}', completed.toString()),
                             style: TextStyle(
                               fontSize: completedFontSize,
                               fontWeight: FontWeight.bold,
@@ -631,14 +634,14 @@ class _MandiriScreenState extends State<MandiriScreen> {
       width: double.infinity,
       color: Colors.redAccent.withOpacity(0.9),
       padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-      child: const Row(
+      child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.wifi_off_rounded, color: Colors.white, size: 16),
-          SizedBox(width: 8),
+          const Icon(Icons.wifi_off_rounded, color: Colors.white, size: 16),
+          const SizedBox(width: 8),
           Text(
-            'Koneksi Terputus. Menampilkan data offline terakhir.',
-            style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+            context.translate('mandiri_offline_banner'),
+            style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
           ),
         ],
       ),

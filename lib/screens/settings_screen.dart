@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import '../theme/app_theme.dart';
 import '../providers/settings_provider.dart';
 import '../services/azan_notification_service.dart';
 import '../services/prayer_time_service.dart';
+import '../utils/localization.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({Key? key}) : super(key: key);
@@ -22,11 +24,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String _azanSound = 'default';
   String _calcMethod = 'muslim_world_league';
   String _madhab = 'syafii';
+  String _appVersion = '1.13.0';
 
   @override
   void initState() {
     super.initState();
     _loadAzanSettings();
+    _loadAppVersion();
+  }
+
+  Future<void> _loadAppVersion() async {
+    try {
+      final packageInfo = await PackageInfo.fromPlatform();
+      if (mounted) {
+        setState(() {
+          _appVersion = packageInfo.version;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading app version: $e');
+    }
   }
 
   Future<void> _loadAzanSettings() async {
@@ -46,6 +63,63 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  String _getTranslatedFontSizeLabel(BuildContext context, String rawLabel) {
+    if (rawLabel == 'Kecil') return context.translate('font_size_small');
+    if (rawLabel == 'Besar') return context.translate('font_size_large');
+    return context.translate('font_size_normal');
+  }
+
+  String _getTranslatedPrayerName(BuildContext context, String rawName) {
+    switch (rawName.toLowerCase()) {
+      case 'subuh': return context.translate('prayer_subuh');
+      case 'dzuhur': return context.translate('prayer_dzuhur');
+      case 'ashar': return context.translate('prayer_ashar');
+      case 'maghrib': return context.translate('prayer_maghrib');
+      case 'isya': return context.translate('prayer_isya');
+      default: return rawName;
+    }
+  }
+
+  String _formatAzanTileTitle(BuildContext context, String rawPrayerName) {
+    final format = context.translate('tile_azan_format');
+    final translatedPrayer = _getTranslatedPrayerName(context, rawPrayerName);
+    return format.replaceAll('{prayer}', translatedPrayer);
+  }
+
+  String _getTranslatedSoundLabel(BuildContext context, String soundKey) {
+    switch (soundKey) {
+      case 'default': return context.translate('sound_default');
+      case 'silent': return context.translate('sound_silent');
+      case 'makkah': return context.translate('sound_makkah');
+      case 'madinah': return context.translate('sound_madinah');
+      default: return soundKey;
+    }
+  }
+
+  String _getTranslatedCalcMethodLabel(BuildContext context, String methodKey) {
+    switch (methodKey) {
+      case 'kemenag': return context.translate('method_kemenag');
+      case 'singapore': return context.translate('method_singapore');
+      case 'muslim_world_league': return context.translate('method_muslim_world_league');
+      case 'egyptian': return context.translate('method_egyptian');
+      case 'karachi': return context.translate('method_karachi');
+      case 'umm_al_qura': return context.translate('method_umm_al_qura');
+      case 'dubai': return context.translate('method_dubai');
+      case 'kuwait': return context.translate('method_kuwait');
+      case 'turkey': return context.translate('method_turkey');
+      case 'tehran': return context.translate('method_tehran');
+      default: return methodKey;
+    }
+  }
+
+  String _getTranslatedMadhabLabel(BuildContext context, String madhabKey) {
+    switch (madhabKey) {
+      case 'syafii': return context.translate('madhab_syafii');
+      case 'hanafi': return context.translate('madhab_hanafi');
+      default: return madhabKey;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final settings = Provider.of<SettingsProvider>(context);
@@ -53,7 +127,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        title: const Text('Pengaturan'),
+        title: Text(context.translate('title_settings')),
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         leading: IconButton(
           icon: Icon(Icons.arrow_back_ios_rounded, color: Theme.of(context).colorScheme.onSurface),
@@ -65,14 +139,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
         children: [
 
           // ── TAMPILAN ─────────────────────────────────────────
-          _sectionHeader(context, 'Tampilan'),
+          _sectionHeader(context, context.translate('section_appearance')),
           _buildCard(context, [
             // Tema
             _buildTileLeading(context, 
               icon: Icons.dark_mode_rounded,
               iconColor: const Color(0xFF6C63FF),
-              title: 'Tema Aplikasi',
-              subtitle: Theme.of(context).brightness == Brightness.dark ? 'Gelap' : 'Terang',
+              title: context.translate('tile_theme'),
+              subtitle: Theme.of(context).brightness == Brightness.dark 
+                  ? context.translate('theme_dark') 
+                  : context.translate('theme_light'),
               trailing: Switch(
                 value: Theme.of(context).brightness == Brightness.dark,
                 activeThumbColor: AppTheme.primaryGreen,
@@ -86,7 +162,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _buildTileExpanded(context, 
               icon: Icons.text_fields_rounded,
               iconColor: const Color(0xFF00BCD4),
-              title: 'Ukuran Teks',
+              title: context.translate('tile_font_size'),
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(56, 0, 16, 12),
                 child: Column(
@@ -111,7 +187,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                     Center(
                       child: Text(
-                        settings.fontSizeLabel,
+                        _getTranslatedFontSizeLabel(context, settings.fontSizeLabel),
                         style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12),
                       ),
                     ),
@@ -119,19 +195,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ),
             ),
+            _divider(context),
+            // Bahasa
+            _buildTileLeading(context, 
+              icon: Icons.language_rounded,
+              iconColor: const Color(0xFF4CAF50),
+              title: context.translate('tile_language'),
+              subtitle: settings.language == 'id' ? 'Bahasa Indonesia' : 'English',
+              trailing: Icon(Icons.chevron_right_rounded, color: Theme.of(context).colorScheme.onSurfaceVariant),
+              onTap: () => _showLanguagePicker(context, settings),
+            ),
           ]),
 
           // ── NOTIFIKASI ───────────────────────────────────────
-          _sectionHeader(context, 'Notifikasi'),
+          _sectionHeader(context, context.translate('section_notifications')),
           _buildCard(context, [
             // Pengingat harian
             _buildTileLeading(context, 
               icon: Icons.alarm_rounded,
               iconColor: const Color(0xFFFF9800),
-              title: 'Pengingat Khataman',
+              title: context.translate('tile_reminder'),
               subtitle: settings.reminderEnabled
-                  ? 'Aktif — ${settings.reminderTimeLabel}'
-                  : 'Nonaktif',
+                  ? '${context.translate('status_active')} — ${settings.reminderTimeLabel}'
+                  : context.translate('status_inactive'),
               trailing: Switch(
                 value: settings.reminderEnabled,
                 activeThumbColor: AppTheme.primaryGreen,
@@ -142,7 +228,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               _divider(context),
               ListTile(
                 contentPadding: const EdgeInsets.fromLTRB(56, 0, 16, 0),
-                title: Text('Jam Pengingat', style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontSize: 14)),
+                title: Text(context.translate('tile_reminder_time'), style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontSize: 14)),
                 subtitle: Text(settings.reminderTimeLabel,
                     style: const TextStyle(color: AppTheme.primaryGreen, fontWeight: FontWeight.w600)),
                 trailing: Icon(Icons.chevron_right_rounded, color: Theme.of(context).colorScheme.onSurfaceVariant),
@@ -171,8 +257,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _buildTileLeading(context, 
               icon: Icons.group_rounded,
               iconColor: AppTheme.primaryGreen,
-              title: 'Notifikasi Update Grup',
-              subtitle: 'Saat anggota klaim atau selesai Juz',
+              title: context.translate('tile_group_notif'),
+              subtitle: context.translate('subtitle_group_notif'),
               trailing: Switch(
                 value: settings.groupNotifEnabled,
                 activeThumbColor: AppTheme.primaryGreen,
@@ -182,14 +268,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ]),
 
           // ── SHALAT & AZAN ────────────────────────────────────
-          _sectionHeader(context, 'Shalat & Azan'),
+          _sectionHeader(context, context.translate('section_prayer_azan')),
           _buildCard(context, [
             // Master Azan Toggle
             _buildTileLeading(context, 
               icon: Icons.mosque_rounded,
               iconColor: const Color(0xFF00BCD4),
-              title: 'Notifikasi Azan',
-              subtitle: _azanEnabled ? 'Aktif' : 'Nonaktif',
+              title: context.translate('tile_azan_notif'),
+              subtitle: _azanEnabled ? context.translate('status_active') : context.translate('status_inactive'),
               trailing: Switch(
                 value: _azanEnabled,
                 activeThumbColor: AppTheme.primaryGreen,
@@ -212,7 +298,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           const SizedBox(width: 40),
                           Expanded(
                             child: Text(
-                              'Azan ${entry.key}',
+                              _formatAzanTileTitle(context, entry.key),
                               style: TextStyle(
                                 fontSize: 13,
                                 color: Theme.of(context).colorScheme.onSurface,
@@ -240,8 +326,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               _buildTileLeading(context, 
                 icon: Icons.volume_up_rounded,
                 iconColor: const Color(0xFFFF9800),
-                title: 'Suara Azan',
-                subtitle: AzanNotificationService.azanSoundOptions[_azanSound] ?? 'Default',
+                title: context.translate('tile_azan_sound'),
+                subtitle: _getTranslatedSoundLabel(context, _azanSound),
                 trailing: Icon(Icons.chevron_right_rounded, color: Theme.of(context).colorScheme.onSurfaceVariant),
                 onTap: () => _showAzanSoundPicker(context),
               ),
@@ -251,8 +337,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _buildTileLeading(context, 
               icon: Icons.calculate_rounded,
               iconColor: const Color(0xFF6C63FF),
-              title: 'Metode Kalkulasi',
-              subtitle: PrayerTimeService.calcMethodOptions[_calcMethod] ?? _calcMethod,
+              title: context.translate('tile_calc_method'),
+              subtitle: _getTranslatedCalcMethodLabel(context, _calcMethod),
               trailing: Icon(Icons.chevron_right_rounded, color: Theme.of(context).colorScheme.onSurfaceVariant),
               onTap: () => _showCalcMethodPicker(context),
             ),
@@ -261,27 +347,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _buildTileLeading(context, 
               icon: Icons.school_rounded,
               iconColor: const Color(0xFF4CAF50),
-              title: 'Madhab',
-              subtitle: PrayerTimeService.madhabOptions[_madhab] ?? _madhab,
+              title: context.translate('tile_madhab'),
+              subtitle: _getTranslatedMadhabLabel(context, _madhab),
               trailing: Icon(Icons.chevron_right_rounded, color: Theme.of(context).colorScheme.onSurfaceVariant),
               onTap: () => _showMadhabPicker(context),
             ),
           ]),
 
           // ── TARGET ───────────────────────────────────────────
-          _sectionHeader(context, 'Target Membaca'),
+          _sectionHeader(context, context.translate('section_reading_target')),
           _buildCard(context, [
             _buildTileExpanded(context, 
               icon: Icons.flag_rounded,
               iconColor: const Color(0xFF4CAF50),
-              title: 'Target Harian',
+              title: context.translate('tile_daily_target'),
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(56, 0, 16, 16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Membaca ${settings.dailyTargetJuzLabel} Juz per hari',
+                      context.translate('target_daily_target_juz').replaceAll('{target}', settings.dailyTargetJuzLabel),
                       style: const TextStyle(color: AppTheme.primaryGreen, fontWeight: FontWeight.w600),
                     ),
                     const SizedBox(height: 12),
@@ -301,17 +387,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           isExpanded: true,
                           icon: const Icon(Icons.keyboard_arrow_down_rounded, color: AppTheme.primaryGreen),
                           dropdownColor: Theme.of(context).colorScheme.surface,
-                          items: const [
-                            DropdownMenuItem(value: 0.1, child: Text('1/10 Juz (2 Halaman) per hari')),
-                            DropdownMenuItem(value: 0.125, child: Text('1/8 Juz (2.5 Halaman) per hari')),
-                            DropdownMenuItem(value: 0.25, child: Text('1/4 Juz (5 Halaman) per hari')),
-                            DropdownMenuItem(value: 0.5, child: Text('1/2 Juz (10 Halaman) per hari')),
-                            DropdownMenuItem(value: 0.75, child: Text('3/4 Juz (15 Halaman) per hari')),
-                            DropdownMenuItem(value: 1.0, child: Text('1 Juz (20 Halaman) per hari')),
-                            DropdownMenuItem(value: 2.0, child: Text('2 Juz (40 Halaman) per hari')),
-                            DropdownMenuItem(value: 3.0, child: Text('3 Juz (60 Halaman) per hari')),
-                            DropdownMenuItem(value: 4.0, child: Text('4 Juz (80 Halaman) per hari')),
-                            DropdownMenuItem(value: 5.0, child: Text('5 Juz (100 Halaman) per hari')),
+                          items: [
+                            DropdownMenuItem(value: 0.1, child: Text(context.translate('target_1_10'))),
+                            DropdownMenuItem(value: 0.125, child: Text(context.translate('target_1_8'))),
+                            DropdownMenuItem(value: 0.25, child: Text(context.translate('target_1_4'))),
+                            DropdownMenuItem(value: 0.5, child: Text(context.translate('target_1_2'))),
+                            DropdownMenuItem(value: 0.75, child: Text(context.translate('target_3_4'))),
+                            DropdownMenuItem(value: 1.0, child: Text(context.translate('target_1'))),
+                            DropdownMenuItem(value: 2.0, child: Text(context.translate('target_2'))),
+                            DropdownMenuItem(value: 3.0, child: Text(context.translate('target_3'))),
+                            DropdownMenuItem(value: 4.0, child: Text(context.translate('target_4'))),
+                            DropdownMenuItem(value: 5.0, child: Text(context.translate('target_5'))),
                           ],
                           onChanged: (val) {
                             if (val != null) {
@@ -328,13 +414,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ]),
 
           // ── TENTANG ──────────────────────────────────────────
-          _sectionHeader(context, 'Tentang'),
+          _sectionHeader(context, context.translate('section_about')),
           _buildCard(context, [
             _buildTileLeading(context, 
               icon: Icons.info_outline_rounded,
               iconColor: const Color(0xFF2196F3),
-              title: 'Tentang Aplikasi',
-              subtitle: 'Khataman Quran v1.1.0',
+              title: context.translate('tile_about_app'),
+              subtitle: 'Khataman Quran v$_appVersion',
               trailing: Icon(Icons.chevron_right_rounded, color: Theme.of(context).colorScheme.onSurfaceVariant),
               onTap: () => _showAboutDialog(context),
             ),
@@ -342,8 +428,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _buildTileLeading(context, 
               icon: Icons.privacy_tip_outlined,
               iconColor: const Color(0xFF9C27B0),
-              title: 'Kebijakan Privasi',
-              subtitle: 'Cara kami melindungi data Anda',
+              title: context.translate('tile_privacy_policy'),
+              subtitle: context.translate('subtitle_privacy_policy'),
               trailing: Icon(Icons.chevron_right_rounded, color: Theme.of(context).colorScheme.onSurfaceVariant),
               onTap: () => _showPrivacyPolicyDialog(context),
             ),
@@ -351,21 +437,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _buildTileLeading(context, 
               icon: Icons.history_rounded,
               iconColor: const Color(0xFFE91E63),
-              title: 'Catatan Perubahan (Changelog)',
-              subtitle: 'Riwayat pembaruan & versi aplikasi',
+              title: context.translate('tile_changelog'),
+              subtitle: context.translate('subtitle_changelog'),
               trailing: Icon(Icons.chevron_right_rounded, color: Theme.of(context).colorScheme.onSurfaceVariant),
               onTap: () => _showChangelogDialog(context),
             ),
           ]),
 
           // ── AKUN ────────────────────────────────────────────
-          _sectionHeader(context, 'Akun'),
+          _sectionHeader(context, context.translate('section_account')),
           _buildCard(context, [
             _buildTileLeading(context, 
               icon: Icons.delete_forever_rounded,
               iconColor: Colors.redAccent,
-              title: 'Hapus Akun',
-              subtitle: 'Hapus akun dan semua data Anda secara permanen',
+              title: context.translate('tile_delete_account'),
+              subtitle: context.translate('subtitle_delete_account'),
               titleColor: Colors.redAccent,
               trailing: const Icon(Icons.chevron_right_rounded, color: Colors.redAccent),
               onTap: () => _confirmDeleteAccount(context),
@@ -375,7 +461,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 32),
           Center(
             child: Text(
-              'Khataman Quran • v1.1.0\nDibuat dengan ❤️ untuk umat',
+              'Khataman Quran • v$_appVersion\n${context.translate('footer_made_with')}',
               textAlign: TextAlign.center,
               style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12, height: 1.6),
             ),
@@ -484,6 +570,73 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ],
     );
   }
+  void _showLanguagePicker(BuildContext context, SettingsProvider settings) {
+    String selected = settings.language;
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setStateDialog) {
+          return AlertDialog(
+            backgroundColor: Theme.of(context).colorScheme.surface,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: Row(
+              children: [
+                const Icon(Icons.language_rounded, color: Color(0xFF4CAF50)),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    context.translate('dialog_choose_language'),
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                RadioListTile<String>(
+                  title: Text('Bahasa Indonesia', style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurface)),
+                  value: 'id',
+                  groupValue: selected,
+                  activeColor: AppTheme.primaryGreen,
+                  onChanged: (val) {
+                    if (val != null) setStateDialog(() => selected = val);
+                  },
+                ),
+                RadioListTile<String>(
+                  title: Text('English', style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurface)),
+                  value: 'en',
+                  groupValue: selected,
+                  activeColor: AppTheme.primaryGreen,
+                  onChanged: (val) {
+                    if (val != null) setStateDialog(() => selected = val);
+                  },
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: Text(context.translate('btn_cancel'), style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  await settings.setLanguage(selected);
+                  Navigator.pop(ctx);
+                },
+                style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primaryGreen),
+                child: Text(context.translate('btn_save'), style: const TextStyle(color: Colors.white)),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
   void _showAzanSoundPicker(BuildContext context) {
     String selected = _azanSound;
     showDialog(
@@ -497,14 +650,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
               children: [
                 const Icon(Icons.volume_up_rounded, color: Color(0xFFFF9800)),
                 const SizedBox(width: 8),
-                Text('Suara Azan', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Theme.of(context).colorScheme.onSurface)),
+                Text(context.translate('tile_azan_sound'), style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Theme.of(context).colorScheme.onSurface)),
               ],
             ),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: AzanNotificationService.azanSoundOptions.entries.map((e) {
                 return RadioListTile<String>(
-                  title: Text(e.value, style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurface)),
+                  title: Text(_getTranslatedSoundLabel(context, e.key), style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurface)),
                   value: e.key,
                   groupValue: selected,
                   activeColor: AppTheme.primaryGreen,
@@ -517,7 +670,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(ctx),
-                child: Text('Batal', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                child: Text(context.translate('btn_cancel'), style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
               ),
               ElevatedButton(
                 onPressed: () async {
@@ -526,7 +679,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   Navigator.pop(ctx);
                 },
                 style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primaryGreen),
-                child: const Text('Simpan', style: TextStyle(color: Colors.white)),
+                child: Text(context.translate('btn_save'), style: const TextStyle(color: Colors.white)),
               ),
             ],
           );
@@ -548,7 +701,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               children: [
                 const Icon(Icons.calculate_rounded, color: Color(0xFF6C63FF)),
                 const SizedBox(width: 8),
-                Text('Metode Kalkulasi', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Theme.of(context).colorScheme.onSurface)),
+                Text(context.translate('tile_calc_method'), style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Theme.of(context).colorScheme.onSurface)),
               ],
             ),
             content: SizedBox(
@@ -558,7 +711,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 shrinkWrap: true,
                 children: PrayerTimeService.calcMethodOptions.entries.map((e) {
                   return RadioListTile<String>(
-                    title: Text(e.value, style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurface)),
+                    title: Text(_getTranslatedCalcMethodLabel(context, e.key), style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurface)),
                     value: e.key,
                     groupValue: selected,
                     activeColor: AppTheme.primaryGreen,
@@ -572,7 +725,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(ctx),
-                child: Text('Batal', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                child: Text(context.translate('btn_cancel'), style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
               ),
               ElevatedButton(
                 onPressed: () async {
@@ -581,7 +734,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   Navigator.pop(ctx);
                 },
                 style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primaryGreen),
-                child: const Text('Simpan', style: TextStyle(color: Colors.white)),
+                child: Text(context.translate('btn_save'), style: const TextStyle(color: Colors.white)),
               ),
             ],
           );
@@ -603,18 +756,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
               children: [
                 const Icon(Icons.school_rounded, color: Color(0xFF4CAF50)),
                 const SizedBox(width: 8),
-                Text('Madhab', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Theme.of(context).colorScheme.onSurface)),
+                Text(context.translate('tile_madhab'), style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Theme.of(context).colorScheme.onSurface)),
               ],
             ),
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: PrayerTimeService.madhabOptions.entries.map((e) {
                 return RadioListTile<String>(
-                  title: Text(e.value, style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurface)),
+                  title: Text(_getTranslatedMadhabLabel(context, e.key), style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurface)),
                   subtitle: Text(
                     e.key == 'syafii'
-                        ? 'Digunakan di Indonesia, Malaysia, dll.'
-                        : 'Digunakan di Turki, Pakistan, dll.',
+                        ? context.translate('madhab_desc_syafii')
+                        : context.translate('madhab_desc_hanafi'),
                     style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant),
                   ),
                   value: e.key,
@@ -629,7 +782,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(ctx),
-                child: Text('Batal', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                child: Text(context.translate('btn_cancel'), style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
               ),
               ElevatedButton(
                 onPressed: () async {
@@ -638,7 +791,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   Navigator.pop(ctx);
                 },
                 style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primaryGreen),
-                child: const Text('Simpan', style: TextStyle(color: Colors.white)),
+                child: Text(context.translate('btn_save'), style: const TextStyle(color: Colors.white)),
               ),
             ],
           );
@@ -652,19 +805,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
       context: context,
       builder: (_) => AlertDialog(
         backgroundColor: Theme.of(context).colorScheme.surface,
-        title: Text('Tentang Khataman Quran', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
+        title: Text(context.translate('about_title'), style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Versi: 1.1.0', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+            Text('${context.translate('about_version')}: $_appVersion', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
             const SizedBox(height: 8),
             Text(
-              'Aplikasi untuk melacak progres Khataman Al-Quran secara mandiri maupun bersama dalam grup.',
+              context.translate('about_desc'),
               style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, height: 1.5),
             ),
             const SizedBox(height: 12),
-            Text('Stack Teknologi:', style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontWeight: FontWeight.w600)),
+            Text(context.translate('about_tech_stack'), style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontWeight: FontWeight.w600)),
             const SizedBox(height: 4),
             Text('• Flutter (Dart)\n• Supabase (PostgreSQL)\n• Google OAuth',
                 style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, height: 1.6)),
@@ -673,7 +826,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Tutup', style: TextStyle(color: AppTheme.primaryGreen)),
+            child: Text(context.translate('btn_close'), style: const TextStyle(color: AppTheme.primaryGreen)),
           ),
         ],
       ),
@@ -686,11 +839,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
       builder: (_) => AlertDialog(
         backgroundColor: Theme.of(context).colorScheme.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Row(
+        title: Row(
           children: [
-            Icon(Icons.privacy_tip_rounded, color: Color(0xFF9C27B0), size: 28),
-            SizedBox(width: 8),
-            Text('Kebijakan Privasi', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+            const Icon(Icons.privacy_tip_rounded, color: Color(0xFF9C27B0), size: 28),
+            const SizedBox(width: 8),
+            Text(context.translate('tile_privacy_policy'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
           ],
         ),
         content: SizedBox(
@@ -700,18 +853,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Kami sangat menghargai privasi dan perlindungan data Anda. Aplikasi Khataman Quran dirancang dengan asas transparansi penuh:',
+                  context.translate('policy_intro'),
                   style: TextStyle(color: Theme.of(context).colorScheme.onSurface, height: 1.5, fontSize: 13),
                 ),
                 const SizedBox(height: 16),
-                _policySection(context, '1. Pengumpulan Data', 
-                  'Aplikasi menyinkronkan data progres membaca Anda (Juz yang diklaim/selesai, riwayat khataman) ke database Supabase Cloud yang aman demi kelancaran akses lintas perangkat Anda.'),
-                _policySection(context, '2. Autentikasi Pengguna', 
-                  'Kami menggunakan email Anda (melalui Google Sign-In atau Email Auth) semata-mata untuk keperluan keamanan akun, kepemilikan grup, dan sinkronisasi riwayat Anda.'),
-                _policySection(context, '3. Kerahasiaan Penuh', 
-                  'Data pribadi dan progres Anda tidak akan pernah dijual, dibagikan, atau disalahgunakan kepada pihak ketiga mana pun.'),
-                _policySection(context, '4. Hak Penghapusan Akun', 
-                  'Anda memiliki hak mutlak untuk menghapus seluruh data Anda kapan saja. Melalui tombol "Hapus Akun", seluruh profil, data grup milik sendiri, riwayat, dan relasi data Anda di database server kami akan dihapus secara instan dan permanen tanpa sisa.'),
+                _policySection(context, context.translate('policy_1_title'), 
+                  context.translate('policy_1_body')),
+                _policySection(context, context.translate('policy_2_title'), 
+                  context.translate('policy_2_body')),
+                _policySection(context, context.translate('policy_3_title'), 
+                  context.translate('policy_3_body')),
+                _policySection(context, context.translate('policy_4_title'), 
+                  context.translate('policy_4_body')),
               ],
             ),
           ),
@@ -719,7 +872,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Saya Mengerti', style: TextStyle(color: AppTheme.primaryGreen, fontWeight: FontWeight.bold)),
+            child: Text(context.translate('policy_dialog_close'), style: const TextStyle(color: AppTheme.primaryGreen, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -749,11 +902,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
       builder: (_) => AlertDialog(
         backgroundColor: Theme.of(context).colorScheme.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Row(
+        title: Row(
           children: [
-            Icon(Icons.history_rounded, color: Color(0xFFE91E63), size: 28),
-            SizedBox(width: 8),
-            Text('Catatan Perubahan', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+            const Icon(Icons.history_rounded, color: Color(0xFFE91E63), size: 28),
+            const SizedBox(width: 8),
+            Text(context.translate('changelog_title'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
           ],
         ),
         content: SizedBox(
@@ -764,24 +917,36 @@ class _SettingsScreenState extends State<SettingsScreen> {
               children: [
                 _changelogVersion(
                   context,
-                  version: 'v1.1.0 (Mei 2026)',
+                  version: context.translate('changelog_v1_13_0_header'),
                   changes: [
-                    '✨ Estetika Premium: Penyelarasan tinggi (48px), kebulatan (circular 12), dan pewarnaan cerdas tombol "Saya Sudah Membaca", "Simpan Progres", dan "Lepas" (Light & Dark Mode).',
-                    '👑 Hapus Akun Mandiri & Interaktif: Dukungan transfer kepemimpinan grup (admin) melalui dialog pemilihan anggota secara manual sebelum akun dihapus.',
-                    '🔒 Preservasi Cerdas (Snapshot): Juz yang telah 100% selesai dibaca dipertahankan sebagai snapshot sejarah grup, sedangkan juz inkomplit otomatis dilepas untuk anggota lain.',
-                    '🔔 Pengingat Lintas Platform: Dukungan notifikasi browser Web (HTML5 Notification API) di Chrome serta kueri izin otomatis untuk Android 13+ & iOS.',
-                    '📜 Catatan Perubahan & Privasi: Penambahan dialog Kebijakan Privasi transparan dan menu Changelog interaktif pada halaman pengaturan.',
+                    context.translate('changelog_v1_13_0_1'),
+                    context.translate('changelog_v1_13_0_2'),
+                    context.translate('changelog_v1_13_0_3'),
+                    context.translate('changelog_v1_13_0_4'),
+                    context.translate('changelog_v1_13_0_5'),
                   ],
                 ),
                 const SizedBox(height: 16),
                 _changelogVersion(
                   context,
-                  version: 'v1.0.0 (Awal 2026)',
+                  version: context.translate('changelog_v1_1_0_header'),
                   changes: [
-                    '📖 Khataman Mandiri: Melacak membaca Al-Quran mandiri Juz 1 - 30 dengan visual progres yang interaktif.',
-                    '👥 Khataman Grup: Bergabung atau membuat grup bersama rekan-rekan untuk mengkhatamkan 30 Juz secara kooperatif.',
-                    '☁️ Supabase Cloud Sync: Sinkronisasi instan dua arah seluruh riwayat dan progres membaca secara real-time.',
-                    '🌗 Tema Dinamis: Dukungan Tema Gelap & Terang yang nyaman bagi mata saat membaca.',
+                    context.translate('changelog_v1_1_0_1'),
+                    context.translate('changelog_v1_1_0_2'),
+                    context.translate('changelog_v1_1_0_3'),
+                    context.translate('changelog_v1_1_0_4'),
+                    context.translate('changelog_v1_1_0_5'),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                _changelogVersion(
+                  context,
+                  version: context.translate('changelog_v1_0_0_header'),
+                  changes: [
+                    context.translate('changelog_v1_0_0_1'),
+                    context.translate('changelog_v1_0_0_2'),
+                    context.translate('changelog_v1_0_0_3'),
+                    context.translate('changelog_v1_0_0_4'),
                   ],
                 ),
               ],
@@ -791,7 +956,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Tutup', style: TextStyle(color: AppTheme.primaryGreen, fontWeight: FontWeight.bold)),
+            child: Text(context.translate('btn_close'), style: const TextStyle(color: AppTheme.primaryGreen, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -867,7 +1032,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Anda adalah Admin grup "$groupName". Pilih anggota aktif untuk menggantikan kepemimpinan Anda sebelum akun dihapus:',
+                    context.translate('dialog_body_new_admin').replaceAll('{groupName}', groupName),
                     style: TextStyle(
                       fontSize: 12,
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -961,7 +1126,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
-                        child: const Text('Batal', style: TextStyle(fontWeight: FontWeight.w600)),
+                        child: Text(context.translate('btn_cancel'), style: const TextStyle(fontWeight: FontWeight.w600)),
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -978,7 +1143,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           textStyle: const TextStyle(fontWeight: FontWeight.w600),
                         ),
-                        child: const Text('Konfirmasi & Lanjut'),
+                        child: Text(context.translate('btn_confirm_continue')),
                       ),
                     ),
                   ],
@@ -999,18 +1164,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
       context: context,
       builder: (dialogCtx) {
         bool isValid = false;
-        const requiredText = 'iya, saya ingin MENGHAPUS akun ini';
+        final requiredText = context.translate('delete_verify_text');
 
         return StatefulBuilder(
           builder: (statefulCtx, setStateDialog) {
             return AlertDialog(
               backgroundColor: Theme.of(context).colorScheme.surface,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              title: const Row(
+              title: Row(
                 children: [
-                  Icon(Icons.warning_amber_rounded, color: Colors.redAccent, size: 28),
-                  SizedBox(width: 8),
-                  Text('Hapus Akun?', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const Icon(Icons.warning_amber_rounded, color: Colors.redAccent, size: 28),
+                  const SizedBox(width: 8),
+                  Text(context.translate('delete_confirm_title'), style: const TextStyle(fontWeight: FontWeight.bold)),
                 ],
               ),
               content: Column(
@@ -1018,25 +1183,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Seluruh data Anda (progres khataman mandiri, riwayat membaca, dan keanggotaan grup) akan dihapus secara PERMANEN.\n\nTindakan ini tidak dapat dibatalkan.',
+                    context.translate('delete_confirm_body'),
                     style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, height: 1.5, fontSize: 13),
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    'Untuk mengonfirmasi, ketik kalimat di bawah ini:',
+                    context.translate('delete_confirm_type_sentence'),
                     style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontWeight: FontWeight.w600, fontSize: 12),
                   ),
                   const SizedBox(height: 6),
-                  const SelectableText(
+                  SelectableText(
                     requiredText,
-                    style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 0.2),
+                    style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 0.2),
                   ),
                   const SizedBox(height: 10),
                   TextField(
                     controller: textController,
                     style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontSize: 13),
                     decoration: InputDecoration(
-                      hintText: 'Ketik kalimat verifikasi di sini...',
+                      hintText: context.translate('delete_verify_hint'),
                       hintStyle: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.5)),
                       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                     ),
@@ -1063,7 +1228,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             ),
                           ),
                           child: Text(
-                            'Batal',
+                            context.translate('btn_cancel'),
                             style: TextStyle(
                               color: Theme.of(context).colorScheme.onSurfaceVariant,
                               fontWeight: FontWeight.w600,
@@ -1127,8 +1292,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                             // User cancelled choice, abort entire process!
                                             if (context.mounted) {
                                               ScaffoldMessenger.of(context).showSnackBar(
-                                                const SnackBar(
-                                                  content: Text('Hapus akun dibatalkan.'),
+                                                SnackBar(
+                                                  content: Text(context.translate('msg_delete_cancelled')),
                                                   backgroundColor: Colors.redAccent,
                                                 ),
                                               );
@@ -1229,7 +1394,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                     if (context.mounted) {
                                       Navigator.pop(context); // Close loading dialog
                                       ScaffoldMessenger.of(context).showSnackBar(
-                                        SnackBar(content: Text('Gagal menghapus akun: $e'), backgroundColor: Colors.redAccent),
+                                        SnackBar(content: Text('${context.translate('msg_delete_failed')}: $e'), backgroundColor: Colors.redAccent),
                                       );
                                     }
                                   }
@@ -1246,7 +1411,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               borderRadius: BorderRadius.circular(12),
                             ),
                           ),
-                          child: const Text('Ya, Hapus', style: TextStyle(fontWeight: FontWeight.bold)),
+                          child: Text(context.translate('delete_btn_yes'), style: const TextStyle(fontWeight: FontWeight.bold)),
                         ),
                       ),
                     ],

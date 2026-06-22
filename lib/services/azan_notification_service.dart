@@ -98,7 +98,16 @@ class AzanNotificationService {
       'Isya': _notifIdIsya,
     };
 
-    final azanMessages = {
+    final lang = prefs.getString('app_language') ?? 'id';
+    final isEn = lang == 'en';
+
+    final azanMessages = isEn ? {
+      'Subuh': 'حَيَّ عَلَى الصَّلَاة — Time for Fajr Prayer',
+      'Dzuhur': 'حَيَّ عَلَى الصَّلَاة — Time for Dhuhr Prayer',
+      'Ashar': 'حَيَّ عَلَى الصَّلَاة — Time for Asr Prayer',
+      'Maghrib': 'حَيَّ عَلَى الصَّلَاة — Time for Maghrib Prayer',
+      'Isya': 'حَيَّ عَلَى الصَّلَاة — Time for Isha Prayer',
+    } : {
       'Subuh': 'حَيَّ عَلَى الصَّلَاة — Waktunya Shalat Subuh',
       'Dzuhur': 'حَيَّ عَلَى الصَّلَاة — Waktunya Shalat Dzuhur',
       'Ashar': 'حَيَّ عَلَى الصَّلَاة — Waktunya Shalat Ashar',
@@ -111,21 +120,21 @@ class AzanNotificationService {
     final sound = prefs.getString(_keyAzanSound) ?? 'default';
 
     String channelId = 'azan_channel_default';
-    String channelName = 'Azan Shalat (Default)';
+    String channelName = isEn ? 'Prayer Adhan (Default)' : 'Azan Shalat (Default)';
     AndroidNotificationSound? androidSound;
     bool playSound = true;
 
     if (sound == 'silent') {
       channelId = 'azan_channel_silent';
-      channelName = 'Azan Shalat (Hening)';
+      channelName = isEn ? 'Prayer Adhan (Silent)' : 'Azan Shalat (Hening)';
       playSound = false;
     } else if (sound == 'makkah') {
       channelId = 'azan_channel_makkah';
-      channelName = 'Azan Shalat (Makkah)';
+      channelName = isEn ? 'Prayer Adhan (Makkah)' : 'Azan Shalat (Makkah)';
       androidSound = const RawResourceAndroidNotificationSound('azan_makkah');
     } else if (sound == 'madinah') {
       channelId = 'azan_channel_madinah';
-      channelName = 'Azan Shalat (Madinah)';
+      channelName = isEn ? 'Prayer Adhan (Madinah)' : 'Azan Shalat (Madinah)';
       androidSound = const RawResourceAndroidNotificationSound('azan_madinah');
     }
 

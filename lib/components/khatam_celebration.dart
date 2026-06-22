@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/localization.dart';
 import '../theme/app_theme.dart';
 
 /// Membuka bottom sheet premium doa khatam Al-Quran.
@@ -43,7 +44,7 @@ void showDoaKhatamBottomSheet(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'Doa Khatam Al-Quran',
+                  context.translate('doa_title'),
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
@@ -91,7 +92,7 @@ void showDoaKhatamBottomSheet(
                 ),
                 const SizedBox(height: 24),
                 Text(
-                  'Transliterasi:',
+                  context.translate('doa_transliteration_header'),
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
@@ -110,7 +111,7 @@ void showDoaKhatamBottomSheet(
                 ),
                 const SizedBox(height: 24),
                 Text(
-                  'Arti / Terjemahan:',
+                  context.translate('doa_translation_header'),
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
@@ -120,7 +121,7 @@ void showDoaKhatamBottomSheet(
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  '“Ya Allah, rahmatilah aku dengan Al-Quran. Jadikanlah ia bagiku sebagai pemimpin, cahaya, petunjuk, dan rahmat. Ya Allah, ingatkanlah aku atas apa yang terlupakan darinya, ajarilah aku atas apa yang belum aku ketahui darinya, dan berikanlah aku rezeki untuk membacanya di malam hari dan ujung-ujung siang. Dan jadikanlah ia bagiku sebagai pembela, wahai Tuhan semesta alam.”',
+                  context.translate('doa_translation_text'),
                   style: TextStyle(
                     fontSize: 13,
                     height: 1.6,
@@ -143,19 +144,19 @@ void showDoaKhatamBottomSheet(
                       builder: (dialogCtx) => AlertDialog(
                         backgroundColor: Theme.of(context).colorScheme.surface,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                        title: const Text(
-                          'Selesaikan Khataman?',
-                          style: TextStyle(fontWeight: FontWeight.bold),
+                        title: Text(
+                          context.translate('doa_confirm_complete_title'),
+                          style: const TextStyle(fontWeight: FontWeight.bold),
                         ),
                         content: Text(
-                          confirmationMessage ?? 'Tindakan ini akan mencatat khataman ke riwayat dan menyelesaikan progres putaran saat ini. Lanjutkan?',
+                          confirmationMessage ?? context.translate('doa_confirm_complete_body'),
                           style: const TextStyle(height: 1.5),
                         ),
                         actions: [
                           TextButton(
                             onPressed: () => Navigator.pop(dialogCtx, false),
                             child: Text(
-                              'Batal',
+                              context.translate('btn_cancel'),
                               style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
                             ),
                           ),
@@ -166,7 +167,7 @@ void showDoaKhatamBottomSheet(
                               foregroundColor: Colors.white,
                               elevation: 0,
                             ),
-                            child: const Text('Ya, Selesaikan', style: TextStyle(fontWeight: FontWeight.bold)),
+                            child: Text(context.translate('doa_btn_yes_complete'), style: const TextStyle(fontWeight: FontWeight.bold)),
                           ),
                         ],
                       ),
@@ -178,9 +179,9 @@ void showDoaKhatamBottomSheet(
                     }
                   },
                   icon: const Icon(Icons.check_circle_rounded, size: 18),
-                  label: const Text(
-                    'Saya Telah Membaca Doa',
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                  label: Text(
+                    context.translate('doa_btn_read_already'),
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
                   ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppTheme.primaryGreen,
@@ -202,24 +203,27 @@ void showDoaKhatamBottomSheet(
 /// Card ucapan selamat khatam 30 Juz yang elegan dan reusable.
 class CongratulatoryCard extends StatelessWidget {
   final VoidCallback onReset;
-  final String title;
-  final String description;
-  final String resetLabel;
+  final String? title;
+  final String? description;
+  final String? resetLabel;
   final bool showResetButton;
   final VoidCallback? onDoaKhatam;
 
   const CongratulatoryCard({
     Key? key,
     required this.onReset,
-    this.title = 'Maa Syaa Allah, Barakallah! 🎉',
-    this.description = 'Selamat! Anda telah menyelesaikan khataman 30 Juz Al-Quran.',
-    this.resetLabel = 'Reset Progres',
+    this.title,
+    this.description,
+    this.resetLabel,
     this.showResetButton = true,
     this.onDoaKhatam,
   }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
+    final resolvedTitle = title ?? context.translate('congrats_title');
+    final resolvedDescription = description ?? context.translate('congrats_desc');
+    final resolvedResetLabel = resetLabel ?? context.translate('congrats_btn_reset');
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     final cardBgGradient = isDark
@@ -264,7 +268,7 @@ class CongratulatoryCard extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            title,
+            resolvedTitle,
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 18, 
@@ -274,7 +278,7 @@ class CongratulatoryCard extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            description,
+            resolvedDescription,
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 12, 
@@ -292,7 +296,7 @@ class CongratulatoryCard extends StatelessWidget {
                 label: FittedBox(
                   fit: BoxFit.scaleDown,
                   child: Text(
-                    resetLabel, 
+                    resolvedResetLabel, 
                     maxLines: 1,
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
@@ -326,7 +330,7 @@ class CongratulatoryCard extends StatelessWidget {
                   color: isDark ? Colors.white70 : const Color(0xFF8B6508),
                 ),
                 label: Text(
-                  'Doa Khatam', 
+                  context.translate('congrats_btn_doa'), 
                   style: TextStyle(
                     fontWeight: FontWeight.bold, 
                     fontSize: 13,
@@ -351,9 +355,9 @@ class CongratulatoryCard extends StatelessWidget {
                   }
                 },
                 icon: const Icon(Icons.menu_book_rounded, size: 18),
-                label: const Text(
-                  'Doa Khatam', 
-                  style: TextStyle(
+                label: Text(
+                  context.translate('congrats_btn_doa'), 
+                  style: const TextStyle(
                     fontWeight: FontWeight.bold, 
                     fontSize: 14,
                   ),

@@ -12,6 +12,7 @@ class SettingsProvider extends ChangeNotifier {
   static const _keyReminderMinute = 'reminder_minute';
   static const _keyGroupNotif = 'group_notif';
   static const _keyDailyTarget = 'daily_target';
+  static const _keyLanguage = 'app_language';
 
   ThemeMode _themeMode = ThemeMode.system;
   double _fontSize = 1.0; // 0.85 = kecil, 1.0 = normal, 1.2 = besar
@@ -20,6 +21,7 @@ class SettingsProvider extends ChangeNotifier {
   int _reminderMinute = 0;
   bool _groupNotifEnabled = true;
   double _dailyTargetJuz = 1.0;
+  String _language = 'id';
 
   ThemeMode get themeMode => _themeMode;
   double get fontSize => _fontSize;
@@ -28,25 +30,28 @@ class SettingsProvider extends ChangeNotifier {
   int get reminderMinute => _reminderMinute;
   bool get groupNotifEnabled => _groupNotifEnabled;
   double get dailyTargetJuz => _dailyTargetJuz;
+  String get language => _language;
 
   String get dailyTargetJuzLabel {
-    if (_dailyTargetJuz == 0.1) return '1/10 Juz (2 Halaman)';
-    if (_dailyTargetJuz == 0.125) return '1/8 Juz (2.5 Halaman)';
-    if (_dailyTargetJuz == 0.25) return '1/4 Juz (5 Halaman)';
-    if (_dailyTargetJuz == 0.5) return '1/2 Juz (10 Halaman)';
-    if (_dailyTargetJuz == 0.75) return '3/4 Juz (15 Halaman)';
-    if (_dailyTargetJuz == 1.0) return '1 Juz (20 Halaman)';
-    if (_dailyTargetJuz == 2.0) return '2 Juz (40 Halaman)';
-    if (_dailyTargetJuz == 3.0) return '3 Juz (60 Halaman)';
-    if (_dailyTargetJuz == 4.0) return '4 Juz (80 Halaman)';
-    if (_dailyTargetJuz == 5.0) return '5 Juz (100 Halaman)';
+    final isEn = _language == 'en';
+    if (_dailyTargetJuz == 0.1) return isEn ? '1/10 Juz (2 Pages)' : '1/10 Juz (2 Halaman)';
+    if (_dailyTargetJuz == 0.125) return isEn ? '1/8 Juz (2.5 Pages)' : '1/8 Juz (2.5 Halaman)';
+    if (_dailyTargetJuz == 0.25) return isEn ? '1/4 Juz (5 Pages)' : '1/4 Juz (5 Halaman)';
+    if (_dailyTargetJuz == 0.5) return isEn ? '1/2 Juz (10 Pages)' : '1/2 Juz (10 Halaman)';
+    if (_dailyTargetJuz == 0.75) return isEn ? '3/4 Juz (15 Pages)' : '3/4 Juz (15 Halaman)';
+    if (_dailyTargetJuz == 1.0) return isEn ? '1 Juz (20 Pages)' : '1 Juz (20 Halaman)';
+    if (_dailyTargetJuz == 2.0) return isEn ? '2 Juz (40 Pages)' : '2 Juz (40 Halaman)';
+    if (_dailyTargetJuz == 3.0) return isEn ? '3 Juz (60 Pages)' : '3 Juz (60 Halaman)';
+    if (_dailyTargetJuz == 4.0) return isEn ? '4 Juz (80 Pages)' : '4 Juz (80 Halaman)';
+    if (_dailyTargetJuz == 5.0) return isEn ? '5 Juz (100 Pages)' : '5 Juz (100 Halaman)';
     return '${_dailyTargetJuz.toStringAsFixed(_dailyTargetJuz % 1 == 0 ? 0 : 2)} Juz';
   }
 
   String get fontSizeLabel {
-    if (_fontSize <= 0.85) return 'Kecil';
-    if (_fontSize >= 1.2) return 'Besar';
-    return 'Normal';
+    final isEn = _language == 'en';
+    if (_fontSize <= 0.85) return isEn ? 'Small' : 'Kecil';
+    if (_fontSize >= 1.2) return isEn ? 'Large' : 'Besar';
+    return isEn ? 'Normal' : 'Normal';
   }
 
   String get reminderTimeLabel =>
@@ -105,7 +110,15 @@ class SettingsProvider extends ChangeNotifier {
     } else {
       _dailyTargetJuz = 1.0;
     }
+    _language = prefs.getString(_keyLanguage) ?? 'id';
     notifyListeners();
+  }
+
+  Future<void> setLanguage(String lang) async {
+    _language = lang;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyLanguage, lang);
   }
 
   Future<void> setThemeMode(ThemeMode mode) async {
@@ -160,8 +173,11 @@ class SettingsProvider extends ChangeNotifier {
   }
 
   Future<void> _scheduleReminder() async {
-    const title = '📖 Waktunya Membaca Al-Quran';
-    final body = 'Target harian Anda hari ini: Membaca $dailyTargetJuzLabel. Semangat! Bismillah!';
+    final isEn = _language == 'en';
+    final title = isEn ? '📖 Time to Read Al-Quran' : '📖 Waktunya Membaca Al-Quran';
+    final body = isEn 
+        ? 'Your daily target today: Read $dailyTargetJuzLabel. Let\'s do this! Bismillah!'
+        : 'Target harian Anda hari ini: Membaca $dailyTargetJuzLabel. Semangat! Bismillah!';
 
     if (kIsWeb) {
       await NotificationHelper.showWebNotification(title, body);
@@ -171,10 +187,12 @@ class SettingsProvider extends ChangeNotifier {
     try {
       await _notifPlugin.cancelAll();
 
-      const androidDetails = AndroidNotificationDetails(
+      final androidDetails = AndroidNotificationDetails(
         'khataman_reminder',
-        'Pengingat Khataman',
-        channelDescription: 'Pengingat harian untuk membaca Al-Quran',
+        isEn ? 'Khataman Reminder' : 'Pengingat Khataman',
+        channelDescription: isEn 
+            ? 'Daily reminder to read Al-Quran' 
+            : 'Pengingat harian untuk membaca Al-Quran',
         importance: Importance.high,
         priority: Priority.high,
         icon: '@mipmap/ic_launcher',
@@ -184,7 +202,7 @@ class SettingsProvider extends ChangeNotifier {
         0,
         title,
         body,
-        const NotificationDetails(android: androidDetails),
+        NotificationDetails(android: androidDetails),
       );
     } catch (e) {
       debugPrint('Local Notification Show Error: $e');
