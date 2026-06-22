@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../services/widget_update_service.dart';
 
 class AuthProvider extends ChangeNotifier {
   final SupabaseClient _supabase = Supabase.instance.client;
@@ -21,6 +22,7 @@ class AuthProvider extends ChangeNotifier {
     _supabase.auth.onAuthStateChange.listen((data) {
       _user = data.session?.user;
       notifyListeners();
+      WidgetUpdateService.updateKhatamanWidget();
     });
   }
 

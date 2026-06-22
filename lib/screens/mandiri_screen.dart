@@ -11,6 +11,7 @@ import '../services/personal_history_service.dart';
 import 'active_khataman_list_screen.dart';
 import 'dart:io';
 import 'dart:async';
+import '../services/widget_update_service.dart';
 
 class MandiriScreen extends StatefulWidget {
   const MandiriScreen({Key? key}) : super(key: key);
@@ -209,6 +210,7 @@ class _MandiriScreenState extends State<MandiriScreen> {
       }
 
       await _loadProgress();
+      WidgetUpdateService.updateKhatamanWidget();
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(context.translate('mandiri_save_failed').replaceAll('{error}', e.toString())), backgroundColor: Colors.redAccent),
@@ -390,6 +392,7 @@ class _MandiriScreenState extends State<MandiriScreen> {
       setState(() {
         _progress = [];
       });
+      WidgetUpdateService.updateKhatamanWidget();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

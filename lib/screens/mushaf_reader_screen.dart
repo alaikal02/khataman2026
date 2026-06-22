@@ -9,6 +9,7 @@ import '../services/notification_service.dart';
 import '../providers/settings_provider.dart';
 import '../data/quran_id_translation.dart';
 import '../utils/localization.dart';
+import '../services/widget_update_service.dart';
 
 class VerseItem {
   final int surahNumber;
@@ -354,6 +355,7 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
           ),
         );
       }
+      WidgetUpdateService.updateKhatamanWidget();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

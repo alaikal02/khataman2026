@@ -8,6 +8,7 @@ import '../utils/localization.dart';
 import '../theme/app_theme.dart';
 import '../services/prayer_time_service.dart';
 import '../services/azan_notification_service.dart';
+import '../services/widget_update_service.dart';
 import 'package:geocoding/geocoding.dart';
 
 class PrayerTimeScreen extends StatefulWidget {
@@ -277,6 +278,7 @@ class _PrayerTimeScreenState extends State<PrayerTimeScreen>
 
         // Schedule azan notifications
         await AzanNotificationService.scheduleAzanNotifications(prayerTimes);
+        WidgetUpdateService.updatePrayerWidget();
       }
       _offlineRetryTimer?.cancel();
       _offlineRetryTimer = null;

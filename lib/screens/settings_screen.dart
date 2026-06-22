@@ -8,6 +8,7 @@ import '../providers/settings_provider.dart';
 import '../services/azan_notification_service.dart';
 import '../services/prayer_time_service.dart';
 import '../utils/localization.dart';
+import '../services/widget_update_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({Key? key}) : super(key: key);
@@ -626,6 +627,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ElevatedButton(
                 onPressed: () async {
                   await settings.setLanguage(selected);
+                  WidgetUpdateService.updatePrayerWidget();
+                  WidgetUpdateService.updateKhatamanWidget();
                   Navigator.pop(ctx);
                 },
                 style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primaryGreen),
@@ -731,6 +734,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 onPressed: () async {
                   await PrayerTimeService.setCalcMethod(selected);
                   setState(() => _calcMethod = selected);
+                  WidgetUpdateService.updatePrayerWidget();
                   Navigator.pop(ctx);
                 },
                 style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primaryGreen),
@@ -788,6 +792,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 onPressed: () async {
                   await PrayerTimeService.setMadhab(selected);
                   setState(() => _madhab = selected);
+                  WidgetUpdateService.updatePrayerWidget();
                   Navigator.pop(ctx);
                 },
                 style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primaryGreen),

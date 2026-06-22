@@ -23,6 +23,7 @@ import 'qibla_screen.dart';
 import 'package:quran/quran.dart' as quran;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'mushaf_list_screen.dart';
+import '../services/widget_update_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -58,6 +59,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
     _loadActivePrograms();
     _subscribeToNotifications();
     _initDeepLinkListener();
+    WidgetUpdateService.updatePrayerWidget();
   }
 
   Future<void> _initLocalNotifications() async {
@@ -73,11 +75,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      debugPrint('🔔 [App Lifecycle] App resumed (foreground). Refreshing notifications...');
+      debugPrint('⏳ [App Lifecycle] App resumed (foreground). Refreshing notifications...');
       _fetchUnreadCount();
       _loadPersonalStats();
       _loadActivePrograms();
       _subscribeToNotifications();
+      WidgetUpdateService.updatePrayerWidget();
     }
   }
 
@@ -135,6 +138,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
 
     try {
       final programs = await _fetchActivePrograms();
+      WidgetUpdateService.updateKhatamanWidgetWithData(programs);
       if (mounted) {
         setState(() {
           _activePrograms = programs;
