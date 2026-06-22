@@ -705,11 +705,46 @@ class _NotificationScreenState extends State<NotificationScreen> {
       await NotificationService.delete(notifId);
       
       if (mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Notifikasi berhasil dihapus 🗑️'),
+          SnackBar(
+            content: const Text('Notifikasi berhasil dihapus 🗑️'),
             backgroundColor: Colors.orangeAccent,
-            duration: Duration(seconds: 2),
+            duration: const Duration(seconds: 4),
+            action: SnackBarAction(
+              label: 'URUNGKAN',
+              textColor: Colors.white,
+              onPressed: () async {
+                setState(() {
+                  _notifications.insert(index, removedNotif);
+                });
+                try {
+                  await Supabase.instance.client.from('notifications').insert({
+                    'id': removedNotif['id'],
+                    'user_id': removedNotif['user_id'],
+                    'type': removedNotif['type'],
+                    'title': removedNotif['title'],
+                    'body': removedNotif['body'],
+                    'group_id': removedNotif['group_id'],
+                    'sender_id': removedNotif['sender_id'],
+                    'is_read': removedNotif['is_read'] ?? false,
+                    'created_at': removedNotif['created_at'],
+                  });
+                } catch (err) {
+                  setState(() {
+                    _notifications.removeWhere((n) => n['id'] == notifId);
+                  });
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Gagal mengurungkan penghapusan: $err'),
+                        backgroundColor: Colors.redAccent,
+                      ),
+                    );
+                  }
+                }
+              },
+            ),
           ),
         );
       }

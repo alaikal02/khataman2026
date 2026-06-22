@@ -29,7 +29,7 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
+class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, WidgetsBindingObserver {
   final FlutterLocalNotificationsPlugin _localNotifPlugin =
       FlutterLocalNotificationsPlugin();
   int _unreadNotificationsCount = 0;
@@ -40,10 +40,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   List<Map<String, dynamic>> _activePrograms = [];
   bool _loadingActivePrograms = true;
   bool _isExpanded = false;
+  late AnimationController _shimmerController;
 
   @override
   void initState() {
     super.initState();
+    _shimmerController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat();
     _initLocalNotifications();
     WidgetsBinding.instance.addObserver(this);
     _fetchUnreadCount();
@@ -443,6 +448,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    _shimmerController.dispose();
     WidgetsBinding.instance.removeObserver(this);
     _linkSubscription?.cancel();
     if (_notificationChannel != null) {
@@ -678,17 +684,23 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   Widget _buildActiveKhatamanSection(BuildContext context) {
     if (_loadingActivePrograms) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 20),
-        child: Center(
-          child: SizedBox(
-            width: 24,
-            height: 24,
-            child: CircularProgressIndicator(
-              color: AppTheme.primaryGreen,
-              strokeWidth: 2,
+      return Padding(
+        padding: const EdgeInsets.only(top: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Khataman Aktif Anda',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
             ),
-          ),
+            const SizedBox(height: 10),
+            _buildHomeShimmerCard(),
+            _buildHomeShimmerCard(),
+          ],
         ),
       );
     }
@@ -719,6 +731,91 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             const SizedBox(height: 4),
             _buildExpandCollapseButton(),
           ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildShimmerBox({double width = double.infinity, double height = 16, double radius = 8}) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final baseColor = isDark ? const Color(0xFF1F2937) : const Color(0xFFE5E7EB);
+    final highlightColor = isDark ? const Color(0xFF374151) : const Color(0xFFF3F4F6);
+
+    return AnimatedBuilder(
+      animation: _shimmerController,
+      builder: (_, __) {
+        return Container(
+          width: width,
+          height: height,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(radius),
+            gradient: LinearGradient(
+              begin: Alignment(-1.5 + _shimmerController.value * 3, 0),
+              end: Alignment(-0.5 + _shimmerController.value * 3, 0),
+              colors: [
+                baseColor,
+                highlightColor,
+                baseColor,
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildHomeShimmerCard() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark 
+              ? AppTheme.primaryGreen.withOpacity(0.3) 
+              : Colors.grey.withOpacity(0.2),
+          width: 1.0,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(isDark ? 0.2 : 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    _buildShimmerBox(width: 50, height: 18, radius: 8),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _buildShimmerBox(height: 14, radius: 6),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildShimmerBox(height: 6, radius: 4),
+                    ),
+                    const SizedBox(width: 12),
+                    _buildShimmerBox(width: 36, height: 14, radius: 4),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          _buildShimmerBox(width: 24, height: 24, radius: 12),
         ],
       ),
     );

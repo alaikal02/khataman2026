@@ -399,27 +399,27 @@ class _QiblaScreenState extends State<QiblaScreen>
           ),
 
           // Kaaba icon at the needle tip direction
-          Positioned(
-            top: 8,
-            child: AnimatedRotation(
-              turns: -qiblaDirection / 360,
-              duration: const Duration(milliseconds: 300),
-              child: Column(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: isAligned
-                          ? AppTheme.primaryGreen
-                          : (isDark ? Colors.white24 : Colors.grey.shade400),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Text(
-                      '🕋',
-                      style: const TextStyle(fontSize: 16),
-                    ),
+          AnimatedRotation(
+            turns: -qiblaDirection / 360,
+            duration: const Duration(milliseconds: 300),
+            child: SizedBox(
+              width: size,
+              height: size,
+              child: Align(
+                alignment: Alignment.topCenter,
+                child: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: isAligned
+                        ? AppTheme.primaryGreen
+                        : (isDark ? Colors.white24 : Colors.grey.shade400),
+                    shape: BoxShape.circle,
                   ),
-                ],
+                  child: const Text(
+                    '🕋',
+                    style: TextStyle(fontSize: 16),
+                  ),
+                ),
               ),
             ),
           ),

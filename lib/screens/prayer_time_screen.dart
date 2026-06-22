@@ -5,6 +5,7 @@ import 'package:audioplayers/audioplayers.dart';
 import '../theme/app_theme.dart';
 import '../services/prayer_time_service.dart';
 import '../services/azan_notification_service.dart';
+import 'package:geocoding/geocoding.dart';
 
 class PrayerTimeScreen extends StatefulWidget {
   const PrayerTimeScreen({Key? key}) : super(key: key);
@@ -83,6 +84,7 @@ class _PrayerTimeScreenState extends State<PrayerTimeScreen>
 
   final AudioPlayer _audioPlayer = AudioPlayer();
   bool _isPlayingPreview = false;
+  final TextEditingController _citySearchController = TextEditingController();
 
   late AnimationController _pulseController;
 
@@ -362,6 +364,7 @@ class _PrayerTimeScreenState extends State<PrayerTimeScreen>
     _countdownTimer?.cancel();
     _pulseController.dispose();
     _audioPlayer.dispose();
+    _citySearchController.dispose();
     _offlineRetryTimer?.cancel();
     super.dispose();
   }
@@ -688,9 +691,6 @@ class _PrayerTimeScreenState extends State<PrayerTimeScreen>
     if (isNext) {
       iconColor = AppTheme.primaryGreen;
       bgColor = AppTheme.primaryGreen.withOpacity(isDark ? 0.15 : 0.08);
-    } else if (isPast) {
-      iconColor = Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.5);
-      bgColor = Colors.transparent;
     } else {
       iconColor = Theme.of(context).colorScheme.onSurfaceVariant;
       bgColor = Colors.transparent;
@@ -752,18 +752,14 @@ class _PrayerTimeScreenState extends State<PrayerTimeScreen>
                   style: TextStyle(
                     fontSize: 15,
                     fontWeight: isNext ? FontWeight.bold : FontWeight.w500,
-                    color: isPast
-                        ? Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.5)
-                        : Theme.of(context).colorScheme.onSurface,
+                    color: Theme.of(context).colorScheme.onSurface,
                   ),
                 ),
                 Text(
                   entry.arabicName,
                   style: TextStyle(
                     fontSize: 11,
-                    color: isPast
-                        ? Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.3)
-                        : Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.7),
+                    color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.7),
                     fontFamily: 'serif',
                   ),
                 ),
@@ -772,37 +768,19 @@ class _PrayerTimeScreenState extends State<PrayerTimeScreen>
           ),
           if (entry.isFard)
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              margin: const EdgeInsets.only(right: 8),
-              decoration: BoxDecoration(
-                color: AppTheme.primaryGreen.withOpacity(isDark ? 0.15 : 0.08),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Text(
-                'Wajib',
-                style: TextStyle(
-                  fontSize: 9,
-                  fontWeight: FontWeight.bold,
-                  color: isNext
-                      ? AppTheme.primaryGreen
-                      : AppTheme.primaryGreen.withOpacity(isPast ? 0.4 : 0.7),
-                ),
-              ),
-            ),
-          if (isNext)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               margin: const EdgeInsets.only(right: 8),
               decoration: BoxDecoration(
                 color: AppTheme.primaryGreen,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(6),
               ),
               child: const Text(
-                'Berikutnya',
+                'WAJIB',
                 style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
+                  fontSize: 8.5,
+                  fontWeight: FontWeight.w900,
                   color: Colors.white,
+                  letterSpacing: 0.5,
                 ),
               ),
             ),
@@ -814,20 +792,9 @@ class _PrayerTimeScreenState extends State<PrayerTimeScreen>
               fontFamily: 'monospace',
               color: isNext
                   ? AppTheme.primaryGreen
-                  : isPast
-                      ? Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.5)
-                      : Theme.of(context).colorScheme.onSurface,
+                  : Theme.of(context).colorScheme.onSurface,
             ),
           ),
-          if (isPast)
-            Padding(
-              padding: const EdgeInsets.only(left: 6),
-              child: Icon(
-                Icons.check_circle_rounded,
-                size: 16,
-                color: AppTheme.primaryGreen.withOpacity(0.5),
-              ),
-            ),
         ],
       ),
     );
@@ -889,12 +856,77 @@ class _PrayerTimeScreenState extends State<PrayerTimeScreen>
   }
 
   void _showSettingsSheet() {
+    _citySearchController.clear();
     final isDark = Theme.of(context).brightness == Brightness.dark;
     String selectedMethod = _calcMethod;
     String selectedMadhab = _madhab;
     bool localAzanEnabled = _azanEnabled;
     Map<String, bool> localAzanToggles = Map.from(_azanToggles);
     String localAzanSound = _azanSound;
+
+    bool localUseGps = _useGps;
+    String localCityName = _prayerTimes?.locationName ?? 'Jakarta, Indonesia';
+    double localLatitude = _cachedLatitude ?? -6.2088;
+    double localLongitude = _cachedLongitude ?? 106.8456;
+
+    bool isSearchingLocation = false;
+    String? locationSearchError;
+    String? locationSearchSuccess;
+
+    Future<void> performCitySearch(StateSetter setStateSheet) async {
+      final query = _citySearchController.text.trim();
+      if (query.isEmpty) {
+        setStateSheet(() {
+          locationSearchError = 'Masukkan nama kota terlebih dahulu';
+          locationSearchSuccess = null;
+        });
+        return;
+      }
+
+      setStateSheet(() {
+        isSearchingLocation = true;
+        locationSearchError = null;
+        locationSearchSuccess = null;
+      });
+
+      try {
+        final isOnline = await _checkInternet();
+        if (!isOnline) {
+          setStateSheet(() {
+            isSearchingLocation = false;
+            locationSearchError = 'Tidak ada koneksi internet';
+          });
+          return;
+        }
+
+        final locations = await locationFromAddress(query);
+        if (locations.isEmpty) {
+          setStateSheet(() {
+            isSearchingLocation = false;
+            locationSearchError = 'Kota "$query" tidak ditemukan';
+          });
+          return;
+        }
+
+        final loc = locations.first;
+        final resolvedName = await PrayerTimeService.getLocationName(loc.latitude, loc.longitude);
+
+        setStateSheet(() {
+          localLatitude = loc.latitude;
+          localLongitude = loc.longitude;
+          localCityName = resolvedName;
+          isSearchingLocation = false;
+          locationSearchSuccess = 'Lokasi diubah ke: $resolvedName';
+          locationSearchError = null;
+        });
+      } catch (e) {
+        debugPrint('Error searching location: $e');
+        setStateSheet(() {
+          isSearchingLocation = false;
+          locationSearchError = 'Gagal mencari lokasi. Pastikan ejaan benar.';
+        });
+      }
+    }
 
     showModalBottomSheet(
       context: context,
@@ -943,6 +975,128 @@ class _PrayerTimeScreenState extends State<PrayerTimeScreen>
                       ),
                     ),
                     const SizedBox(height: 20),
+
+                    // Section Lokasi
+                    Text(
+                      'Pengaturan Lokasi',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text(
+                        'Gunakan GPS Otomatis',
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                      ),
+                      subtitle: const Text(
+                        'Mencari lokasi berdasarkan posisi perangkat secara real-time',
+                        style: TextStyle(fontSize: 11),
+                      ),
+                      value: localUseGps,
+                      activeColor: AppTheme.primaryGreen,
+                      onChanged: (val) {
+                        setStateSheet(() {
+                          localUseGps = val;
+                          locationSearchError = null;
+                          locationSearchSuccess = null;
+                        });
+                      },
+                    ),
+                    if (!localUseGps) ...[
+                      const SizedBox(height: 12),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: _citySearchController,
+                              style: const TextStyle(fontSize: 13),
+                              decoration: InputDecoration(
+                                hintText: 'Masukkan nama kota (misal: Bandung)',
+                                hintStyle: TextStyle(
+                                  fontSize: 12,
+                                  color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.6),
+                                ),
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                  borderSide: BorderSide(
+                                    color: isDark
+                                        ? AppTheme.primaryGreen.withOpacity(0.3)
+                                        : AppTheme.primaryGreen.withOpacity(0.2),
+                                  ),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                  borderSide: BorderSide(
+                                    color: isDark
+                                        ? AppTheme.primaryGreen.withOpacity(0.2)
+                                        : AppTheme.primaryGreen.withOpacity(0.15),
+                                  ),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                  borderSide: const BorderSide(color: AppTheme.primaryGreen, width: 1.5),
+                                ),
+                                filled: true,
+                                fillColor: Theme.of(context).colorScheme.surface,
+                              ),
+                              onSubmitted: (_) => performCitySearch(setStateSheet),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          SizedBox(
+                            height: 40,
+                            child: ElevatedButton(
+                              onPressed: isSearchingLocation ? null : () => performCitySearch(setStateSheet),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppTheme.primaryGreen.withOpacity(0.15),
+                                foregroundColor: AppTheme.primaryGreen,
+                                elevation: 0,
+                                padding: const EdgeInsets.symmetric(horizontal: 16),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                              child: isSearchingLocation
+                                  ? const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: AppTheme.primaryGreen,
+                                      ),
+                                    )
+                                  : const Icon(Icons.search_rounded, size: 18),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      if (locationSearchError != null)
+                        Text(
+                          locationSearchError!,
+                          style: const TextStyle(color: Colors.redAccent, fontSize: 11),
+                        ),
+                      if (locationSearchSuccess != null)
+                        Text(
+                          locationSearchSuccess!,
+                          style: const TextStyle(color: AppTheme.primaryGreen, fontSize: 11, fontWeight: FontWeight.w500),
+                        ),
+                      if (locationSearchError == null && locationSearchSuccess == null)
+                        Text(
+                          'Lokasi aktif: $localCityName',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.7),
+                          ),
+                        ),
+                    ],
+                    const Divider(height: 32),
 
                     // Method dropdown
                     Text(
@@ -1188,6 +1342,15 @@ class _PrayerTimeScreenState extends State<PrayerTimeScreen>
                           await _audioPlayer.stop();
                           _isPlayingPreview = false;
 
+                          await PrayerTimeService.setUseGps(localUseGps);
+                          if (!localUseGps) {
+                            await PrayerTimeService.saveLocation(
+                              localLatitude,
+                              localLongitude,
+                              localCityName,
+                            );
+                          }
+
                           await PrayerTimeService.setCalcMethod(selectedMethod);
                           await PrayerTimeService.setMadhab(selectedMadhab);
                           
@@ -1200,11 +1363,18 @@ class _PrayerTimeScreenState extends State<PrayerTimeScreen>
                           if (mounted) {
                             Navigator.pop(ctx);
                             setState(() {
+                              _useGps = localUseGps;
                               _calcMethod = selectedMethod;
                               _madhab = selectedMadhab;
                               _azanEnabled = localAzanEnabled;
                               _azanToggles = Map.from(localAzanToggles);
                               _azanSound = localAzanSound;
+
+                              if (!localUseGps) {
+                                _cachedLatitude = localLatitude;
+                                _cachedLongitude = localLongitude;
+                                _cachedCityName = localCityName;
+                              }
                             });
                             _loadPrayerTimes(isManual: true);
                           }
