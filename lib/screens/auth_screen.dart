@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart'; // Import kIsWeb
 import 'package:provider/provider.dart';
 import '../theme/app_theme.dart';
 import '../providers/settings_provider.dart';
+import '../utils/localization.dart';
 
 class AuthScreen extends StatefulWidget {
   const AuthScreen({Key? key}) : super(key: key);
@@ -60,7 +61,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Login Gagal: $e'),
+            content: Text(context.translate('auth_login_failed').replaceFirst('{error}', e.toString())),
             backgroundColor: Colors.redAccent,
           ),
         );
@@ -122,7 +123,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                         const SizedBox(height: 32),
                         // Title
                         Text(
-                          'Khataman Quran',
+                          context.translate('auth_title'),
                           style: TextStyle(
                             fontSize: 34,
                             fontWeight: FontWeight.bold,
@@ -132,7 +133,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                         ),
                         const SizedBox(height: 12),
                         Text(
-                          'Lacak perjalanan spiritual Anda\nbersama atau sendiri.',
+                          context.translate('auth_tagline'),
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             fontSize: 16,
@@ -147,8 +148,8 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                           runSpacing: 10,
                           alignment: WrapAlignment.center,
                           children: [
-                            _featurePill(Icons.person_rounded, 'Khataman Mandiri', AppTheme.primaryGreen),
-                            _featurePill(Icons.group_rounded, 'Khataman Grup', const Color(0xFF6C63FF)),
+                            _featurePill(Icons.person_rounded, context.translate('home_feat_mandiri_title'), AppTheme.primaryGreen),
+                            _featurePill(Icons.group_rounded, context.translate('home_feat_group_title'), const Color(0xFF6C63FF)),
                             _featurePill(Icons.bolt_rounded, 'Real-time Sync', AppTheme.accentTeal),
                           ],
                         ),
@@ -162,7 +163,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                         ),
                         const SizedBox(height: 16),
                         Text(
-                          'Dengan masuk, Anda menyetujui Ketentuan Layanan\ndan Kebijakan Privasi kami.',
+                          context.translate('auth_privacy_notice'),
                           textAlign: TextAlign.center,
                           style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.7), height: 1.5),
                         ),
@@ -194,7 +195,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                         isDark ? ThemeMode.light : ThemeMode.dark,
                       );
                     },
-                    tooltip: isDark ? 'Mode Terang' : 'Mode Gelap',
+                    tooltip: isDark ? context.translate('auth_tooltip_light_mode') : context.translate('auth_tooltip_dark_mode'),
                   ),
                 ),
               ),
@@ -283,7 +284,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
             ),
             const SizedBox(width: 12),
             Text(
-              'Masuk dengan Google',
+              context.translate('auth_btn_login'),
               style: TextStyle(
                 color: isDark ? const Color(0xFFE3E3E3) : const Color(0xFF1F1F1F),
                 fontSize: 16,

@@ -2,6 +2,9 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:provider/provider.dart';
+import '../providers/settings_provider.dart';
+import '../utils/localization.dart';
 import '../theme/app_theme.dart';
 import '../services/prayer_time_service.dart';
 import '../services/azan_notification_service.dart';
@@ -382,6 +385,7 @@ class _PrayerTimeScreenState extends State<PrayerTimeScreen>
 
   @override
   Widget build(BuildContext context) {
+    Provider.of<SettingsProvider>(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
@@ -443,7 +447,7 @@ class _PrayerTimeScreenState extends State<PrayerTimeScreen>
           ),
           Expanded(
             child: Text(
-              'Jadwal Shalat',
+              context.translate('prayer_title'),
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
@@ -455,11 +459,27 @@ class _PrayerTimeScreenState extends State<PrayerTimeScreen>
             onPressed: _showSettingsSheet,
             icon: Icon(Icons.tune_rounded,
                 color: Theme.of(context).colorScheme.onSurfaceVariant),
-            tooltip: 'Pengaturan Kalkulasi',
+            tooltip: context.translate('prayer_tooltip_settings'),
           ),
         ],
       ),
     );
+  }
+
+  String _resolveLocationName(String? name) {
+    if (name == null || name == 'Memuat lokasi...') {
+      return context.translate('qibla_loading_location');
+    }
+    if (name == 'Lokasi Tidak Diketahui') {
+      return context.translate('prayer_unknown_location');
+    }
+    if (name == 'Lokasi Tersimpan') {
+      return context.translate('prayer_saved_location');
+    }
+    if (name == 'Jakarta, Indonesia (Default)') {
+      return context.translate('prayer_default_location');
+    }
+    return name;
   }
 
   Widget _buildLocationHeader(BuildContext context) {
@@ -484,7 +504,7 @@ class _PrayerTimeScreenState extends State<PrayerTimeScreen>
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                _prayerTimes?.locationName ?? 'Memuat lokasi...',
+                _resolveLocationName(_prayerTimes?.locationName),
                 style: TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w600,
@@ -506,7 +526,7 @@ class _PrayerTimeScreenState extends State<PrayerTimeScreen>
         TextButton.icon(
           onPressed: () => _loadPrayerTimes(isManual: true),
           icon: const Icon(Icons.refresh_rounded, size: 16),
-          label: const Text('Refresh'),
+          label: Text(context.translate('prayer_btn_refresh')),
           style: TextButton.styleFrom(foregroundColor: AppTheme.primaryGreen),
         ),
       ],
@@ -515,13 +535,31 @@ class _PrayerTimeScreenState extends State<PrayerTimeScreen>
 
   String _getHijriDateLabel() {
     final now = DateTime.now();
-    final days = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Ahad'];
-    final months = [
-      'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+    final dayNames = [
+      'day_monday',
+      'day_tuesday',
+      'day_wednesday',
+      'day_thursday',
+      'day_friday',
+      'day_saturday',
+      'day_sunday'
     ];
-    final dayName = days[now.weekday - 1];
-    final monthName = months[now.month - 1];
+    final monthNames = [
+      'month_january',
+      'month_february',
+      'month_march',
+      'month_april',
+      'month_may',
+      'month_june',
+      'month_july',
+      'month_august',
+      'month_september',
+      'month_october',
+      'month_november',
+      'month_december'
+    ];
+    final dayName = context.translate(dayNames[now.weekday - 1]);
+    final monthName = context.translate(monthNames[now.month - 1]);
     return '$dayName, ${now.day} $monthName ${now.year}';
   }
 
@@ -559,7 +597,7 @@ class _PrayerTimeScreenState extends State<PrayerTimeScreen>
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Text(
-                hasNext ? 'Waktu Shalat Berikutnya' : 'Semua Shalat Hari Ini Selesai',
+                hasNext ? context.translate('prayer_next_prayer') : context.translate('prayer_all_done'),
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
@@ -583,7 +621,7 @@ class _PrayerTimeScreenState extends State<PrayerTimeScreen>
           if (hasNext) ...[
             const SizedBox(height: 6),
             Text(
-              _nextPrayerName,
+              context.translate('prayer_${_nextPrayerName.toLowerCase()}'),
               style: const TextStyle(
                 fontSize: 28,
                 fontWeight: FontWeight.bold,
@@ -614,7 +652,7 @@ class _PrayerTimeScreenState extends State<PrayerTimeScreen>
             const SizedBox(height: 8),
             Text(
               _prayerTimes?.getNextPrayer() != null
-                  ? 'pukul ${_formatTime(_prayerTimes!.getNextPrayer()!.time)}'
+                  ? context.translate('prayer_at_time').replaceAll('{time}', _formatTime(_prayerTimes!.getNextPrayer()!.time))
                   : '',
               style: TextStyle(
                 fontSize: 14,
@@ -627,7 +665,7 @@ class _PrayerTimeScreenState extends State<PrayerTimeScreen>
                 color: Colors.white.withOpacity(0.8), size: 48),
             const SizedBox(height: 8),
             Text(
-              'Alhamdulillah 🤲',
+              context.translate('prayer_alhamdulillah'),
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w600,
@@ -748,7 +786,7 @@ class _PrayerTimeScreenState extends State<PrayerTimeScreen>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  entry.name,
+                  context.translate('prayer_${entry.name.toLowerCase()}'),
                   style: TextStyle(
                     fontSize: 15,
                     fontWeight: isNext ? FontWeight.bold : FontWeight.w500,
@@ -774,9 +812,9 @@ class _PrayerTimeScreenState extends State<PrayerTimeScreen>
                 color: AppTheme.primaryGreen,
                 borderRadius: BorderRadius.circular(6),
               ),
-              child: const Text(
-                'WAJIB',
-                style: TextStyle(
+              child: Text(
+                context.translate('prayer_fard_badge'),
+                style: const TextStyle(
                   fontSize: 8.5,
                   fontWeight: FontWeight.w900,
                   color: Colors.white,
@@ -800,9 +838,36 @@ class _PrayerTimeScreenState extends State<PrayerTimeScreen>
     );
   }
 
+  String _getLocalizedMethodName(String method) {
+    if (method == 'singapore') return context.translate('method_singapore');
+    if (method == 'muslim_world_league') return context.translate('method_muslim_world_league');
+    if (method == 'egyptian') return context.translate('method_egyptian');
+    if (method == 'karachi') return context.translate('method_karachi');
+    if (method == 'umm_al_qura') return context.translate('method_umm_al_qura');
+    if (method == 'dubai') return context.translate('method_dubai');
+    if (method == 'kuwait') return context.translate('method_kuwait');
+    if (method == 'turkey') return context.translate('method_turkey');
+    if (method == 'tehran') return context.translate('method_tehran');
+    return PrayerTimeService.calcMethodOptions[method] ?? method;
+  }
+
+  String _getLocalizedMadhabName(String madhab) {
+    if (madhab == 'syafii') return context.translate('madhab_syafii');
+    if (madhab == 'hanafi') return context.translate('madhab_hanafi');
+    return PrayerTimeService.madhabOptions[madhab] ?? madhab;
+  }
+
+  String _getLocalizedSoundName(String soundKey) {
+    if (soundKey == 'default') return context.translate('sound_default');
+    if (soundKey == 'silent') return context.translate('sound_silent');
+    if (soundKey == 'makkah') return context.translate('sound_makkah');
+    if (soundKey == 'madinah') return context.translate('sound_madinah');
+    return AzanNotificationService.azanSoundOptions[soundKey] ?? soundKey;
+  }
+
   Widget _buildMethodInfo(BuildContext context) {
-    final methodName = PrayerTimeService.calcMethodOptions[_calcMethod] ?? _calcMethod;
-    final madhabName = PrayerTimeService.madhabOptions[_madhab] ?? _madhab;
+    final methodName = _getLocalizedMethodName(_calcMethod);
+    final madhabName = _getLocalizedMadhabName(_madhab);
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -814,7 +879,9 @@ class _PrayerTimeScreenState extends State<PrayerTimeScreen>
           const SizedBox(width: 6),
           Expanded(
             child: Text(
-              'Metode: $methodName • Madhab: $madhabName',
+              context.translate('prayer_method_madhab_info')
+                  .replaceAll('{method}', methodName)
+                  .replaceAll('{madhab}', madhabName),
               style: TextStyle(
                 fontSize: 11,
                 color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.5),
@@ -836,7 +903,7 @@ class _PrayerTimeScreenState extends State<PrayerTimeScreen>
             const Icon(Icons.location_off_rounded, size: 64, color: Colors.grey),
             const SizedBox(height: 16),
             Text(
-              _errorMessage ?? 'Terjadi kesalahan',
+              context.translate('prayer_err_general') + (_errorMessage != null ? ': $_errorMessage' : ''),
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -847,7 +914,7 @@ class _PrayerTimeScreenState extends State<PrayerTimeScreen>
             ElevatedButton.icon(
               onPressed: () => _loadPrayerTimes(isManual: true),
               icon: const Icon(Icons.refresh_rounded),
-              label: const Text('Coba Lagi'),
+              label: Text(context.translate('prayer_btn_retry')),
             ),
           ],
         ),
@@ -865,7 +932,7 @@ class _PrayerTimeScreenState extends State<PrayerTimeScreen>
     String localAzanSound = _azanSound;
 
     bool localUseGps = _useGps;
-    String localCityName = _prayerTimes?.locationName ?? 'Jakarta, Indonesia';
+    String localCityName = _prayerTimes?.locationName ?? 'Jakarta, Indonesia (Default)';
     double localLatitude = _cachedLatitude ?? -6.2088;
     double localLongitude = _cachedLongitude ?? 106.8456;
 
@@ -877,7 +944,7 @@ class _PrayerTimeScreenState extends State<PrayerTimeScreen>
       final query = _citySearchController.text.trim();
       if (query.isEmpty) {
         setStateSheet(() {
-          locationSearchError = 'Masukkan nama kota terlebih dahulu';
+          locationSearchError = context.translate('prayer_err_enter_city');
           locationSearchSuccess = null;
         });
         return;
@@ -894,7 +961,7 @@ class _PrayerTimeScreenState extends State<PrayerTimeScreen>
         if (!isOnline) {
           setStateSheet(() {
             isSearchingLocation = false;
-            locationSearchError = 'Tidak ada koneksi internet';
+            locationSearchError = context.translate('prayer_err_no_internet');
           });
           return;
         }
@@ -903,7 +970,7 @@ class _PrayerTimeScreenState extends State<PrayerTimeScreen>
         if (locations.isEmpty) {
           setStateSheet(() {
             isSearchingLocation = false;
-            locationSearchError = 'Kota "$query" tidak ditemukan';
+            locationSearchError = context.translate('prayer_err_city_not_found').replaceAll('{query}', query);
           });
           return;
         }
@@ -916,14 +983,14 @@ class _PrayerTimeScreenState extends State<PrayerTimeScreen>
           localLongitude = loc.longitude;
           localCityName = resolvedName;
           isSearchingLocation = false;
-          locationSearchSuccess = 'Lokasi diubah ke: $resolvedName';
+          locationSearchSuccess = context.translate('prayer_success_city_changed').replaceAll('{resolvedName}', resolvedName);
           locationSearchError = null;
         });
       } catch (e) {
         debugPrint('Error searching location: $e');
         setStateSheet(() {
           isSearchingLocation = false;
-          locationSearchError = 'Gagal mencari lokasi. Pastikan ejaan benar.';
+          locationSearchError = context.translate('prayer_err_failed_search');
         });
       }
     }
@@ -967,7 +1034,7 @@ class _PrayerTimeScreenState extends State<PrayerTimeScreen>
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      'Pengaturan Jadwal & Azan',
+                      context.translate('prayer_settings_title'),
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
@@ -978,7 +1045,7 @@ class _PrayerTimeScreenState extends State<PrayerTimeScreen>
 
                     // Section Lokasi
                     Text(
-                      'Pengaturan Lokasi',
+                      context.translate('prayer_settings_loc_section'),
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
@@ -988,13 +1055,13 @@ class _PrayerTimeScreenState extends State<PrayerTimeScreen>
                     const SizedBox(height: 8),
                     SwitchListTile(
                       contentPadding: EdgeInsets.zero,
-                      title: const Text(
-                        'Gunakan GPS Otomatis',
-                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                      title: Text(
+                        context.translate('prayer_settings_use_gps'),
+                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
                       ),
-                      subtitle: const Text(
-                        'Mencari lokasi berdasarkan posisi perangkat secara real-time',
-                        style: TextStyle(fontSize: 11),
+                      subtitle: Text(
+                        context.translate('prayer_settings_use_gps_sub'),
+                        style: const TextStyle(fontSize: 11),
                       ),
                       value: localUseGps,
                       activeColor: AppTheme.primaryGreen,
@@ -1016,7 +1083,7 @@ class _PrayerTimeScreenState extends State<PrayerTimeScreen>
                               controller: _citySearchController,
                               style: const TextStyle(fontSize: 13),
                               decoration: InputDecoration(
-                                hintText: 'Masukkan nama kota (misal: Bandung)',
+                                hintText: context.translate('prayer_settings_city_hint'),
                                 hintStyle: TextStyle(
                                   fontSize: 12,
                                   color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.6),
@@ -1089,7 +1156,7 @@ class _PrayerTimeScreenState extends State<PrayerTimeScreen>
                         ),
                       if (locationSearchError == null && locationSearchSuccess == null)
                         Text(
-                          'Lokasi aktif: $localCityName',
+                          context.translate('prayer_settings_active_loc').replaceAll('{city}', _resolveLocationName(localCityName)),
                           style: TextStyle(
                             fontSize: 11,
                             color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.7),
@@ -1100,7 +1167,7 @@ class _PrayerTimeScreenState extends State<PrayerTimeScreen>
 
                     // Method dropdown
                     Text(
-                      'Metode Kalkulasi',
+                      context.translate('prayer_settings_calc_title'),
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
@@ -1128,7 +1195,7 @@ class _PrayerTimeScreenState extends State<PrayerTimeScreen>
                           items: PrayerTimeService.calcMethodOptions.entries.map((e) {
                             return DropdownMenuItem(
                               value: e.key,
-                              child: Text(e.value, style: const TextStyle(fontSize: 13)),
+                              child: Text(_getLocalizedMethodName(e.key), style: const TextStyle(fontSize: 13)),
                             );
                           }).toList(),
                           onChanged: (val) {
@@ -1143,7 +1210,7 @@ class _PrayerTimeScreenState extends State<PrayerTimeScreen>
 
                     // Madhab dropdown
                     Text(
-                      'Madhab (Penentuan Waktu Ashar)',
+                      context.translate('prayer_settings_madhab_title'),
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
@@ -1171,7 +1238,7 @@ class _PrayerTimeScreenState extends State<PrayerTimeScreen>
                           items: PrayerTimeService.madhabOptions.entries.map((e) {
                             return DropdownMenuItem(
                               value: e.key,
-                              child: Text(e.value, style: const TextStyle(fontSize: 13)),
+                              child: Text(_getLocalizedMadhabName(e.key), style: const TextStyle(fontSize: 13)),
                             );
                           }).toList(),
                           onChanged: (val) {
@@ -1193,7 +1260,7 @@ class _PrayerTimeScreenState extends State<PrayerTimeScreen>
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Notifikasi Alarm Azan',
+                              context.translate('prayer_settings_azan_alarm'),
                               style: TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.bold,
@@ -1201,7 +1268,7 @@ class _PrayerTimeScreenState extends State<PrayerTimeScreen>
                               ),
                             ),
                             Text(
-                              localAzanEnabled ? 'Aktif' : 'Nonaktif',
+                              localAzanEnabled ? context.translate('status_active') : context.translate('status_inactive'),
                               style: TextStyle(
                                 fontSize: 12,
                                 color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -1227,7 +1294,7 @@ class _PrayerTimeScreenState extends State<PrayerTimeScreen>
                     if (localAzanEnabled) ...[
                       const SizedBox(height: 16),
                       Text(
-                        'Waktu Shalat yang Diingatkan:',
+                        context.translate('prayer_settings_azan_reminder_time'),
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
@@ -1242,7 +1309,7 @@ class _PrayerTimeScreenState extends State<PrayerTimeScreen>
                           final prayer = entry.key;
                           final isToggled = entry.value;
                           return ChoiceChip(
-                            label: Text(prayer, style: const TextStyle(fontSize: 12)),
+                            label: Text(context.translate('prayer_${prayer.toLowerCase()}'), style: const TextStyle(fontSize: 12)),
                             selected: isToggled,
                             selectedColor: AppTheme.primaryGreen.withOpacity(0.2),
                             checkmarkColor: AppTheme.primaryGreen,
@@ -1262,7 +1329,7 @@ class _PrayerTimeScreenState extends State<PrayerTimeScreen>
                       ),
                       const SizedBox(height: 16),
                       Text(
-                        'Pilihan Suara Azan',
+                        context.translate('prayer_settings_azan_sound_selection'),
                         style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
@@ -1293,7 +1360,7 @@ class _PrayerTimeScreenState extends State<PrayerTimeScreen>
                                   items: AzanNotificationService.azanSoundOptions.entries.map((e) {
                                     return DropdownMenuItem(
                                       value: e.key,
-                                      child: Text(e.value, style: const TextStyle(fontSize: 13)),
+                                      child: Text(_getLocalizedSoundName(e.key), style: const TextStyle(fontSize: 13)),
                                     );
                                   }).toList(),
                                   onChanged: (val) {
@@ -1313,7 +1380,7 @@ class _PrayerTimeScreenState extends State<PrayerTimeScreen>
                             IconButton.filledTonal(
                               onPressed: () {
                                 if (_isPlayingPreview) {
-                                  _stopAzanPreview(setStateSheet);
+                                    _stopAzanPreview(setStateSheet);
                                 } else {
                                   _playAzanPreview(localAzanSound, setStateSheet);
                                 }
@@ -1387,8 +1454,8 @@ class _PrayerTimeScreenState extends State<PrayerTimeScreen>
                             borderRadius: BorderRadius.circular(12),
                           ),
                         ),
-                        child: const Text('Simpan & Terapkan',
-                            style: TextStyle(fontWeight: FontWeight.bold)),
+                        child: Text(context.translate('prayer_settings_btn_save'),
+                            style: const TextStyle(fontWeight: FontWeight.bold)),
                       ),
                     ),
                   ],
@@ -1411,14 +1478,14 @@ class _PrayerTimeScreenState extends State<PrayerTimeScreen>
       width: double.infinity,
       color: Colors.redAccent.withOpacity(0.9),
       padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-      child: const Row(
+      child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.wifi_off_rounded, color: Colors.white, size: 16),
-          SizedBox(width: 8),
+          const Icon(Icons.wifi_off_rounded, color: Colors.white, size: 16),
+          const SizedBox(width: 8),
           Text(
-            'Koneksi Terputus. Menampilkan data offline terakhir.',
-            style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+            context.translate('prayer_offline_banner'),
+            style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
           ),
         ],
       ),

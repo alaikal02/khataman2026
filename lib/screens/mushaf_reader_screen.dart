@@ -8,6 +8,7 @@ import '../services/personal_history_service.dart';
 import '../services/notification_service.dart';
 import '../providers/settings_provider.dart';
 import '../data/quran_id_translation.dart';
+import '../utils/localization.dart';
 
 class VerseItem {
   final int surahNumber;
@@ -225,7 +226,9 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Penanda buku disimpan: Surah $surahName ayat ${verse.verseNumber}'),
+          content: Text(context.translate('mushaf_reader_bookmark_saved')
+              .replaceFirst('{surah}', surahName)
+              .replaceFirst('{ayat}', verse.verseNumber.toString())),
           duration: const Duration(seconds: 2),
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -246,7 +249,7 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
     if (absoluteIndex < _dbSavedAbsoluteIndex && _dbSavedAbsoluteIndex > 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('🔒 Progres tidak bisa dimundurkan! Silakan pilih ayat yang lebih tinggi.'),
+          content: Text(context.translate('mushaf_reader_err_reverse')),
           backgroundColor: Colors.redAccent,
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -264,27 +267,32 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
         }).eq('id_slot', widget.slotId!);
 
         if (isComplete) {
-          final desc = 'Alhamdulillah, telah menyelesaikan Juz $_activeJuz melalui Mushaf!';
+          final desc = context.translate('mushaf_reader_log_juz_completed_mushaf')
+              .replaceFirst('{juz}', _activeJuz!.toString());
           await PersonalHistoryService.logReading(
             userId: userId,
             juz: _activeJuz!,
             description: desc,
-            type: 'Grup: ${widget.groupName ?? 'Khataman Grup'}',
+            type: 'Grup: ${widget.groupName ?? context.translate('history_cycle_group_fallback')}',
             isJuzCompletion: true,
           );
 
           // Send notification
           if (widget.selectForGroupId != null) {
+            final settings = Provider.of<SettingsProvider>(context, listen: false);
             final senderName = _supabase.auth.currentUser?.userMetadata?['full_name'] as String? ??
                 _supabase.auth.currentUser?.email?.split('@')[0] ??
-                'Seseorang';
-            final gName = widget.groupName ?? 'Grup';
+                (settings.language == 'en' ? 'Someone' : 'Seseorang');
+            final gName = widget.groupName ?? context.translate('history_cycle_group_fallback');
 
             await NotificationService.sendToGroup(
               groupId: widget.selectForGroupId!,
               type: 'JUZ_COMPLETED',
-              title: 'Juz Selesai Dibaca',
-              body: '$senderName telah menyelesaikan Juz $_activeJuz di grup "$gName" melalui Mushaf',
+              title: context.translate('mushaf_reader_notif_completed_title'),
+              body: context.translate('mushaf_reader_notif_completed_body')
+                  .replaceFirst('{user}', senderName)
+                  .replaceFirst('{juz}', _activeJuz!.toString())
+                  .replaceFirst('{group}', gName),
               excludeUserId: userId,
             );
           }
@@ -292,7 +300,7 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
           await PersonalHistoryService.removeReadingLog(
             userId: userId,
             juz: _activeJuz!,
-            type: 'Grup: ${widget.groupName ?? 'Khataman Grup'}',
+            type: 'Grup: ${widget.groupName ?? context.translate('history_cycle_group_fallback')}',
           );
         }
 
@@ -311,7 +319,8 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
         }, onConflict: 'user_id,nomor_juz');
 
         if (isComplete) {
-          final desc = 'Alhamdulillah, telah menyelesaikan Juz $_activeJuz melalui Mushaf!';
+          final desc = context.translate('mushaf_reader_log_juz_completed_mushaf')
+              .replaceFirst('{juz}', _activeJuz!.toString());
           await PersonalHistoryService.logReading(
             userId: userId,
             juz: _activeJuz!,
@@ -333,11 +342,12 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
       }
 
       if (mounted) {
+        final contentText = isComplete 
+            ? context.translate('mushaf_reader_success_completed').replaceFirst('{juz}', _activeJuz!.toString())
+            : context.translate('mushaf_reader_success_saved');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(isComplete 
-                ? '✅ Juz $_activeJuz selesai! Progres khataman berhasil disinkronkan!' 
-                : 'Progres berhasil disimpan!'),
+            content: Text(contentText),
             backgroundColor: isComplete ? AppTheme.primaryGreen : const Color(0xFF323232),
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -348,7 +358,7 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Gagal menyimpan progres: $e'),
+            content: Text(context.translate('mushaf_reader_err_save').replaceFirst('{error}', e.toString())),
             backgroundColor: Colors.redAccent,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -386,7 +396,7 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
                   ),
                   const SizedBox(height: 18),
                   Text(
-                    'Pengaturan Tampilan',
+                    context.translate('mushaf_reader_settings_title'),
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
@@ -399,7 +409,7 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('Ukuran Teks Arab', style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurface)),
+                      Text(context.translate('mushaf_reader_arabic_text_size'), style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurface)),
                       Text('${_arabicFontSize.toInt()} px', style: const TextStyle(fontWeight: FontWeight.bold, color: AppTheme.primaryGreen)),
                     ],
                   ),
@@ -422,7 +432,7 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text('Ukuran Terjemahan', style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurface)),
+                        Text(context.translate('mushaf_reader_translation_text_size'), style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurface)),
                         Text('${_translationFontSize.toInt()} px', style: const TextStyle(fontWeight: FontWeight.bold, color: AppTheme.primaryGreen)),
                       ],
                     ),
@@ -443,7 +453,7 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
                   
                   // Toggle Translation switch
                   SwitchListTile(
-                    title: Text('Tampilkan Terjemahan', style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurface)),
+                    title: Text(context.translate('mushaf_reader_show_translation'), style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurface)),
                     value: _showTranslation,
                     activeColor: AppTheme.primaryGreen,
                     contentPadding: EdgeInsets.zero,
@@ -465,12 +475,13 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
 
   @override
   Widget build(BuildContext context) {
+    Provider.of<SettingsProvider>(context); // Listen to settings changes
     final isDark = Theme.of(context).brightness == Brightness.dark;
     
     // Page Title
     String pageTitle = '';
     if (_activeJuz != null) {
-      pageTitle = 'Juz $_activeJuz';
+      pageTitle = context.translate('mushaf_last_read_juz').replaceFirst('{juz}', _activeJuz!.toString());
     } else if (_activeSurah != null) {
       pageTitle = quran.getSurahName(_activeSurah!);
     }
@@ -487,7 +498,7 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.text_fields_rounded),
-            tooltip: 'Pengaturan Teks',
+            tooltip: context.translate('mushaf_reader_settings_title'),
             onPressed: _showSettingsBottomSheet,
           ),
         ],
@@ -539,7 +550,9 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
 
   Widget _buildSurahHeader(int surahNum, bool isDark) {
     final name = quran.getSurahName(surahNum);
-    final place = quran.getPlaceOfRevelation(surahNum) == 'Makkah' ? 'Makkiyah' : 'Madaniyah';
+    final place = quran.getPlaceOfRevelation(surahNum) == 'Makkah'
+        ? context.translate('mushaf_makkiyah')
+        : context.translate('mushaf_madaniyah');
     final arabic = quran.getSurahNameArabic(surahNum);
 
     return Container(
@@ -578,7 +591,7 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    '$place • ${quran.getVerseCount(surahNum)} Ayat',
+                    '$place • ${context.translate('mushaf_verses_count').replaceFirst('{count}', quran.getVerseCount(surahNum).toString())}',
                     style: TextStyle(
                       fontSize: 11,
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -698,7 +711,7 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
                       icon: const Icon(Icons.bookmark_border_rounded, size: 18),
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
-                      tooltip: 'Tandai Terakhir Dibaca',
+                      tooltip: context.translate('mushaf_reader_bookmark_label'),
                       onPressed: () => _saveAsLastRead(item),
                     ),
                   ],
@@ -766,7 +779,7 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text('Ayat Terpilih', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                  Text(context.translate('mushaf_reader_selected_verse_title'), style: const TextStyle(fontSize: 11, color: Colors.grey)),
                   Text(
                     'Surah ${quran.getSurahName(_selectedVerse!.surahNumber)}: ${_selectedVerse!.verseNumber}',
                     style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
@@ -777,7 +790,7 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
             ElevatedButton.icon(
               onPressed: () => _saveAsLastRead(_selectedVerse!),
               icon: const Icon(Icons.bookmark_rounded, size: 16),
-              label: const Text('Bookmark'),
+              label: Text(context.translate('mushaf_reader_bookmark_label')),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppTheme.primaryGreen,
                 foregroundColor: Colors.white,
@@ -831,12 +844,18 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    isGroup ? 'Khataman Grup (${widget.groupName})' : 'Khataman Mandiri',
+                    isGroup 
+                        ? '${context.translate('home_type_group')} (${widget.groupName})' 
+                        : context.translate('mandiri_title'),
                     style: const TextStyle(fontSize: 11, color: AppTheme.primaryGreen, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    'Juz $_activeJuz • Progres: $_dbSavedAbsoluteIndex / $_totalAyatInJuz Ayat ($progressPercent%)',
+                    context.translate('mushaf_reader_juz_progress_text')
+                        .replaceFirst('{juz}', _activeJuz!.toString())
+                        .replaceFirst('{current}', _dbSavedAbsoluteIndex.toString())
+                        .replaceFirst('{total}', _totalAyatInJuz.toString())
+                        .replaceFirst('{percent}', progressPercent.toString()),
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.bold,
@@ -850,9 +869,9 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
               if (_dbSavedAbsoluteIndex < _totalAyatInJuz)
                 TextButton(
                   onPressed: () => _saveProgressToDB(_totalAyatInJuz),
-                  child: const Text(
-                    'Tandai Selesai Juz',
-                    style: TextStyle(
+                  child: Text(
+                    context.translate('mushaf_reader_mark_juz_done'),
+                    style: const TextStyle(
                       fontSize: 12,
                       color: AppTheme.primaryGreen,
                       fontWeight: FontWeight.bold,
@@ -878,9 +897,9 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'Pilih Progres Baru s.d:',
-                          style: TextStyle(fontSize: 10, color: Colors.grey),
+                        Text(
+                          context.translate('mushaf_reader_progress_new_label'),
+                          style: const TextStyle(fontSize: 10, color: Colors.grey),
                         ),
                         const SizedBox(height: 2),
                         Text(
@@ -899,7 +918,10 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                     ),
-                    child: const Text('Simpan Progres', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                    child: Text(
+                      context.translate('mushaf_reader_save_progress_label'),
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                    ),
                   ),
                 ],
               ),
@@ -907,8 +929,8 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
           ] else ...[
             Text(
               _dbSavedAbsoluteIndex >= _totalAyatInJuz 
-                  ? '✨ Alhamdulillah, Juz ini telah selesai dibaca!' 
-                  : '💡 Ketuk ayat terakhir yang Anda baca untuk memperbarui progres.',
+                  ? context.translate('mushaf_reader_juz_completed_banner') 
+                  : context.translate('mushaf_reader_tap_instruction_banner'),
               textAlign: TextAlign.center,
               style: const TextStyle(fontSize: 12, color: Colors.grey, height: 1.4),
             ),

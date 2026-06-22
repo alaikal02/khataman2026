@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:quran/quran.dart' as quran;
+import 'package:provider/provider.dart';
 import '../data/surah_info_data.dart';
+import '../providers/settings_provider.dart';
+import '../utils/localization.dart';
 import '../theme/app_theme.dart';
 
 class SurahDetailScreen extends StatelessWidget {
@@ -13,9 +16,12 @@ class SurahDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    Provider.of<SettingsProvider>(context); // Listen to settings changes
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final arabicName = quran.getSurahNameArabic(surahInfo.number);
-    final place = quran.getPlaceOfRevelation(surahInfo.number) == 'Makkah' ? 'Makkiyah' : 'Madaniyah';
+    final place = quran.getPlaceOfRevelation(surahInfo.number) == 'Makkah'
+        ? context.translate('mushaf_makkiyah')
+        : context.translate('mushaf_madaniyah');
     final totalVerses = quran.getVerseCount(surahInfo.number);
 
     return Scaffold(
@@ -70,7 +76,10 @@ class SurahDetailScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Surah Ke-${surahInfo.number} • $place • $totalVerses Ayat',
+                        context.translate('surah_detail_juz_place_verses')
+                            .replaceFirst('{number}', surahInfo.number.toString())
+                            .replaceFirst('{place}', place)
+                            .replaceFirst('{verses}', totalVerses.toString()),
                         style: const TextStyle(
                           fontSize: 13,
                           color: Colors.white70,
@@ -85,7 +94,8 @@ class SurahDetailScreen extends StatelessWidget {
                           borderRadius: BorderRadius.circular(30),
                         ),
                         child: Text(
-                          'Arti: ${surahInfo.translation}',
+                          context.translate('surah_detail_translation_label')
+                              .replaceFirst('{translation}', surahInfo.translation),
                           style: const TextStyle(
                             fontSize: 14,
                             color: AppTheme.accentGold,
@@ -101,7 +111,7 @@ class SurahDetailScreen extends StatelessWidget {
                 // Section 1: Arti & Makna
                 _buildInfoCard(
                   context: context,
-                  title: 'Arti & Makna',
+                  title: context.translate('surah_detail_tab_meaning'),
                   icon: Icons.menu_book_rounded,
                   iconColor: AppTheme.primaryGreen,
                   content: surahInfo.makna,
@@ -111,8 +121,8 @@ class SurahDetailScreen extends StatelessWidget {
                 // Section 2: Asbabun Nuzul / Hadis
                 _buildInfoCard(
                   context: context,
-                  title: 'Hadis & Asbabun Nuzul',
-                  subtitle: 'Mengapa surah ini diturunkan',
+                  title: context.translate('surah_detail_tab_asbabun'),
+                  subtitle: context.translate('surah_detail_tab_asbabun_sub'),
                   icon: Icons.history_edu_rounded,
                   iconColor: AppTheme.accentGold,
                   content: surahInfo.asbabunNuzul,
@@ -122,8 +132,8 @@ class SurahDetailScreen extends StatelessWidget {
                 // Section 3: Dampak & Keutamaan
                 _buildInfoCard(
                   context: context,
-                  title: 'Dampak & Keutamaan',
-                  subtitle: 'Manfaat & faedah pengamalan',
+                  title: context.translate('surah_detail_tab_virtue'),
+                  subtitle: context.translate('surah_detail_tab_virtue_sub'),
                   icon: Icons.favorite_rounded,
                   iconColor: AppTheme.accentTeal,
                   content: surahInfo.dampak,

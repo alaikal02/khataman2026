@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:provider/provider.dart';
 import 'group_detail_screen.dart';
 import '../../../theme/app_theme.dart';
 import '../../../services/notification_service.dart';
 import 'dart:math';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../screens/active_khataman_list_screen.dart';
+import '../../../providers/settings_provider.dart';
+import '../../../utils/localization.dart';
 import 'dart:io';
 import 'dart:async';
 
@@ -204,7 +207,7 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
       } else {
         if (mounted) {
           setState(() => _isLoading = false);
-          _showSnackbar('Gagal memuat data: $e', isError: true);
+          _showSnackbar(context.translate('group_err_load').replaceAll('{error}', e.toString()), isError: true);
         }
       }
     }
@@ -238,7 +241,7 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
   Future<void> _createGroup() async {
     final namaGrup = _namaGrupController.text.trim();
     if (namaGrup.isEmpty) {
-      _showSnackbar('Nama grup tidak boleh kosong', isError: true);
+      _showSnackbar(context.translate('group_err_empty_name'), isError: true);
       return;
     }
 
@@ -263,7 +266,9 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
       _namaGrupController.clear();
       _groupVisibility = 'PUBLIC';
       _groupType = 'INSIDENTAL';
-      _showSnackbar('Grup "$namaGrup" berhasil dibuat! Kode: $uniqueCode');
+      _showSnackbar(context.translate('group_success_create')
+          .replaceAll('{groupName}', namaGrup)
+          .replaceAll('{code}', uniqueCode));
       invalidateCache();
       ActiveKhatamanListScreen.invalidateCache();
       await _fetchData();
@@ -272,7 +277,7 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
         _showAddMembersDialog(data['id_group']);
       }
     } catch (e) {
-      _showSnackbar('Gagal membuat grup: $e', isError: true);
+      _showSnackbar(context.translate('group_err_create').replaceAll('{error}', e.toString()), isError: true);
     }
   }
 
@@ -386,7 +391,7 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
                                         crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
                                           Text(
-                                            'Undang Anggota',
+                                            context.translate('group_invite_title'),
                                             style: TextStyle(
                                               color: onSurfaceColor,
                                               fontWeight: FontWeight.bold,
@@ -396,7 +401,7 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
                                           ),
                                           const SizedBox(height: 2),
                                           Text(
-                                            'Pilih teman untuk diajak mengaji bersama',
+                                            context.translate('group_invite_subtitle'),
                                             style: TextStyle(
                                               color: onSurfaceVariantColor,
                                               fontSize: 12,
@@ -431,7 +436,7 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
                             child: TextField(
                               style: TextStyle(color: onSurfaceColor, fontSize: 14),
                               decoration: InputDecoration(
-                                hintText: 'Cari username atau email...',
+                                hintText: context.translate('group_search_user_hint'),
                                 filled: true,
                                 fillColor: inputBgColor,
                                 prefixIcon: Icon(Icons.search_rounded, size: 20, color: onSurfaceVariantColor),
@@ -547,7 +552,9 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
                             child: filteredUsers.isEmpty
                                 ? Center(
                                     child: Text(
-                                      searchQuery.isEmpty ? 'Tidak ada pengguna lain' : 'Tidak ada hasil cocok',
+                                      searchQuery.isEmpty 
+                                          ? context.translate('group_no_users') 
+                                          : context.translate('group_no_match_users'),
                                       style: TextStyle(color: onSurfaceVariantColor, fontSize: 14),
                                     ),
                                   )
@@ -672,7 +679,7 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
                                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                                       ),
                                       child: Text(
-                                        'Lewati',
+                                        context.translate('group_btn_skip'),
                                         style: TextStyle(color: onSurfaceVariantColor, fontWeight: FontWeight.bold),
                                       ),
                                     ),
@@ -714,7 +721,8 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
                                                   await _supabase.from('group_members').insert(inserts);
                                                   
                                                   if (mounted) {
-                                                    _showSnackbar('${_selectedUsersForInvite.length} anggota berhasil ditambahkan!');
+                                                    _showSnackbar(context.translate('group_success_add_members')
+                                                        .replaceAll('{count}', _selectedUsersForInvite.length.toString()));
                                                     _selectedUsersForInvite.clear();
                                                     navigateToDetail();
                                                   }
@@ -724,15 +732,15 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
                                                     showDialog(
                                                       context: this.context,
                                                       builder: (_) => AlertDialog(
-                                                        title: const Text('Gagal Menambahkan'),
-                                                        content: Text('Supabase Error: $e\n\nKemungkinan besar database (Row Level Security) melarang Anda menambahkan akun orang lain secara langsung.'),
+                                                        title: Text(context.translate('group_err_add_members_title')),
+                                                        content: Text(context.translate('group_err_add_members_body').replaceAll('{error}', e.toString())),
                                                         actions: [
                                                           TextButton(
                                                             onPressed: () {
                                                               Navigator.pop(_);
                                                               navigateToDetail();
                                                             },
-                                                            child: const Text('Lanjutkan ke Grup'),
+                                                            child: Text(context.translate('group_err_add_members_continue')),
                                                           )
                                                         ],
                                                       )
@@ -748,8 +756,8 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
                                         ),
                                         child: Text(
                                           _selectedUsersForInvite.isEmpty
-                                              ? 'Tambahkan'
-                                              : 'Tambahkan (${_selectedUsersForInvite.length})',
+                                              ? context.translate('group_btn_add')
+                                              : context.translate('group_btn_add_count').replaceAll('{count}', _selectedUsersForInvite.length.toString()),
                                           style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
                                         ),
                                       ),
@@ -807,8 +815,10 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
             await NotificationService.send(
               userId: creatorId,
               type: 'JOIN_REQUEST',
-              title: 'Permintaan Bergabung',
-              body: '$senderName meminta bergabung ke grup "$groupName"',
+              title: context.translate('group_notif_join_request_title'),
+              body: context.translate('group_notif_join_request_body')
+                  .replaceAll('{user}', senderName)
+                  .replaceAll('{groupName}', groupName),
               groupId: groupId,
               senderId: _supabase.auth.currentUser?.id,
             );
@@ -816,8 +826,10 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
             await NotificationService.send(
               userId: creatorId,
               type: 'MEMBER_JOINED',
-              title: 'Anggota Baru Bergabung',
-              body: '$senderName telah bergabung ke grup "$groupName"',
+              title: context.translate('group_notif_joined_title'),
+              body: context.translate('group_notif_joined_body')
+                  .replaceAll('{user}', senderName)
+                  .replaceAll('{groupName}', groupName),
               groupId: groupId,
               senderId: _supabase.auth.currentUser?.id,
             );
@@ -832,9 +844,9 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
       await _fetchData();
 
       if (isPrivate) {
-        _showSnackbar('Permintaan bergabung terkirim! Tunggu persetujuan Admin.');
+        _showSnackbar(context.translate('group_join_pending'));
       } else {
-        _showSnackbar('Berhasil bergabung dengan "$groupName"!');
+        _showSnackbar(context.translate('group_join_success').replaceAll('{groupName}', groupName));
         if (mounted) {
           Navigator.push(context, MaterialPageRoute(
             builder: (_) => GroupDetailScreen(groupId: groupId),
@@ -844,7 +856,7 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
         }
       }
     } catch (e) {
-      _showSnackbar('Gagal bergabung: sudah terdaftar atau terjadi error', isError: true);
+      _showSnackbar(context.translate('group_join_failed'), isError: true);
     }
   }
 
@@ -867,12 +879,12 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
         senderId: userId,
       );
 
-      _showSnackbar('Permintaan bergabung ke "$groupName" berhasil dibatalkan.');
+      _showSnackbar(context.translate('group_join_cancel_success').replaceAll('{groupName}', groupName));
       invalidateCache();
       ActiveKhatamanListScreen.invalidateCache();
       await _fetchData();
     } catch (e) {
-      _showSnackbar('Gagal membatalkan permintaan: $e', isError: true);
+      _showSnackbar(context.translate('group_join_cancel_failed').replaceAll('{error}', e.toString()), isError: true);
     }
   }
 
@@ -881,19 +893,19 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
       context: context,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text(
-          'Batalkan Permintaan?',
-          style: TextStyle(fontWeight: FontWeight.bold),
+        title: Text(
+          context.translate('group_join_cancel_dialog_title'),
+          style: const TextStyle(fontWeight: FontWeight.bold),
         ),
         content: Text(
-          'Apakah Anda yakin ingin membatalkan permintaan bergabung dengan grup "$groupName"?',
+          context.translate('group_join_cancel_dialog_body').replaceAll('{groupName}', groupName),
           style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: Text(
-              'Batal',
+              context.translate('btn_cancel'),
               style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
             ),
           ),
@@ -908,7 +920,7 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               elevation: 0,
             ),
-            child: const Text('Batalkan Permintaan'),
+            child: Text(context.translate('group_join_cancel_dialog_btn')),
           ),
         ],
       ),
@@ -947,10 +959,11 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
 
   @override
   Widget build(BuildContext context) {
+    Provider.of<SettingsProvider>(context); // Listen to language updates
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        title: const Text('Khataman Grup'),
+        title: Text(context.translate('home_feat_group_title')),
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         leading: IconButton(
           icon: Icon(Icons.arrow_back_ios_rounded, color: Theme.of(context).colorScheme.onSurface),
@@ -971,15 +984,15 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
           labelColor: AppTheme.primaryGreen,
           unselectedLabelColor: Theme.of(context).colorScheme.onSurfaceVariant,
           tabs: [
-            Tab(text: 'Semua Grup (${_filteredAllGroups.length})'),
-            Tab(text: 'Grup Saya (${_myGroups.length})'),
+            Tab(text: context.translate('group_tab_all').replaceAll('{count}', _filteredAllGroups.length.toString())),
+            Tab(text: context.translate('group_tab_my').replaceAll('{count}', _myGroups.length.toString())),
             Tab(
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   const Icon(Icons.archive_outlined, size: 15),
                   const SizedBox(width: 5),
-                  Text('Arsip (${_archivedGroups.length})'),
+                  Text(context.translate('group_tab_archived').replaceAll('{count}', _archivedGroups.length.toString())),
                 ],
               ),
             ),
@@ -990,7 +1003,7 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
         onPressed: _showCreateGroupBottomSheet,
         backgroundColor: AppTheme.primaryGreen,
         icon: const Icon(Icons.add_rounded),
-        label: const Text('Buat Grup'),
+        label: Text(context.translate('group_btn_create')),
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator(color: AppTheme.primaryGreen))
@@ -1096,7 +1109,7 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       Text(
-                                        'Buat Grup Baru',
+                                        context.translate('group_create_dialog_title'),
                                         style: TextStyle(
                                           color: onSurfaceColor,
                                           fontWeight: FontWeight.bold,
@@ -1106,7 +1119,7 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
                                       ),
                                       const SizedBox(height: 2),
                                       Text(
-                                        'Khataman Al-Quran bersama',
+                                        context.translate('group_create_dialog_subtitle'),
                                         style: TextStyle(
                                           color: onSurfaceVariantColor,
                                           fontSize: 12,
@@ -1136,14 +1149,14 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
                             Align(
                               alignment: Alignment.centerLeft,
                               child: Text(
-                                'Nama Grup',
-                                style: TextStyle(
-                                  color: onSurfaceVariantColor,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                  letterSpacing: 0.3,
-                                ),
-                              ),
+                                        context.translate('group_create_field_name'),
+                                        style: TextStyle(
+                                          color: onSurfaceVariantColor,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                          letterSpacing: 0.3,
+                                        ),
+                                      ),
                             ),
                             const SizedBox(height: 8),
 
@@ -1153,7 +1166,7 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
                               style: TextStyle(color: onSurfaceColor),
                               textCapitalization: TextCapitalization.words,
                               decoration: InputDecoration(
-                                hintText: 'Contoh: Khataman Keluarga',
+                                hintText: context.translate('group_create_field_name_hint'),
                                 filled: true,
                                 fillColor: inputBgColor,
                                 prefixIcon: Icon(Icons.edit_rounded, size: 18, color: onSurfaceVariantColor),
@@ -1175,7 +1188,7 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
                             Align(
                               alignment: Alignment.centerLeft,
                               child: Text(
-                                'Visibilitas Grup',
+                                context.translate('group_create_field_visibility'),
                                 style: TextStyle(
                                   color: onSurfaceVariantColor,
                                   fontSize: 12,
@@ -1228,7 +1241,7 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
                                           ),
                                           const SizedBox(width: 6),
                                           Text(
-                                            'Publik',
+                                            context.translate('group_create_visibility_public'),
                                             style: TextStyle(
                                               fontWeight: FontWeight.w600,
                                               fontSize: 13,
@@ -1282,7 +1295,7 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
                                           ),
                                           const SizedBox(width: 6),
                                           Text(
-                                            'Privat',
+                                            context.translate('group_create_visibility_private'),
                                             style: TextStyle(
                                               fontWeight: FontWeight.w600,
                                               fontSize: 13,
@@ -1321,7 +1334,7 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
                                             const SizedBox(width: 8),
                                             Expanded(
                                               child: Text(
-                                                'Anggota harus disetujui Admin sebelum bergabung.',
+                                                context.translate('group_create_visibility_private_desc'),
                                                 style: TextStyle(
                                                   fontSize: 11.5,
                                                   color: isDark ? AppTheme.accentGold : Colors.amber.shade800,
@@ -1342,7 +1355,7 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
                             Align(
                               alignment: Alignment.centerLeft,
                               child: Text(
-                                'Tipe Grup',
+                                context.translate('group_create_field_type'),
                                 style: TextStyle(
                                   color: onSurfaceVariantColor,
                                   fontSize: 12,
@@ -1395,7 +1408,7 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
                                           ),
                                           const SizedBox(width: 6),
                                           Text(
-                                            'Insidental',
+                                            context.translate('group_create_type_insidental'),
                                             style: TextStyle(
                                               fontWeight: FontWeight.w600,
                                               fontSize: 13,
@@ -1449,7 +1462,7 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
                                           ),
                                           const SizedBox(width: 6),
                                           Text(
-                                            'Rutin',
+                                            context.translate('group_create_type_rutin'),
                                             style: TextStyle(
                                               fontWeight: FontWeight.w600,
                                               fontSize: 13,
@@ -1492,8 +1505,8 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
                                       Expanded(
                                         child: Text(
                                           _groupType == 'RUTIN'
-                                              ? 'Tipe Rutin: Sistem siklus rolling Juz otomatis berputar setelah khatam.'
-                                              : 'Tipe Insidental: Jatah Juz di-reset total secara manual setelah khatam.',
+                                              ? context.translate('group_create_type_rutin_desc')
+                                              : context.translate('group_create_type_insidental_desc'),
                                           style: TextStyle(
                                             fontSize: 11.5,
                                             color: isDark
@@ -1551,9 +1564,9 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
                                     ),
                                   ),
                                   icon: const Icon(Icons.rocket_launch_rounded, size: 18),
-                                  label: const Text(
-                                    'Buat Grup Sekarang',
-                                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                                  label: Text(
+                                    context.translate('group_create_btn_submit'),
+                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
                                   ),
                                 ),
                               ),
@@ -1588,7 +1601,7 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
               controller: _searchController,
               style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
               decoration: InputDecoration(
-                hintText: 'Cari grup atau kode...',
+                hintText: context.translate('group_search_hint'),
                 prefixIcon: Icon(Icons.search_rounded, color: Theme.of(context).colorScheme.onSurfaceVariant),
                 suffixIcon: _searchController.text.isNotEmpty
                     ? IconButton(
@@ -1602,7 +1615,7 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
           // Group List
           Expanded(
             child: _filteredAllGroups.isEmpty
-                ? _buildEmptyState('Tidak ada grup ditemukan')
+                ? _buildEmptyState(context.translate('group_empty_search'))
                 : ListView.builder(
                     padding: EdgeInsets.fromLTRB(16, 4, 16, 80 + MediaQuery.of(context).padding.bottom),
                     itemCount: _filteredAllGroups.length,
@@ -1625,7 +1638,7 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
       backgroundColor: Theme.of(context).colorScheme.surface,
       onRefresh: _fetchData,
       child: _myGroups.isEmpty
-          ? _buildEmptyState('Anda belum bergabung ke grup manapun.\nCari grup di tab "Semua Grup" dan klik Gabung!')
+          ? _buildEmptyState(context.translate('group_empty_my_groups'))
           : ListView.builder(
               padding: EdgeInsets.fromLTRB(16, 12, 16, 80 + MediaQuery.of(context).padding.bottom),
               itemCount: _myGroups.length,
@@ -1644,7 +1657,7 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
       backgroundColor: Theme.of(context).colorScheme.surface,
       onRefresh: _fetchData,
       child: _archivedGroups.isEmpty
-          ? _buildEmptyState('Belum ada grup yang diarsipkan.\nGrup akan diarsipkan setelah Doa Khatam Al-Quran selesai dibaca.')
+          ? _buildEmptyState(context.translate('group_empty_archived_groups'))
           : ListView.builder(
               padding: EdgeInsets.fromLTRB(16, 12, 16, 80 + MediaQuery.of(context).padding.bottom),
               itemCount: _archivedGroups.length,
@@ -1847,7 +1860,7 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
                                 borderRadius: BorderRadius.circular(6),
                               ),
                               child: Text(
-                                'Admin', 
+                                context.translate('group_badge_admin'), 
                                 style: TextStyle(
                                   color: isDark ? Colors.white70 : Colors.grey.shade700, 
                                   fontSize: 10,
@@ -1883,7 +1896,7 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Text(
-                        'Buka', 
+                        context.translate('group_badge_open'), 
                         style: TextStyle(
                           color: isDark ? AppTheme.primaryGreen : AppTheme.darkGreen, 
                           fontWeight: FontWeight.bold, 
@@ -1909,15 +1922,15 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
                           width: 0.8,
                         ),
                       ),
-                      child: const Row(
+                      child: Row(
                         mainAxisSize: MainAxisSize.min,
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.hourglass_top_rounded, size: 12, color: AppTheme.accentGold),
-                          SizedBox(width: 4),
+                          const Icon(Icons.hourglass_top_rounded, size: 12, color: AppTheme.accentGold),
+                          const SizedBox(width: 4),
                           Text(
-                            'Menunggu', 
-                            style: TextStyle(
+                            context.translate('group_badge_waiting'), 
+                            style: const TextStyle(
                               color: AppTheme.accentGold, 
                               fontWeight: FontWeight.w600, 
                               fontSize: 12,
@@ -1943,7 +1956,7 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Text(
-                        'Gabung', 
+                        context.translate('group_badge_join'), 
                         style: TextStyle(
                           color: isDark ? const Color(0xFF9E9AFF) : const Color(0xFF3F3D8B), 
                           fontWeight: FontWeight.bold, 
@@ -1977,14 +1990,14 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
                       Icon(Icons.person_rounded, size: 13, color: Theme.of(context).colorScheme.onSurfaceVariant),
                       const SizedBox(width: 3),
                       Text(
-                        'Admin: ',
+                        context.translate('group_admin_label'),
                         style: TextStyle(
                           color: Theme.of(context).colorScheme.onSurfaceVariant,
                           fontSize: 12,
                         ),
                       ),
                       Text(
-                        isCreator ? 'Anda' : (group['users']?['username'] ?? '...'),
+                        isCreator ? context.translate('group_admin_you') : (group['users']?['username'] ?? '...'),
                         style: TextStyle(
                           color: Theme.of(context).colorScheme.onSurface,
                           fontSize: 12,
@@ -1999,7 +2012,7 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        'Progres Grup',
+                        context.translate('group_progress_title'),
                         style: TextStyle(
                           color: Theme.of(context).colorScheme.onSurfaceVariant,
                           fontSize: 11,
@@ -2011,7 +2024,7 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
                         children: [
                           // 1. Label Claimed (Ambil) in Gold/Amber
                           Text(
-                            '$claimedCount Diambil',
+                            context.translate('group_progress_claimed').replaceAll('{count}', claimedCount.toString()),
                             style: TextStyle(
                               color: isDark ? AppTheme.accentGold : Colors.amber.shade800,
                               fontSize: 10,
@@ -2027,7 +2040,9 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
                           ),
                           // 2. Label Completed (Selesai) in Green
                           Text(
-                            '$completedCount Selesai (${(progress * 100).toInt()}%)',
+                            context.translate('group_progress_completed')
+                                .replaceAll('{count}', completedCount.toString())
+                                .replaceAll('{percent}', (progress * 100).toInt().toString()),
                             style: TextStyle(
                               color: isDark ? AppTheme.primaryGreen : AppTheme.darkGreen,
                               fontSize: 10,
@@ -2074,7 +2089,7 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
                   Row(
                     children: [
                       Text(
-                        'Anggota Grup ',
+                        context.translate('group_members_title'),
                         style: TextStyle(
                           color: Theme.of(context).colorScheme.onSurfaceVariant,
                           fontSize: 11,
@@ -2088,7 +2103,7 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: Text(
-                          '${approvedMembers.length} Orang',
+                          context.translate('group_members_count').replaceAll('{count}', approvedMembers.length.toString()),
                           style: TextStyle(
                             color: isDark ? AppTheme.primaryGreen : AppTheme.darkGreen,
                             fontSize: 9,
@@ -2101,7 +2116,7 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
                   const SizedBox(height: 8),
                   if (approvedMembers.isEmpty)
                     Text(
-                      'Belum ada anggota.',
+                      context.translate('group_members_empty'),
                       style: TextStyle(
                         color: Theme.of(context).colorScheme.onSurfaceVariant,
                         fontSize: 11,
@@ -2234,14 +2249,14 @@ class _GroupScreenState extends State<GroupScreen> with SingleTickerProviderStat
       width: double.infinity,
       color: Colors.redAccent.withOpacity(0.9),
       padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-      child: const Row(
+      child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.wifi_off_rounded, color: Colors.white, size: 16),
-          SizedBox(width: 8),
+          const Icon(Icons.wifi_off_rounded, color: Colors.white, size: 16),
+          const SizedBox(width: 8),
           Text(
-            'Koneksi Terputus. Menampilkan data offline terakhir.',
-            style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+            context.translate('mandiri_offline_banner'),
+            style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
           ),
         ],
       ),

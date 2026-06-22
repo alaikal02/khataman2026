@@ -3,6 +3,9 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_qiblah/flutter_qiblah.dart';
+import 'package:provider/provider.dart';
+import '../providers/settings_provider.dart';
+import '../utils/localization.dart';
 import '../theme/app_theme.dart';
 import '../services/prayer_time_service.dart';
 
@@ -134,6 +137,7 @@ class _QiblaScreenState extends State<QiblaScreen>
 
   @override
   Widget build(BuildContext context) {
+    Provider.of<SettingsProvider>(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
@@ -172,10 +176,10 @@ class _QiblaScreenState extends State<QiblaScreen>
             icon: Icon(Icons.arrow_back_ios_rounded,
                 color: Theme.of(context).colorScheme.onSurface),
           ),
-          const Expanded(
+          Expanded(
             child: Text(
-              'Arah Kiblat',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              context.translate('qibla_title'),
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
           ),
         ],
@@ -233,6 +237,12 @@ class _QiblaScreenState extends State<QiblaScreen>
 
   Widget _buildLocationInfo(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final resolvedLocationName = _locationName == 'Memuat lokasi...'
+        ? context.translate('qibla_loading_location')
+        : (_locationName == 'Lokasi Anda'
+            ? context.translate('qibla_fallback_location')
+            : _locationName);
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
@@ -262,7 +272,7 @@ class _QiblaScreenState extends State<QiblaScreen>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  _locationName,
+                  resolvedLocationName,
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
@@ -271,7 +281,7 @@ class _QiblaScreenState extends State<QiblaScreen>
                 ),
                 if (_distanceToKaaba > 0)
                   Text(
-                    '${_distanceToKaaba.toStringAsFixed(0)} km ke Ka\'bah',
+                    '${_distanceToKaaba.toStringAsFixed(0)} ${context.translate('qibla_distance_suffix')}',
                     style: TextStyle(
                       fontSize: 12,
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -291,9 +301,9 @@ class _QiblaScreenState extends State<QiblaScreen>
               children: [
                 Icon(Icons.sensors_rounded, size: 14, color: AppTheme.primaryGreen),
                 const SizedBox(width: 4),
-                const Text(
-                  'Kompas Aktif',
-                  style: TextStyle(
+                Text(
+                  context.translate('qibla_active_compass'),
+                  style: const TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.bold,
                     color: AppTheme.primaryGreen,
@@ -461,8 +471,8 @@ class _QiblaScreenState extends State<QiblaScreen>
           const SizedBox(height: 8),
           Text(
             isAligned
-                ? 'Anda Menghadap Kiblat! ✅'
-                : 'Putar perangkat Anda menuju Ka\'bah',
+                ? context.translate('qibla_aligned')
+                : context.translate('qibla_turn_device'),
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.bold,
@@ -473,7 +483,7 @@ class _QiblaScreenState extends State<QiblaScreen>
           ),
           const SizedBox(height: 4),
           Text(
-            '${qiblaDirection.abs().toStringAsFixed(1)}° offset dari posisi Anda',
+            context.translate('qibla_offset_text').replaceAll('{offset}', qiblaDirection.abs().toStringAsFixed(1)),
             style: TextStyle(
               fontSize: 13,
               color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -495,7 +505,7 @@ class _QiblaScreenState extends State<QiblaScreen>
           const SizedBox(width: 6),
           Expanded(
             child: Text(
-              'Tips: Gerakkan HP membentuk angka 8 untuk kalibrasi sensor kompas.',
+              context.translate('qibla_calibration_tip'),
               style: TextStyle(
                 fontSize: 11,
                 color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.5),
@@ -511,6 +521,11 @@ class _QiblaScreenState extends State<QiblaScreen>
 
   Widget _buildNoSensorFallback(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final resolvedLocationName = _locationName == 'Memuat lokasi...'
+        ? context.translate('qibla_loading_location')
+        : (_locationName == 'Lokasi Anda'
+            ? context.translate('qibla_fallback_location')
+            : _locationName);
 
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -537,7 +552,7 @@ class _QiblaScreenState extends State<QiblaScreen>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Sensor Tidak Tersedia',
+                        context.translate('qibla_sensor_unavailable'),
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.bold,
@@ -546,7 +561,7 @@ class _QiblaScreenState extends State<QiblaScreen>
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        'Perangkat Anda tidak memiliki sensor magnetometer. Menampilkan arah kiblat statis.',
+                        context.translate('qibla_sensor_fallback'),
                         style: TextStyle(
                           fontSize: 12,
                           color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -572,7 +587,7 @@ class _QiblaScreenState extends State<QiblaScreen>
                         size: 64, color: Colors.grey),
                     const SizedBox(height: 16),
                     Text(
-                      'Lokasi tidak tersedia.\nBuka halaman Jadwal Shalat terlebih dahulu untuk mendeteksi lokasi.',
+                      context.translate('qibla_location_unavailable'),
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -618,7 +633,7 @@ class _QiblaScreenState extends State<QiblaScreen>
                         const Text('🕋', style: TextStyle(fontSize: 32)),
                         const SizedBox(height: 8),
                         Text(
-                          'Arah Kiblat: ${bearing.toStringAsFixed(1)}° dari Utara',
+                          context.translate('qibla_static_heading').replaceAll('{bearing}', bearing.toStringAsFixed(1)),
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
@@ -627,7 +642,7 @@ class _QiblaScreenState extends State<QiblaScreen>
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          'Jarak ke Ka\'bah: ${_distanceToKaaba.toStringAsFixed(0)} km',
+                          '${_distanceToKaaba.toStringAsFixed(0)} ${context.translate('qibla_distance_suffix')}',
                           style: TextStyle(
                             fontSize: 13,
                             color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -635,7 +650,7 @@ class _QiblaScreenState extends State<QiblaScreen>
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          'Dari: $_locationName',
+                          context.translate('qibla_static_from').replaceAll('{location}', resolvedLocationName),
                           style: TextStyle(
                             fontSize: 12,
                             color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.7),

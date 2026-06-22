@@ -410,7 +410,7 @@ class _MandiriScreenState extends State<MandiriScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final settingsProvider = Provider.of<SettingsProvider>(context);
+    Provider.of<SettingsProvider>(context);
     double totalProgressSum = 0.0;
     for (int juzNum = 1; juzNum <= 30; juzNum++) {
       final progress = _getProgressForJuz(juzNum);

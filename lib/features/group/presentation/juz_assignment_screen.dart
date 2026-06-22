@@ -5,6 +5,8 @@ import '../../../theme/app_theme.dart';
 import '../controller/juz_assignment_controller.dart';
 import '../data/models/slot_khataman_model.dart';
 import '../data/models/group_member_model.dart';
+import '../../../providers/settings_provider.dart';
+import '../../../utils/localization.dart';
 
 class JuzAssignmentScreen extends StatefulWidget {
   final String groupId;
@@ -107,17 +109,19 @@ class _JuzAssignmentScreenState extends State<JuzAssignmentScreen> with SingleTi
         context: context,
         builder: (ctx) => AlertDialog(
           backgroundColor: Theme.of(context).colorScheme.surface,
-          title: const Text(
-            'Persetujuan Lepas Juz',
-            style: TextStyle(fontWeight: FontWeight.bold),
+          title: Text(
+            context.translate('juz_assign_notif_release_req_title'),
+            style: const TextStyle(fontWeight: FontWeight.bold),
           ),
           content: Text(
-            'Anggota "$claimedUsername" mengajukan untuk melepas Juz $juzNo.',
+            context.translate('juz_assign_notif_release_req_body')
+                .replaceFirst('{user}', claimedUsername)
+                .replaceFirst('{juz}', juzNo.toString()),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('Batal'),
+              child: Text(context.translate('btn_cancel')),
             ),
             ElevatedButton(
               onPressed: () async {
@@ -133,14 +137,14 @@ class _JuzAssignmentScreenState extends State<JuzAssignmentScreen> with SingleTi
                   );
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text('Juz $juzNo berhasil dilepas.'),
+                      content: Text(context.translate('juz_assign_success_release').replaceFirst('{juz}', juzNo.toString())),
                       backgroundColor: AppTheme.primaryGreen,
                     ),
                   );
                 } catch (e) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text('Gagal menyetujui: $e'),
+                      content: Text(context.translate('juz_assign_err_approve').replaceFirst('{error}', e.toString())),
                       backgroundColor: Colors.redAccent,
                     ),
                   );
@@ -150,7 +154,7 @@ class _JuzAssignmentScreenState extends State<JuzAssignmentScreen> with SingleTi
                 backgroundColor: AppTheme.primaryGreen,
                 foregroundColor: Colors.white,
               ),
-              child: const Text('Setujui'),
+              child: Text(context.translate('notif_btn_approve_action')),
             ),
             ElevatedButton(
               onPressed: () async {
@@ -165,14 +169,14 @@ class _JuzAssignmentScreenState extends State<JuzAssignmentScreen> with SingleTi
                   );
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text('Pengajuan lepas Juz $juzNo ditolak.'),
+                      content: Text(context.translate('juz_assign_success_reject').replaceFirst('{juz}', juzNo.toString())),
                       backgroundColor: Colors.orange,
                     ),
                   );
                 } catch (e) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text('Gagal menolak: $e'),
+                      content: Text(context.translate('juz_assign_err_reject').replaceFirst('{error}', e.toString())),
                       backgroundColor: Colors.redAccent,
                     ),
                   );
@@ -182,7 +186,7 @@ class _JuzAssignmentScreenState extends State<JuzAssignmentScreen> with SingleTi
                 backgroundColor: Colors.redAccent,
                 foregroundColor: Colors.white,
               ),
-              child: const Text('Tolak'),
+              child: Text(context.translate('notif_btn_reject_action')),
             ),
           ],
         ),
@@ -212,7 +216,7 @@ class _JuzAssignmentScreenState extends State<JuzAssignmentScreen> with SingleTi
         final batasMaksimal = (30 / memberCount).ceil();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Gagal! Anggota ini sudah mencapai batas maksimal pembagian rata ($batasMaksimal Juz).'),
+            content: Text(context.translate('juz_assign_err_limit_exceeded').replaceFirst('{limit}', batasMaksimal.toString())),
             backgroundColor: Colors.redAccent,
           ),
         );
@@ -224,17 +228,17 @@ class _JuzAssignmentScreenState extends State<JuzAssignmentScreen> with SingleTi
           context: context,
           builder: (ctx) => AlertDialog(
             backgroundColor: Theme.of(context).colorScheme.surface,
-            title: const Text(
-              'Pindahkan Pembagian Juz?',
-              style: TextStyle(fontWeight: FontWeight.bold),
+            title: Text(
+              context.translate('juz_assign_transfer_title'),
+              style: const TextStyle(fontWeight: FontWeight.bold),
             ),
-            content: const Text(
-              'Juz ini sudah ditugaskan tetapi BELUM mulai dibaca. Apakah Anda yakin ingin memindahkannya?',
+            content: Text(
+              context.translate('juz_assign_transfer_body'),
             ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('Tidak'),
+                child: Text(context.translate('juz_assign_transfer_no')),
               ),
               ElevatedButton(
                 onPressed: () => Navigator.pop(ctx, true),
@@ -245,7 +249,7 @@ class _JuzAssignmentScreenState extends State<JuzAssignmentScreen> with SingleTi
                     borderRadius: BorderRadius.circular(8),
                   ),
                 ),
-                child: const Text('Ya, Pindahkan'),
+                child: Text(context.translate('juz_assign_transfer_yes')),
               ),
             ],
           ),
@@ -273,7 +277,7 @@ class _JuzAssignmentScreenState extends State<JuzAssignmentScreen> with SingleTi
               const Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 28),
               const SizedBox(width: 8),
               Text(
-                'Juz Sudah Dibaca!',
+                context.translate('juz_assign_progress_exists_title'),
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
                   color: Theme.of(context).colorScheme.onSurface,
@@ -282,7 +286,7 @@ class _JuzAssignmentScreenState extends State<JuzAssignmentScreen> with SingleTi
             ],
           ),
           content: Text(
-            'Juz ${slot.nomorJuz} ini sudah memiliki progres membaca. Apakah Anda yakin ingin memaksa mengubah pembagian atau menghapus progresnya? Tindakan ini akan mereset progres pembacaan juz tersebut.',
+            context.translate('juz_assign_progress_exists_body').replaceFirst('{juz}', slot.nomorJuz.toString()),
             style: TextStyle(
               color: Theme.of(context).colorScheme.onSurfaceVariant,
               height: 1.5,
@@ -291,7 +295,7 @@ class _JuzAssignmentScreenState extends State<JuzAssignmentScreen> with SingleTi
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Batal'),
+              child: Text(context.translate('btn_cancel')),
             ),
             ElevatedButton(
               onPressed: () => Navigator.pop(ctx, true),
@@ -302,7 +306,7 @@ class _JuzAssignmentScreenState extends State<JuzAssignmentScreen> with SingleTi
                   borderRadius: BorderRadius.circular(8),
                 ),
               ),
-              child: const Text('Ya, Paksa Ubah'),
+              child: Text(context.translate('juz_assign_progress_exists_yes')),
             ),
           ],
         ),
@@ -323,29 +327,29 @@ class _JuzAssignmentScreenState extends State<JuzAssignmentScreen> with SingleTi
       builder: (ctx) => AlertDialog(
         backgroundColor: Theme.of(context).colorScheme.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Row(
+        title: Row(
           children: [
-            Icon(Icons.warning_amber_rounded, color: AppTheme.accentGold),
-            SizedBox(width: 8),
+            const Icon(Icons.warning_amber_rounded, color: AppTheme.accentGold),
+            const SizedBox(width: 8),
             Text(
-              'Simpan Perubahan?',
-              style: TextStyle(fontWeight: FontWeight.bold),
+              context.translate('juz_assign_confirm_save_title'),
+              style: const TextStyle(fontWeight: FontWeight.bold),
             ),
           ],
         ),
-        content: const Text(
-          'Anda memiliki draf pembagian Juz yang belum disimpan. Apakah Anda ingin menyimpan perubahan tersebut?',
+        content: Text(
+          context.translate('juz_assign_confirm_save_body'),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
             style: TextButton.styleFrom(foregroundColor: Colors.redAccent),
-            child: const Text('Buang'),
+            child: Text(context.translate('juz_assign_confirm_save_discard')),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, null),
             style: TextButton.styleFrom(foregroundColor: Colors.grey),
-            child: const Text('Batal'),
+            child: Text(context.translate('btn_cancel')),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -356,7 +360,7 @@ class _JuzAssignmentScreenState extends State<JuzAssignmentScreen> with SingleTi
               foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
-            child: const Text('Simpan'),
+            child: Text(context.translate('btn_save')),
           ),
         ],
       ),
@@ -370,10 +374,10 @@ class _JuzAssignmentScreenState extends State<JuzAssignmentScreen> with SingleTi
       final success = await _controller.saveDraftChanges(widget.groupId);
       if (success && context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('✅ Pembagian Juz berhasil disimpan!'),
+          SnackBar(
+            content: Text(context.translate('juz_assign_confirm_save_success')),
             backgroundColor: AppTheme.primaryGreen,
-            duration: Duration(seconds: 2),
+            duration: const Duration(seconds: 2),
           ),
         );
       }
@@ -412,7 +416,7 @@ class _JuzAssignmentScreenState extends State<JuzAssignmentScreen> with SingleTi
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Pembagian Juz',
+                      context.translate('juz_assign_title'),
                       style: TextStyle(
                         color: primaryTextColor,
                         fontWeight: FontWeight.bold,
@@ -438,7 +442,7 @@ class _JuzAssignmentScreenState extends State<JuzAssignmentScreen> with SingleTi
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        'Batasi Juz',
+                        context.translate('group_detail_settings_limit'),
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
@@ -514,9 +518,9 @@ class _JuzAssignmentScreenState extends State<JuzAssignmentScreen> with SingleTi
                                 child: Row(
                                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                   children: [
-                                    const Text(
-                                      '🎨 Kuas Anggota',
-                                      style: TextStyle(
+                                    Text(
+                                      context.translate('juz_assign_brush_members'),
+                                      style: const TextStyle(
                                         fontWeight: FontWeight.bold,
                                         fontSize: 13,
                                       ),
@@ -552,7 +556,7 @@ class _JuzAssignmentScreenState extends State<JuzAssignmentScreen> with SingleTi
                                             ),
                                             const SizedBox(width: 4),
                                             Text(
-                                              'Penghapus',
+                                              context.translate('juz_assign_brush_eraser'),
                                               style: TextStyle(
                                                 fontSize: 11,
                                                 color: controller.selectedBrushUserId == 'eraser'
@@ -708,15 +712,20 @@ class _JuzAssignmentScreenState extends State<JuzAssignmentScreen> with SingleTi
                                     final batasMinimal = (30 / memberCount).floor();
                                     final batasMaksimal = (30 / memberCount).ceil();
 
+                                    final isEn = Provider.of<SettingsProvider>(context, listen: false).language == 'en';
                                     String text = controller.selectedBrushUserId == 'eraser'
-                                        ? 'Kuas Hapus aktif! Ketuk kotak Juz untuk mengosongkan pembagian.'
-                                        : 'Kuas aktif! Ketuk kotak Juz untuk membagi langsung.';
+                                        ? context.translate('juz_assign_brush_info_delete')
+                                        : context.translate('juz_assign_brush_info_draw');
 
                                     if (controller.limitJuz) {
                                       if (batasMinimal == batasMaksimal) {
-                                        text += '\n🔒 Fitur Batasi Aktif: Setiap anggota memegang $batasMinimal Juz.';
+                                        text += isEn 
+                                            ? '\n🔒 Limits Active: Each member holds $batasMinimal Juz.'
+                                            : '\n🔒 Fitur Batasi Aktif: Setiap anggota memegang $batasMinimal Juz.';
                                       } else {
-                                        text += '\n🔒 Fitur Batasi Aktif: Setiap anggota memegang antara $batasMinimal sampai $batasMaksimal Juz.';
+                                        text += isEn
+                                            ? '\n🔒 Limits Active: Each member holds between $batasMinimal and $batasMaksimal Juz.'
+                                            : '\n🔒 Fitur Batasi Aktif: Setiap anggota memegang antara $batasMinimal sampai $batasMaksimal Juz.';
                                       }
                                     }
 
@@ -749,7 +758,7 @@ class _JuzAssignmentScreenState extends State<JuzAssignmentScreen> with SingleTi
                                       ),
                                       const SizedBox(height: 12),
                                       Text(
-                                        'Tidak ada siklus aktif',
+                                        context.translate('juz_assign_empty_cycle'),
                                         style: TextStyle(
                                           fontWeight: FontWeight.bold,
                                           color: primaryTextColor,
@@ -758,7 +767,7 @@ class _JuzAssignmentScreenState extends State<JuzAssignmentScreen> with SingleTi
                                       ),
                                       const SizedBox(height: 4),
                                       Text(
-                                        'Mulai putaran siklus baru terlebih dahulu.',
+                                        context.translate('juz_assign_empty_cycle_desc'),
                                         style: TextStyle(
                                           color: secondaryTextColor,
                                           fontSize: 12,
@@ -980,7 +989,7 @@ class _JuzAssignmentScreenState extends State<JuzAssignmentScreen> with SingleTi
                                             : secondaryTextColor.withOpacity(0.4),
                                       ),
                                       label: Text(
-                                        'Reset Perubahan',
+                                        context.translate('juz_assign_btn_reset'),
                                         style: TextStyle(
                                           fontSize: 12,
                                           fontWeight: FontWeight.bold,
@@ -994,10 +1003,10 @@ class _JuzAssignmentScreenState extends State<JuzAssignmentScreen> with SingleTi
                                       onPressed: () {
                                         controller.clearAllSlots();
                                         ScaffoldMessenger.of(context).showSnackBar(
-                                          const SnackBar(
-                                            content: Text('Draf pembagian yang belum dibaca berhasil dibersihkan'),
+                                          SnackBar(
+                                            content: Text(context.translate('juz_assign_success_reset')),
                                             backgroundColor: Colors.redAccent,
-                                            duration: Duration(seconds: 1),
+                                            duration: const Duration(seconds: 1),
                                           ),
                                         );
                                       },
@@ -1006,9 +1015,9 @@ class _JuzAssignmentScreenState extends State<JuzAssignmentScreen> with SingleTi
                                         size: 16,
                                         color: Colors.redAccent,
                                       ),
-                                      label: const Text(
-                                        'Bersihkan Semua',
-                                        style: TextStyle(
+                                      label: Text(
+                                        context.translate('juz_assign_btn_clear_all'),
+                                        style: const TextStyle(
                                           fontSize: 12,
                                           fontWeight: FontWeight.bold,
                                           color: Colors.redAccent,

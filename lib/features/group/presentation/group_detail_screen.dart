@@ -1,5 +1,8 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../../providers/settings_provider.dart';
+import '../../../utils/localization.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:quran/quran.dart' as quran;
@@ -138,7 +141,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Anda telah dikeluarkan dari grup "${_controller.group?.namaGrup ?? 'Grup'}" oleh admin.'),
+            content: Text(context.translate('group_detail_out_by_admin').replaceFirst('{groupName}', _controller.group?.namaGrup ?? 'Grup')),
             backgroundColor: Colors.redAccent,
           ),
         );
@@ -221,7 +224,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                     ),
                     const SizedBox(height: 20),
                     Text(
-                      'Maa Syaa Allah! 🎉',
+                      context.translate('group_detail_celebration_title'),
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 24,
@@ -281,10 +284,10 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
           start: now,
           end: now.add(const Duration(days: 7)),
         ),
-        helpText: 'Pilih Periode Khataman',
-        cancelText: 'Batal',
-        confirmText: 'Pilih',
-        saveText: 'Simpan',
+        helpText: context.translate('group_detail_dialog_title_period'),
+        cancelText: context.translate('btn_cancel'),
+        confirmText: context.translate('group_detail_btn_select'),
+        saveText: context.translate('group_detail_btn_save'),
         builder: (context, child) {
           final isDark = Theme.of(context).brightness == Brightness.dark;
           return Theme(
@@ -386,7 +389,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('Rolling Juz gagal: $e. Slot dibuat kosong.'),
+                content: Text(context.translate('group_detail_err_roll_juz').replaceFirst('{error}', e.toString())),
                 backgroundColor: Colors.orange,
               ),
             );
@@ -415,8 +418,11 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
         await NotificationService.sendToGroup(
           groupId: widget.groupId,
           type: 'CYCLE_STARTED',
-          title: '📖 Putaran Baru Dimulai!',
-          body: '$adminName memulai putaran baru di grup "$groupName" dengan tenggat waktu $formattedDate.',
+          title: context.translate('group_detail_notif_new_cycle_title'),
+          body: context.translate('group_detail_notif_new_cycle_body')
+              .replaceFirst('{admin}', adminName)
+              .replaceFirst('{groupName}', groupName)
+              .replaceFirst('{date}', formattedDate),
           excludeUserId: _supabase.auth.currentUser?.id,
         );
       } catch (e) {
@@ -490,7 +496,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
         backgroundColor: Theme.of(context).colorScheme.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(
-          'Mulai Putaran Baru?',
+          context.translate('group_detail_start_new_cycle_title'),
           style: TextStyle(
             color: Theme.of(context).colorScheme.onSurface,
             fontWeight: FontWeight.bold,
@@ -517,7 +523,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                     Expanded(
                       child: _buildHorizontalButton(
                         icon: Icons.shuffle_rounded,
-                        label: 'Rolling Juz',
+                        label: context.translate('group_detail_roll_method_title'),
                         color: const Color(0xFF7C3AED),
                         onPressed: () {
                           Navigator.pop(ctx);
@@ -529,7 +535,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                     Expanded(
                       child: _buildHorizontalButton(
                         icon: Icons.group_work_rounded,
-                        label: 'Bagi Rata',
+                        label: context.translate('group_detail_roll_method_equal'),
                         color: AppTheme.primaryGreen,
                         onPressed: () {
                           Navigator.pop(ctx);
@@ -545,7 +551,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                     Expanded(
                       child: _buildHorizontalButton(
                         icon: Icons.edit_note_rounded,
-                        label: 'Bagi Manual',
+                        label: context.translate('group_detail_roll_method_manual'),
                         color: isDark ? const Color(0xFF0D5257) : const Color(0xFF007A7C),
                         onPressed: () {
                           Navigator.pop(ctx);
@@ -557,7 +563,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                     Expanded(
                       child: _buildHorizontalButton(
                         icon: Icons.touch_app_rounded,
-                        label: 'Klaim Mandiri',
+                        label: context.translate('group_detail_roll_method_claim'),
                         color: AppTheme.accentGold,
                         onPressed: () {
                           Navigator.pop(ctx);
@@ -573,7 +579,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                     Expanded(
                       child: _buildHorizontalButton(
                         icon: Icons.group_work_rounded,
-                        label: 'Bagi Rata',
+                        label: context.translate('group_detail_roll_method_equal'),
                         color: AppTheme.primaryGreen,
                         onPressed: () {
                           Navigator.pop(ctx);
@@ -585,7 +591,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                     Expanded(
                       child: _buildHorizontalButton(
                         icon: Icons.edit_note_rounded,
-                        label: 'Bagi Manual',
+                        label: context.translate('group_detail_roll_method_manual'),
                         color: isDark ? const Color(0xFF0D5257) : const Color(0xFF007A7C),
                         onPressed: () {
                           Navigator.pop(ctx);
@@ -669,8 +675,8 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
         // Update tidak berhasil → slot sudah diambil orang lain
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('⚠️ Juz ini sudah diambil anggota lain. Pilih Juz lain.'),
+            SnackBar(
+              content: Text(context.translate('group_detail_err_slot_claimed')),
               backgroundColor: Colors.orange,
             ),
           );
@@ -678,8 +684,8 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
       } else {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('✅ Juz berhasil diambil!'),
+            SnackBar(
+              content: Text(context.translate('group_detail_success_slot_claimed')),
               backgroundColor: AppTheme.primaryGreen,
             ),
           );
@@ -689,7 +695,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Gagal mengambil Juz: $e'), backgroundColor: Colors.redAccent),
+          SnackBar(content: Text(context.translate('group_detail_err_claim_failed').replaceFirst('{error}', e.toString())), backgroundColor: Colors.redAccent),
         );
       }
     }
@@ -753,8 +759,11 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
           await NotificationService.sendToGroup(
             groupId: widget.groupId,
             type: 'JUZ_RELEASED',
-            title: 'Juz Dilepas oleh Admin 🚪',
-            body: '$senderName telah melepas kembali Juz $juzNum di grup "$gName". Sekarang slot ini kosong dan bebas diambil!',
+            title: context.translate('group_detail_direct_released_title'),
+            body: context.translate('group_detail_direct_released_body')
+                .replaceFirst('{user}', senderName)
+                .replaceFirst('{juz}', juzNum.toString())
+                .replaceFirst('{groupName}', gName),
             excludeUserId: myUserId,
           );
         } catch (notifErr) {
@@ -763,8 +772,8 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('✅ Juz berhasil dilepas secara langsung dan notifikasi telah dikirim ke anggota.'),
+            SnackBar(
+              content: Text(context.translate('group_detail_direct_released_success')),
               backgroundColor: AppTheme.primaryGreen,
             ),
           );
@@ -781,8 +790,8 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
         if (pendingSlots >= 2) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('⚠️ Maks 2 pengajuan lepas Juz bersamaan. Tunggu admin merespons.'),
+              SnackBar(
+                content: Text(context.translate('group_detail_err_max_releases')),
                 backgroundColor: Colors.orange,
               ),
             );
@@ -821,8 +830,11 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
             userId: creatorId,
             senderId: myUserId,
             type: 'RELEASE_REQUEST',
-            title: 'Pengajuan Pelepasan Juz 📖',
-            body: '$senderName mengajukan pelepasan Juz $juzNum di grup "$gName".',
+            title: context.translate('group_detail_release_req_title'),
+            body: context.translate('group_detail_release_req_body')
+                .replaceFirst('{user}', senderName)
+                .replaceFirst('{juz}', juzNum.toString())
+                .replaceFirst('{groupName}', gName),
             groupId: widget.groupId,
           );
         }
@@ -832,8 +844,8 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('📤 Pengajuan lepas Juz dikirim. Menunggu persetujuan admin.'),
+          SnackBar(
+            content: Text(context.translate('group_detail_release_req_sent')),
             backgroundColor: AppTheme.primaryGreen,
           ),
         );
@@ -842,7 +854,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Gagal mengajukan lepas Juz: $e'), backgroundColor: Colors.redAccent),
+          SnackBar(content: Text(context.translate('group_detail_release_req_failed').replaceFirst('{error}', e.toString())), backgroundColor: Colors.redAccent),
         );
       }
     }
@@ -872,8 +884,8 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('↩️ Pengajuan lepas Juz dibatalkan.'),
+          SnackBar(
+            content: Text(context.translate('group_detail_release_req_cancelled')),
             backgroundColor: Colors.grey,
           ),
         );
@@ -882,7 +894,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Gagal membatalkan pengajuan: $e'), backgroundColor: Colors.redAccent),
+          SnackBar(content: Text(context.translate('group_detail_release_cancel_failed').replaceFirst('{error}', e.toString())), backgroundColor: Colors.redAccent),
         );
       }
     }
@@ -895,8 +907,18 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
       final end = DateTime.parse(endStr).toLocal();
       
       final months = [
-        'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 
-        'Jul', 'Agt', 'Sep', 'Okt', 'Nov', 'Des'
+        context.translate('month_jan_short'),
+        context.translate('month_feb_short'),
+        context.translate('month_mar_short'),
+        context.translate('month_apr_short'),
+        context.translate('month_may_short'),
+        context.translate('month_jun_short'),
+        context.translate('month_jul_short'),
+        context.translate('month_aug_short'),
+        context.translate('month_sep_short'),
+        context.translate('month_oct_short'),
+        context.translate('month_nov_short'),
+        context.translate('month_dec_short'),
       ];
       
       final startDay = start.day;
@@ -932,15 +954,15 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
       final difference = end.difference(now);
       
       if (difference.isNegative) {
-        return 'Waktu habis';
+        return context.translate('group_detail_time_expired');
       } else if (difference.inDays > 0) {
-        return '${difference.inDays} hari tersisa';
+        return context.translate('group_detail_days_remaining').replaceFirst('{count}', difference.inDays.toString());
       } else if (difference.inHours > 0) {
-        return '${difference.inHours} jam tersisa';
+        return context.translate('group_detail_hours_remaining').replaceFirst('{count}', difference.inHours.toString());
       } else if (difference.inMinutes > 0) {
-        return '${difference.inMinutes} menit tersisa';
+        return context.translate('group_detail_minutes_remaining').replaceFirst('{count}', difference.inMinutes.toString());
       } else {
-        return 'Beberapa detik tersisa';
+        return context.translate('group_detail_seconds_remaining');
       }
     } catch (e) {
       return '';
@@ -1065,7 +1087,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
                                         Text(
-                                          showAddMember ? 'Tambah Anggota Baru' : 'Kelola Anggota',
+                                          showAddMember ? context.translate('group_detail_add_member_title') : context.translate('group_detail_manage_member_title'),
                                           style: TextStyle(
                                             color: onSurfaceColor,
                                             fontWeight: FontWeight.bold,
@@ -1076,8 +1098,8 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                                         const SizedBox(height: 2),
                                         Text(
                                           showAddMember 
-                                              ? 'Cari dan tambahkan anggota baru ke grup' 
-                                              : 'Tambah anggota baru atau kelola anggota saat ini',
+                                              ? context.translate('group_detail_add_member_subtitle') 
+                                              : context.translate('group_detail_manage_member_subtitle'),
                                           style: TextStyle(
                                             color: onSurfaceVariantColor,
                                             fontSize: 12,
@@ -1138,7 +1160,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                                     autofocus: false,
                                     style: TextStyle(color: onSurfaceColor, fontSize: 14),
                                     decoration: InputDecoration(
-                                      hintText: 'Cari username untuk ditambahkan...',
+                                      hintText: context.translate('group_detail_search_member_hint'),
                                       filled: true,
                                       fillColor: inputBgColor,
                                       prefixIcon: const Icon(Icons.search_rounded, size: 20, color: AppTheme.primaryGreen),
@@ -1219,8 +1241,8 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                                                 await NotificationService.send(
                                                   userId: u['id_user'] as String,
                                                   type: 'JOIN_APPROVED',
-                                                  title: 'Ditambahkan ke Grup Khataman',
-                                                  body: 'Anda telah ditambahkan ke grup "$gName" oleh admin.',
+                                                  title: context.translate('group_detail_notif_added_title'),
+                                                  body: context.translate('group_detail_notif_added_body').replaceFirst('{groupName}', gName),
                                                   groupId: widget.groupId,
                                                 );
                                               } catch (notifErr) {
@@ -1246,18 +1268,18 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                                               if (mounted) {
                                                 ScaffoldMessenger.of(context).showSnackBar(
                                                   SnackBar(
-                                                    content: Text('${u['username'] ?? 'User'} berhasil ditambahkan ke grup'),
+                                                    content: Text(context.translate('group_detail_success_added_member').replaceFirst('{user}', u['username'] ?? 'User')),
                                                     backgroundColor: AppTheme.primaryGreen,
                                                   ),
                                                 );
                                               }
                                             } catch (err) {
                                               ScaffoldMessenger.of(context).showSnackBar(
-                                                SnackBar(content: Text('Gagal menambahkan: $err'), backgroundColor: Colors.redAccent),
+                                                SnackBar(content: Text(context.translate('group_detail_err_added_member').replaceFirst('{error}', err.toString())), backgroundColor: Colors.redAccent),
                                               );
                                             }
                                           },
-                                          child: const Text('Tambah', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                                          child: Text(context.translate('group_btn_add'), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                                         ),
                                       ),
                                     );
@@ -1272,8 +1294,8 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                                           const SizedBox(height: 12),
                                           Text(
                                             _memberSearchController.text.isNotEmpty
-                                                ? 'Pengguna tidak ditemukan atau sudah bergabung.'
-                                                : 'Mulai cari username untuk ditambahkan...',
+                                                ? context.translate('group_detail_search_empty_members')
+                                                : context.translate('group_detail_search_start_prompt'),
                                             style: TextStyle(color: onSurfaceVariantColor, fontSize: 13),
                                             textAlign: TextAlign.center,
                                           ),
@@ -1317,7 +1339,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                                           const Icon(Icons.person_add_alt_1_rounded, color: AppTheme.primaryGreen, size: 20),
                                           const SizedBox(width: 10),
                                           Text(
-                                            'Tambah Anggota Baru',
+                                            context.translate('group_detail_add_member_title'),
                                             style: TextStyle(
                                               color: isDark ? AppTheme.primaryGreen : AppTheme.darkGreen,
                                               fontWeight: FontWeight.bold,
@@ -1337,7 +1359,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                     children: [
                                       Text(
-                                        'Daftar Anggota Saat Ini',
+                                        context.translate('group_detail_current_members_title'),
                                         style: TextStyle(
                                           fontSize: 12,
                                           fontWeight: FontWeight.bold,
@@ -1352,7 +1374,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                                           borderRadius: BorderRadius.circular(6),
                                         ),
                                         child: Text(
-                                          '${membersList.length} Orang',
+                                          context.translate('group_members_count').replaceFirst('{count}', membersList.length.toString()),
                                           style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: onSurfaceColor),
                                         ),
                                       ),
@@ -1365,7 +1387,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                                     padding: const EdgeInsets.symmetric(vertical: 32),
                                     child: Center(
                                       child: Text(
-                                        'Belum ada anggota lain di grup ini.',
+                                        context.translate('group_detail_no_other_members'),
                                         style: TextStyle(color: onSurfaceVariantColor, fontStyle: FontStyle.italic, fontSize: 13),
                                       ),
                                     ),
@@ -1411,7 +1433,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                                         ),
                                         title: Text(user['username'] ?? 'User', style: TextStyle(color: onSurfaceColor, fontSize: 14, fontWeight: FontWeight.w600)),
                                         subtitle: Text(
-                                          isPending ? 'Menunggu Persetujuan' : (user['email'] ?? 'Anggota Aktif'),
+                                          isPending ? context.translate('group_detail_status_pending') : (user['email'] ?? context.translate('group_detail_status_active')),
                                           style: TextStyle(
                                             color: isPending ? AppTheme.accentGold : onSurfaceVariantColor,
                                             fontSize: 11,
@@ -1424,7 +1446,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                                                 children: [
                                                   IconButton(
                                                     icon: const Icon(Icons.check_circle_outline_rounded, color: AppTheme.primaryGreen, size: 24),
-                                                    tooltip: 'Terima',
+                                                    tooltip: context.translate('group_detail_btn_approve'),
                                                     onPressed: () async {
                                                       try {
                                                         await _supabase
@@ -1439,7 +1461,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                                                           await NotificationService.send(
                                                             userId: member['user_id'] as String,
                                                             type: 'JOIN_APPROVED',
-                                                            title: 'Permintaan Bergabung Disetujui',
+                                                            title: context.translate('group_detail_notif_approved_title'),
                                                             body: 'Selamat! Permintaan Anda bergabung ke grup "$gName" telah disetujui.',
                                                             groupId: widget.groupId,
                                                           );
@@ -1453,7 +1475,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                                                         if (mounted) {
                                                           ScaffoldMessenger.of(context).showSnackBar(
                                                             SnackBar(
-                                                              content: Text('${user['username'] ?? 'User'} berhasil disetujui bergabung'),
+                                                              content: Text(context.translate('group_detail_success_approved').replaceFirst('{user}', user['username'] ?? 'User')),
                                                               backgroundColor: AppTheme.primaryGreen,
                                                             ),
                                                           );
@@ -1462,7 +1484,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                                                         if (mounted) {
                                                           ScaffoldMessenger.of(context).showSnackBar(
                                                             SnackBar(
-                                                              content: Text('Gagal menyetujui: Koneksi bermasalah atau coba lagi ($e)'),
+                                                              content: Text(context.translate('group_detail_err_approved').replaceFirst('{error}', e.toString())),
                                                               backgroundColor: Colors.redAccent,
                                                             ),
                                                           );
@@ -1472,24 +1494,24 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                                                   ),
                                                   IconButton(
                                                     icon: const Icon(Icons.cancel_outlined, color: Colors.redAccent, size: 24),
-                                                    tooltip: 'Tolak',
+                                                    tooltip: context.translate('group_detail_btn_reject'),
                                                     onPressed: () async {
                                                       final confirm = await showDialog<bool>(
                                                         context: context,
                                                         builder: (ctx) => AlertDialog(
                                                           backgroundColor: Theme.of(context).colorScheme.surface,
                                                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                                                          title: const Text('Tolak Permintaan?'),
+                                                          title: Text(context.translate('group_detail_reject_dialog_title')),
                                                           content: Text('Apakah Anda yakin ingin menolak permintaan bergabung dari ${user['username'] ?? 'pengguna ini'}?'),
                                                           actions: [
                                                             TextButton(
                                                               onPressed: () => Navigator.pop(ctx, false),
-                                                              child: Text('Batal', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                                                              child: Text(context.translate('btn_cancel'), style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
                                                             ),
                                                             ElevatedButton(
                                                               onPressed: () => Navigator.pop(ctx, true),
                                                               style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
-                                                              child: const Text('Tolak', style: TextStyle(color: Colors.white)),
+                                                              child: Text(context.translate('group_detail_btn_reject'), style: const TextStyle(color: Colors.white)),
                                                             ),
                                                           ],
                                                         ),
@@ -1509,7 +1531,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                                                         if (mounted) {
                                                           ScaffoldMessenger.of(context).showSnackBar(
                                                             SnackBar(
-                                                              content: Text('Permintaan bergabung ${user['username'] ?? 'User'} ditolak'),
+                                                              content: Text(context.translate('group_detail_success_rejected').replaceFirst('{user}', user['username'] ?? 'User')),
                                                               backgroundColor: Colors.redAccent,
                                                             ),
                                                           );
@@ -1518,7 +1540,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                                                         if (mounted) {
                                                           ScaffoldMessenger.of(context).showSnackBar(
                                                             SnackBar(
-                                                              content: Text('Gagal menolak permintaan: Koneksi bermasalah atau coba lagi ($e)'),
+                                                              content: Text(context.translate('group_detail_err_rejected').replaceFirst('{error}', e.toString())),
                                                               backgroundColor: Colors.redAccent,
                                                             ),
                                                           );
@@ -1552,11 +1574,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                                                             
                                                             ScaffoldMessenger.of(context).showSnackBar(
                                                               SnackBar(
-                                                                content: Text(
-                                                                  nextPrioritas 
-                                                                      ? '⭐ ${user['username']} mendapat prioritas jatah kuota!' 
-                                                                      : '⚪ Prioritas jatah ${user['username']} dinonaktifkan.',
-                                                                ),
+                                                                content: Text(nextPrioritas ? context.translate('group_detail_priority_enabled').replaceFirst('{user}', user['username'] ?? '') : context.translate('group_detail_priority_disabled').replaceFirst('{user}', user['username'] ?? '')),
                                                                 backgroundColor: AppTheme.primaryGreen,
                                                               ),
                                                             );
@@ -1564,7 +1582,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                                                           } catch (e) {
                                                             ScaffoldMessenger.of(context).showSnackBar(
                                                               SnackBar(
-                                                                content: Text('Gagal mengubah prioritas: $e'),
+                                                                content: Text(context.translate('group_detail_priority_failed').replaceFirst('{error}', e.toString())),
                                                                 backgroundColor: Colors.redAccent,
                                                               ),
                                                             );
@@ -1587,24 +1605,24 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                                                   ],
                                                   IconButton(
                                                     icon: Icon(Icons.admin_panel_settings_rounded, color: AppTheme.accentGold.withOpacity(0.8), size: 20),
-                                                    tooltip: 'Transfer Admin',
+                                                    tooltip: context.translate('group_detail_transfer_title'),
                                                     onPressed: () async {
                                                       final confirm = await showDialog<bool>(
                                                         context: context,
                                                         builder: (ctx) => AlertDialog(
                                                           backgroundColor: Theme.of(context).colorScheme.surface,
                                                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                                                          title: const Text('Transfer Admin?'),
+                                                          title: Text(context.translate('group_detail_transfer_dialog_title')),
                                                           content: Text('Apakah Anda yakin ingin menyerahkan kepemilikan admin kepada ${user['username'] ?? 'anggota ini'}?\n\nSetelah transfer, Anda akan menjadi anggota biasa.'),
                                                           actions: [
                                                             TextButton(
                                                               onPressed: () => Navigator.pop(ctx, false),
-                                                              child: Text('Batal', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                                                              child: Text(context.translate('btn_cancel'), style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
                                                             ),
                                                             ElevatedButton(
                                                               onPressed: () => Navigator.pop(ctx, true),
                                                               style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primaryGreen),
-                                                              child: const Text('Ya, Transfer', style: TextStyle(color: Colors.white)),
+                                                              child: Text(context.translate('group_detail_transfer_confirm'), style: const TextStyle(color: Colors.white)),
                                                             ),
                                                           ],
                                                         ),
@@ -1627,7 +1645,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                                                           await NotificationService.send(
                                                             userId: targetUserId,
                                                             type: 'JOIN_APPROVED',
-                                                            title: 'Promosi Admin 👑',
+                                                            title: context.translate('group_detail_notif_transfer_title'),
                                                             body: 'Anda telah dijadikan Admin baru untuk grup "$gName" oleh admin sebelumnya.',
                                                             groupId: widget.groupId,
                                                           );
@@ -1638,7 +1656,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                                                           Navigator.pop(sheetContext); // Close manage members dialog
                                                           ScaffoldMessenger.of(context).showSnackBar(
                                                             SnackBar(
-                                                              content: Text('Hak admin berhasil ditransfer ke ${user['username']}'),
+                                                              content: Text(context.translate('group_detail_success_transfer').replaceFirst('{user}', user['username'] ?? '')),
                                                               backgroundColor: AppTheme.primaryGreen,
                                                             ),
                                                           );
@@ -1648,7 +1666,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                                                         if (mounted) {
                                                           Navigator.pop(context); // Dismiss loading dialog
                                                           ScaffoldMessenger.of(context).showSnackBar(
-                                                            SnackBar(content: Text('Gagal mentransfer admin: $err'), backgroundColor: Colors.redAccent),
+                                                            SnackBar(content: Text(context.translate('group_detail_err_transfer').replaceFirst('{error}', err.toString())), backgroundColor: Colors.redAccent),
                                                           );
                                                         }
                                                       }
@@ -1656,24 +1674,24 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                                                   ),
                                                   IconButton(
                                                     icon: Icon(Icons.person_remove_rounded, color: Colors.redAccent.withOpacity(0.7), size: 20),
-                                                    tooltip: 'Keluarkan Anggota',
+                                                    tooltip: context.translate('group_detail_kick_title'),
                                                     onPressed: () async {
                                                   final confirm = await showDialog<bool>(
                                                     context: context,
                                                     builder: (ctx) => AlertDialog(
                                                       backgroundColor: Theme.of(context).colorScheme.surface,
                                                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                                                      title: const Text('Keluarkan Anggota?'),
+                                                      title: Text(context.translate('group_detail_kick_dialog_title')),
                                                       content: Text('Apakah Anda yakin ingin mengeluarkan ${user['username'] ?? 'anggota ini'} dari grup? Semua slot yang dipegang yang bersangkutan akan dikosongkan kembali.'),
                                                       actions: [
                                                         TextButton(
                                                           onPressed: () => Navigator.pop(ctx, false),
-                                                          child: Text('Batal', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                                                          child: Text(context.translate('btn_cancel'), style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
                                                         ),
                                                         ElevatedButton(
                                                           onPressed: () => Navigator.pop(ctx, true),
                                                           style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
-                                                          child: const Text('Keluarkan', style: TextStyle(color: Colors.white)),
+                                                          child: Text(context.translate('group_detail_kick_confirm'), style: const TextStyle(color: Colors.white)),
                                                         ),
                                                       ],
                                                     ),
@@ -1689,7 +1707,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                                                       await NotificationService.send(
                                                         userId: targetUserId,
                                                         type: 'JOIN_APPROVED',
-                                                        title: 'Dikeluarkan dari Grup 🚪',
+                                                        title: context.translate('group_detail_notif_kicked_title'),
                                                         body: 'Anda telah dikeluarkan dari grup "$gName" oleh admin.',
                                                         groupId: null,
                                                       );
@@ -1747,7 +1765,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                                                     if (mounted) {
                                                       ScaffoldMessenger.of(context).showSnackBar(
                                                         SnackBar(
-                                                          content: Text('${user['username'] ?? 'User'} berhasil dikeluarkan dari grup'),
+                                                          content: Text(context.translate('group_detail_success_kicked').replaceFirst('{user}', user['username'] ?? 'User')),
                                                           backgroundColor: Colors.orangeAccent,
                                                         ),
                                                       );
@@ -1756,7 +1774,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                                                     if (mounted) {
                                                       ScaffoldMessenger.of(context).showSnackBar(
                                                         SnackBar(
-                                                          content: Text('Gagal mengeluarkan anggota: Koneksi bermasalah atau coba lagi ($e)'),
+                                                          content: Text(context.translate('group_detail_err_kicked').replaceFirst('{error}', e.toString())),
                                                           backgroundColor: Colors.redAccent,
                                                         ),
                                                       );
@@ -1783,7 +1801,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Gagal memuat anggota: $e'), backgroundColor: Colors.redAccent),
+          SnackBar(content: Text(context.translate('group_detail_err_load_members').replaceFirst('{error}', e.toString())), backgroundColor: Colors.redAccent),
         );
       }
     }
@@ -1800,9 +1818,9 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
         initialDate: currentDeadline,
         firstDate: _putaran!['start_date'] != null ? DateTime.parse(_putaran!['start_date']) : DateTime.now().subtract(const Duration(days: 30)),
         lastDate: DateTime.now().add(const Duration(days: 365)),
-        helpText: 'Pilih Tanggal Tenggat Baru',
-        cancelText: 'Batal',
-        confirmText: 'Simpan',
+        helpText: context.translate('group_detail_deadline_dialog_title'),
+        cancelText: context.translate('btn_cancel'),
+        confirmText: context.translate('btn_save'),
         builder: (context, child) {
           final isDark = Theme.of(context).brightness == Brightness.dark;
           return Theme(
@@ -1849,8 +1867,11 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
         await NotificationService.sendToGroup(
           groupId: widget.groupId,
           type: 'DEADLINE_CHANGED',
-          title: '⏰ Tenggat Grup Diperbarui',
-          body: '$adminName mengubah tenggat waktu grup "$groupName" menjadi $formattedDate.',
+          title: context.translate('group_detail_notif_deadline_title'),
+          body: context.translate('group_detail_notif_deadline_body')
+              .replaceFirst('{admin}', adminName)
+              .replaceFirst('{groupName}', groupName)
+              .replaceFirst('{date}', formattedDate),
           excludeUserId: _supabase.auth.currentUser?.id,
         );
       } catch (e) {
@@ -1861,13 +1882,13 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('✅ Tenggat waktu berhasil diperbarui!'), backgroundColor: AppTheme.primaryGreen),
+          SnackBar(content: Text(context.translate('group_detail_success_deadline')), backgroundColor: AppTheme.primaryGreen),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Gagal memperbarui tenggat waktu: $e'), backgroundColor: Colors.redAccent),
+          SnackBar(content: Text(context.translate('group_detail_err_deadline').replaceFirst('{error}', e.toString())), backgroundColor: Colors.redAccent),
         );
       }
     }
@@ -1947,7 +1968,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                       ),
                       const SizedBox(height: 20),
                       Text(
-                        'Pengaturan Grup',
+                        context.translate('group_detail_settings_title'),
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
@@ -1959,7 +1980,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                       ListTile(
                         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
                         leading: const Icon(Icons.share_rounded, color: AppTheme.primaryGreen),
-                        title: const Text('Bagikan Kode Undangan'),
+                        title: Text(context.translate('group_detail_settings_share')),
                         subtitle: Text(
                           _group?['kode_gk_unik'] ?? '',
                           style: TextStyle(
@@ -1973,9 +1994,10 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                             final kode = _group!['kode_gk_unik'];
                             final namaGrup = _group!['nama_grup'] ?? 'Khataman';
                             final inviteLink = 'https://khataman2026.web.app/join?code=$kode';
-                            Share.share(
-                              'Assalamu\'alaikum! 🌙\n\nYuk gabung di grup khataman Al-Quran "$namaGrup"!\n\nKlik link di bawah ini untuk langsung bergabung:\n🔗 $inviteLink\n\n📋 Atau masukkan Kode Grup berikut di aplikasi:\n*$kode*\n\nBarakallahu fiikum! 🤲',
-                            );
+                            final shareText = context.translate('tile_language') == 'id'
+                                ? 'Assalamu\'alaikum! 🌙\n\nYuk gabung di grup khataman Al-Quran "$namaGrup"!\n\nKlik link di bawah ini untuk langsung bergabung:\n🔗 $inviteLink\n\n📋 Atau masukkan Kode Grup berikut di aplikasi:\n*$kode*\n\nBarakallahu fiikum! 🤲'
+                                : 'Assalamu\'alaikum! 🌙\n\nLet\'s join the Quran khataman group "$namaGrup"!\n\nClick the link below to join directly:\n🔗 $inviteLink\n\n📋 Or enter this Group Code in the app:\n*$kode*\n\nBarakallahu fiikum! 🤲';
+                            Share.share(shareText);
                           }
                         },
                       ),
@@ -1984,11 +2006,11 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                         ListTile(
                           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
                           leading: const Icon(Icons.category_rounded, color: AppTheme.accentGold),
-                          title: const Text('Tipe Grup'),
+                          title: Text(context.translate('group_detail_settings_type')),
                           subtitle: Text(
                             _group?['tipe_grup'] == 'RUTIN'
-                                ? '🔁 RUTIN: Siklus berulang tanpa diarsip, mendukung Rolling Juz'
-                                : '⚡ INSIDENTAL: Satu kali putaran selesai lalu diarsip',
+                                ? context.translate('group_detail_settings_type_rutin_desc')
+                                : context.translate('group_detail_settings_type_insidental_desc'),
                             style: TextStyle(
                               fontSize: 12,
                               color: isDark ? Colors.white70 : const Color(0xFF5F6E65),
@@ -2023,7 +2045,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                                     .eq('id_group', widget.groupId);
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(
-                                    content: Text('Tipe grup diubah menjadi $val!'),
+                                    content: Text(context.translate('group_detail_settings_type_success').replaceFirst('{val}', val)),
                                     backgroundColor: AppTheme.primaryGreen,
                                   ),
                                 );
@@ -2031,7 +2053,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                               } catch (e) {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(
-                                    content: Text('Gagal mengubah tipe grup: $e'),
+                                    content: Text(context.translate('group_detail_settings_type_failed').replaceFirst('{error}', e.toString())),
                                     backgroundColor: Colors.redAccent,
                                   ),
                                 );
@@ -2042,11 +2064,11 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                         menuDivider,
                         SwitchListTile(
                           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-                          title: const Text('Batasi Pengambilan Juz'),
+                          title: Text(context.translate('group_detail_settings_limit')),
                           subtitle: Text(
                             isLimited
-                                ? '🔒 Aktif: Maksimal $maxSlots Juz per anggota'
-                                : '🔓 Bebas: Anggota bebas mengambil tanpa batas',
+                                ? context.translate('group_detail_settings_limit_active').replaceFirst('{count}', maxSlots.toString())
+                                : context.translate('group_detail_settings_limit_inactive'),
                             style: TextStyle(
                               fontSize: 12,
                               color: isDark ? Colors.white70 : const Color(0xFF5F6E65),
@@ -2076,7 +2098,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                                   .select();
                               
                               if (result.isEmpty) {
-                                throw Exception('Izin update ditolak (RLS).');
+                                throw Exception(context.translate('group_detail_settings_limit_rls'));
                               }
 
                               if (mounted) {
@@ -2084,8 +2106,8 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                                   SnackBar(
                                     content: Text(
                                       val
-                                          ? '🔒 Batasan pengambilan Juz diaktifkan!'
-                                          : '🔓 Batasan pengambilan Juz dinonaktifkan!',
+                                          ? context.translate('group_detail_settings_limit_success_active')
+                                          : context.translate('group_detail_settings_limit_success_inactive'),
                                     ),
                                     backgroundColor: AppTheme.primaryGreen,
                                     duration: const Duration(seconds: 2),
@@ -2104,7 +2126,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                               if (mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(
-                                    content: Text('Gagal mengubah batasan: $e'),
+                                    content: Text(context.translate('group_detail_settings_limit_failed').replaceFirst('{error}', e.toString())),
                                     backgroundColor: Colors.redAccent,
                                   ),
                                 );
@@ -2121,9 +2143,9 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                             backgroundColor: Colors.redAccent,
                             child: const Icon(Icons.manage_accounts_rounded, color: AppTheme.accentGold),
                           ),
-                          title: const Text('Kelola Anggota'),
+                          title: Text(context.translate('group_detail_settings_manage')),
                           subtitle: Text(
-                            'Setujui permintaan masuk & tambah anggota baru',
+                            context.translate('group_detail_settings_manage_desc'),
                             style: TextStyle(
                               fontSize: 12,
                               color: isDark ? Colors.white70 : const Color(0xFF5F6E65),
@@ -2143,9 +2165,11 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                             backgroundColor: AppTheme.accentGold,
                             child: const Icon(Icons.grid_view_rounded, color: AppTheme.accentTeal),
                           ),
-                          title: const Text('Pembagian Juz (Admin)'),
+                          title: Text(context.translate('group_detail_settings_assign')),
                           subtitle: Text(
-                            'Kelola pembagian Juz secara cepat menggunakan kuas/pembagi Juz',
+                            context.translate('tile_language') == 'id'
+                                ? 'Kelola pembagian Juz secara cepat menggunakan kuas/pembagi Juz'
+                                : 'Manage Juz assignments quickly using brush/assign tools',
                             style: TextStyle(
                               fontSize: 12,
                               color: isDark ? Colors.white70 : const Color(0xFF5F6E65),
@@ -2173,9 +2197,9 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                           ListTile(
                             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
                             leading: const Icon(Icons.edit_calendar_rounded, color: Colors.blueAccent),
-                            title: const Text('Ubah Tenggat Waktu (Deadline)'),
+                            title: Text(context.translate('group_detail_settings_deadline')),
                             subtitle: Text(
-                              'Perpanjang atau majukan target waktu siklus',
+                              context.translate('group_detail_settings_deadline_desc'),
                               style: TextStyle(
                                 fontSize: 12,
                                 color: isDark ? Colors.white70 : const Color(0xFF5F6E65),
@@ -2191,9 +2215,9 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                         ListTile(
                           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
                           leading: const Icon(Icons.history_rounded, color: Colors.blueAccent),
-                          title: const Text('Riwayat Putaran'),
+                          title: Text(context.translate('group_detail_settings_history')),
                           subtitle: Text(
-                            'Lihat daftar putaran khataman yang telah selesai',
+                            context.translate('group_detail_settings_history_desc'),
                             style: TextStyle(
                               fontSize: 12,
                               color: isDark ? Colors.white70 : const Color(0xFF5F6E65),
@@ -2208,9 +2232,9 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                         ListTile(
                           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
                           leading: const Icon(Icons.exit_to_app_rounded, color: Colors.redAccent),
-                          title: const Text('Keluar dari Grup', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+                          title: Text(context.translate('group_detail_settings_leave'), style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
                           subtitle: Text(
-                            'Keluar dan serahkan kepemilikan admin ke anggota lain',
+                            context.translate('group_detail_settings_leave_desc'),
                             style: TextStyle(
                               fontSize: 12,
                               color: isDark ? Colors.white70 : const Color(0xFF5F6E65),
@@ -2225,9 +2249,9 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                         ListTile(
                           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
                           leading: const Icon(Icons.delete_forever_rounded, color: Colors.redAccent),
-                          title: const Text('Hapus Grup', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+                          title: Text(context.translate('group_detail_settings_delete'), style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
                           subtitle: Text(
-                            'Hapus grup ini secara permanen dari server',
+                            context.translate('group_detail_settings_delete_desc'),
                             style: TextStyle(
                               fontSize: 12,
                               color: isDark ? Colors.white70 : const Color(0xFF5F6E65),
@@ -2243,9 +2267,9 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                         ListTile(
                           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
                           leading: const Icon(Icons.people_rounded, color: AppTheme.accentTeal),
-                          title: const Text('Daftar Anggota'),
+                          title: Text(context.translate('group_detail_settings_view_members')),
                           subtitle: Text(
-                            'Lihat anggota grup saat ini',
+                            context.translate('group_detail_settings_view_members_desc'),
                             style: TextStyle(
                               fontSize: 12,
                               color: isDark ? Colors.white70 : const Color(0xFF5F6E65),
@@ -2260,9 +2284,9 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                         ListTile(
                           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
                           leading: const Icon(Icons.history_rounded, color: Colors.blueAccent),
-                          title: const Text('Riwayat Putaran'),
+                          title: Text(context.translate('group_detail_settings_history')),
                           subtitle: Text(
-                            'Lihat daftar putaran khataman yang telah selesai',
+                            context.translate('group_detail_settings_history_desc'),
                             style: TextStyle(
                               fontSize: 12,
                               color: isDark ? Colors.white70 : const Color(0xFF5F6E65),
@@ -2277,9 +2301,9 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                         ListTile(
                           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
                           leading: const Icon(Icons.exit_to_app_rounded, color: Colors.redAccent),
-                          title: const Text('Keluar dari Grup', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+                          title: Text(context.translate('group_detail_settings_leave'), style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
                           subtitle: Text(
-                            'Keluar dan lepaskan semua juz yang Anda klaim',
+                            context.translate('group_detail_settings_leave_member_desc'),
                             style: TextStyle(
                               fontSize: 12,
                               color: isDark ? Colors.white70 : const Color(0xFF5F6E65),
@@ -2319,11 +2343,11 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
         context: context,
         builder: (ctx) => AlertDialog(
           backgroundColor: Theme.of(context).colorScheme.surface,
-          title: const Text('Daftar Anggota'),
+          title: Text(context.translate('group_detail_settings_view_members')),
           content: SizedBox(
             width: double.maxFinite,
             child: approvedMembers.isEmpty
-                ? const Text('Belum ada anggota lain.')
+                ? Text(context.translate('group_detail_members_empty'))
                 : ListView.builder(
                     shrinkWrap: true,
                     itemCount: approvedMembers.length,
@@ -2358,7 +2382,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                                   color: AppTheme.accentGold.withOpacity(0.15),
                                   borderRadius: BorderRadius.circular(6),
                                 ),
-                                child: const Text('Admin', style: TextStyle(color: AppTheme.accentGold, fontSize: 9)),
+                                child: Text(context.translate('group_badge_admin'), style: const TextStyle(color: AppTheme.accentGold, fontSize: 9)),
                               ),
                             ],
                           ],
@@ -2376,7 +2400,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('Tutup', style: TextStyle(color: AppTheme.primaryGreen)),
+              child: Text(context.translate('btn_close'), style: const TextStyle(color: AppTheme.primaryGreen)),
             ),
           ],
         ),
@@ -2384,7 +2408,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Gagal memuat daftar anggota: $e'), backgroundColor: Colors.redAccent),
+          SnackBar(content: Text(context.translate('group_detail_members_err').replaceFirst('{error}', e.toString())), backgroundColor: Colors.redAccent),
         );
       }
     }
@@ -2450,7 +2474,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'Riwayat Khataman',
+                                context.translate('group_detail_history_title'),
                                 style: TextStyle(
                                   fontSize: 18,
                                   fontWeight: FontWeight.bold,
@@ -2458,7 +2482,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                                 ),
                               ),
                               Text(
-                                'Daftar putaran khataman grup yang selesai',
+                                context.translate('group_detail_history_subtitle'),
                                 style: TextStyle(
                                   fontSize: 12,
                                   color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -2493,7 +2517,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                         if (snapshot.hasError) {
                           return Center(
                             child: Text(
-                              'Gagal memuat riwayat: ${snapshot.error}',
+                              context.translate('group_detail_history_err').replaceFirst('{error}', snapshot.error.toString()),
                               style: const TextStyle(color: Colors.redAccent),
                             ),
                           );
@@ -2513,7 +2537,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                                   ),
                                   const SizedBox(height: 16),
                                   Text(
-                                    'Belum ada Riwayat Khataman',
+                                    context.translate('group_detail_history_empty_title'),
                                     style: TextStyle(
                                       fontSize: 16,
                                       fontWeight: FontWeight.bold,
@@ -2522,7 +2546,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                                   ),
                                   const SizedBox(height: 8),
                                   Text(
-                                    'Selesaikan target 30 Juz pada putaran aktif untuk mencatatkan riwayat khataman pertama grup Anda!',
+                                    context.translate('group_detail_history_empty_body'),
                                     textAlign: TextAlign.center,
                                     style: TextStyle(
                                       fontSize: 12,
@@ -2561,19 +2585,19 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                                       child: Column(
                                         crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
-                                          const Text(
-                                            'Pencapaian Luar Biasa!',
-                                            style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold),
+                                          Text(
+                                            context.translate('group_detail_history_great_achievement'),
+                                            style: const TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold),
                                           ),
                                           const SizedBox(height: 4),
                                           Text(
-                                            'Total ${historyList.length} Kali Khatam Al-Quran',
+                                            context.translate('group_detail_history_completed_count').replaceFirst('{count}', historyList.length.toString()),
                                             style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
                                           ),
                                           const SizedBox(height: 4),
-                                          const Text(
-                                            'Semoga berkah dan istiqomah untuk setiap baris ayat yang dibaca bersama.',
-                                            style: TextStyle(color: Colors.white60, fontSize: 10, height: 1.4),
+                                          Text(
+                                            context.translate('group_detail_history_blessing_text'),
+                                            style: const TextStyle(color: Colors.white60, fontSize: 10, height: 1.4),
                                           ),
                                         ],
                                       ),
@@ -2609,14 +2633,14 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                                     child: const Icon(Icons.check_circle_rounded, color: AppTheme.primaryGreen, size: 20),
                                   ),
                                   title: Text(
-                                    'Putaran Ke-${cycle['nomor_putaran']}',
+                                    context.translate('group_detail_cycle_number').replaceFirst('{number}', cycle['nomor_putaran'].toString()),
                                     style: TextStyle(
                                       fontWeight: FontWeight.bold,
                                       color: Theme.of(context).colorScheme.onSurface,
                                     ),
                                   ),
                                   subtitle: Text(
-                                    'Periode: $startStr s/d $endStr',
+                                    (context.translate('tile_language') == 'id' ? 'Periode' : 'Period') + ': $startStr ' + (context.translate('tile_language') == 'id' ? 's/d' : 'to') + ' $endStr',
                                     style: TextStyle(
                                       fontSize: 11,
                                       color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -2642,11 +2666,11 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                                           );
                                         }
                                         if (slotSnapshot.hasError || !slotSnapshot.hasData || slotSnapshot.data!.isEmpty) {
-                                          return const Padding(
-                                            padding: EdgeInsets.all(16.0),
+                                          return Padding(
+                                            padding: const EdgeInsets.all(16.0),
                                             child: Text(
-                                              'Gagal memuat detail pembaca atau data slot tidak ditemukan.',
-                                              style: TextStyle(fontSize: 11, color: Colors.grey),
+                                              context.translate('group_detail_cycle_detail_err'),
+                                              style: const TextStyle(fontSize: 11, color: Colors.grey),
                                             ),
                                           );
                                         }
@@ -2663,11 +2687,10 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                                           child: Column(
                                             crossAxisAlignment: CrossAxisAlignment.start,
                                             children: [
-                                              const Padding(
-                                                padding: EdgeInsets.only(left: 4, bottom: 8),
-                                                child: Text(
-                                                  'Daftar Pembaca per Juz:',
-                                                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppTheme.primaryGreen),
+                                              Padding(
+                                                padding: const EdgeInsets.only(left: 4, bottom: 8),
+                                                child: Text(context.translate('group_detail_cycle_detail_title'),
+                                                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppTheme.primaryGreen),
                                                 ),
                                               ),
                                               GridView.builder(
@@ -2683,7 +2706,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                                                 itemBuilder: (context, sIdx) {
                                                   final slot = slots[sIdx];
                                                   final juzNum = slot['nomor_juz'];
-                                                  final username = slot['users']?['username'] ?? 'Umum';
+                                                  final username = slot['users']?['username'] ?? context.translate('group_detail_cycle_detail_free');
                                                   return Container(
                                                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                                     decoration: BoxDecoration(
@@ -2707,7 +2730,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                                                         const SizedBox(width: 6),
                                                         Expanded(
                                                           child: Text(
-                                                            '@$username',
+                                                            username == context.translate('group_detail_cycle_detail_free') ? username : '@$username',
                                                             overflow: TextOverflow.ellipsis,
                                                             style: TextStyle(
                                                               fontSize: 10,
@@ -2753,17 +2776,17 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: Theme.of(context).colorScheme.surface,
-        title: const Text('Keluar Grup'),
-        content: const Text('Apakah Anda yakin ingin keluar dari grup khataman ini? Semua juz yang telah Anda klaim akan dilepaskan kembali.'),
+        title: Text(context.translate('group_detail_leave_dialog_title')),
+        content: Text(context.translate('group_detail_leave_dialog_body')),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: Text('Batal', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+            child: Text(context.translate('btn_cancel'), style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
-            child: const Text('Keluar', style: TextStyle(color: Colors.white)),
+            child: Text(context.translate('group_detail_leave_dialog_confirm'), style: const TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -2809,7 +2832,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Anda telah keluar dari grup.'), backgroundColor: AppTheme.primaryGreen),
+            SnackBar(content: Text(context.translate('group_detail_leave_success')), backgroundColor: AppTheme.primaryGreen),
           );
           Navigator.pop(context, true); // Go back to groups list screen with refresh signal
         }
@@ -2817,7 +2840,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
         debugPrint('[LeaveGroup] Error: $e');
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Gagal keluar grup: $e'), backgroundColor: Colors.redAccent),
+            SnackBar(content: Text(context.translate('group_detail_leave_failed').replaceFirst('{error}', e.toString())), backgroundColor: Colors.redAccent),
           );
         }
       }
@@ -2832,15 +2855,15 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
       context: context,
       builder: (_) => AlertDialog(
         backgroundColor: Theme.of(context).colorScheme.surface,
-        title: Text('Hapus Grup?', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
+        title: Text(context.translate('group_detail_delete_dialog_title'), style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
         content: Text(
-          'Grup ini dan semua progres di dalamnya akan dihapus secara permanen. Tindakan ini tidak dapat dibatalkan.',
+          context.translate('group_detail_delete_dialog_body'),
           style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Batal'),
+            child: Text(context.translate('btn_cancel')),
           ),
           TextButton(
             onPressed: () {
@@ -2848,7 +2871,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
               _deleteGroup();
             },
             style: TextButton.styleFrom(foregroundColor: Colors.redAccent),
-            child: const Text('Ya, Hapus'),
+            child: Text(context.translate('group_detail_delete_confirm')),
           ),
         ],
       ),
@@ -2877,8 +2900,8 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
           rows.add({
             'user_id': uid,
             'type': 'KHATAMAN_COMPLETE', // Tipe terdaftar agar muncul ikon/warna menarik
-            'title': 'Grup Khataman Dihapus 🗑️',
-            'body': 'Grup "$gName" telah dihapus oleh admin.',
+            'title': context.translate('group_detail_notif_delete_title'),
+            'body': context.translate('group_detail_notif_delete_body').replaceFirst('{groupName}', gName),
           });
         }
 
@@ -2898,12 +2921,12 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
           .select();
       
       if (deletedData.isEmpty) {
-        throw Exception('Grup gagal dihapus. Anda mungkin tidak memiliki izin (RLS) di database.');
+        throw Exception(context.translate('group_detail_delete_failed'));
       }
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Grup berhasil dihapus'), backgroundColor: AppTheme.primaryGreen),
+          SnackBar(content: Text(context.translate('group_detail_delete_success')), backgroundColor: AppTheme.primaryGreen),
         );
         Navigator.pop(context, true); // Kirim 'true' sebagai tanda berhasil dihapus
       }
@@ -2913,9 +2936,9 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
         showDialog(
           context: context,
           builder: (_) => AlertDialog(
-            title: const Text('Gagal Menghapus Grup'),
-            content: Text('Terjadi kesalahan saat menghapus grup:\n\n$e\n\n(Jika ini masalah izin, tambahkan policy DELETE di tabel groups pada dashboard Supabase)'),
-            actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('Tutup'))],
+            title: Text(context.translate('group_detail_delete_err_dialog_title')),
+            content: Text((context.translate('tile_language') == 'id' ? 'Terjadi kesalahan saat menghapus grup:\n\n' : 'An error occurred while deleting the group:\n\n') + '$e'),
+            actions: [TextButton(onPressed: () => Navigator.pop(context), child: Text(context.translate('btn_close')))],
           )
         );
       }
@@ -3023,6 +3046,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
 
   @override
   Widget build(BuildContext context) {
+    Provider.of<SettingsProvider>(context); // Listen to settings changes for dynamic language switching
     final currentUserId = _supabase.auth.currentUser?.id;
     final int pendingReleaseCount = _slots.where((s) => s['approval_lepas_status'] == 'PENDING').length;
     final int totalPending = _pendingCount + pendingReleaseCount;
@@ -3030,7 +3054,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        title: Text(_group?['nama_grup'] ?? 'Detail Grup'),
+        title: Text(_group?['nama_grup'] ?? (context.translate('tile_language') == 'id' ? 'Detail Grup' : 'Group Detail')),
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         elevation: 0,
         scrolledUnderElevation: 0,
@@ -3047,7 +3071,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                 backgroundColor: _pendingCount > 0 ? Colors.redAccent : AppTheme.accentGold,
                 child: Icon(Icons.more_vert_rounded, color: Theme.of(context).colorScheme.onSurfaceVariant),
               ),
-              tooltip: 'Pengaturan Grup',
+              tooltip: context.translate('group_detail_settings_title'),
               onPressed: _showGroupSettings,
             ),
         ],
@@ -3091,21 +3115,21 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        'Pencapaian Grup',
-                        style: TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold),
+                      Text(
+                        context.translate('group_detail_history_great_achievement'),
+                        style: const TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        '🏆 $_completedCount Kali Khataman Selesai!',
+                        context.translate('group_detail_completed_count_badge').replaceFirst('{count}', _completedCount.toString()),
                         style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 4),
                       InkWell(
                         onTap: _showKhatamHistorySheet,
-                        child: const Text(
-                          'Lihat Riwayat Lengkap ➔',
-                          style: TextStyle(color: AppTheme.accentGold, fontSize: 11, fontWeight: FontWeight.bold),
+                        child: Text(
+                          context.translate('group_detail_view_history_link'),
+                          style: const TextStyle(color: AppTheme.accentGold, fontSize: 11, fontWeight: FontWeight.bold),
                         ),
                       ),
                     ],
@@ -3125,7 +3149,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
           ),
           child: Column(
             children: [
-              Text('Kode Bergabung', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+              Text(context.translate('group_detail_join_code_label'), style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
               const SizedBox(height: 8),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -3135,14 +3159,14 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                       final inviteLink = 'https://khataman2026.web.app/join?code=$code';
                       Clipboard.setData(ClipboardData(text: inviteLink));
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Link undangan grup berhasil disalin! 🔗'),
+                        SnackBar(
+                          content: Text(context.translate('group_detail_copied_link')),
                           backgroundColor: AppTheme.primaryGreen,
                         ),
                       );
                     },
                     child: Tooltip(
-                      message: 'Tekan lama untuk menyalin',
+                      message: context.translate('group_detail_copy_instruction'),
                       child: Text(
                         code,
                         style: const TextStyle(
@@ -3157,25 +3181,26 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                   const SizedBox(width: 8),
                   IconButton(
                     icon: const Icon(Icons.share_rounded, color: AppTheme.primaryGreen),
-                    tooltip: 'Bagikan Kode Undangan',
+                    tooltip: context.translate('group_detail_share_title'),
                     onPressed: () {
                       final gName = widget.groupName ?? _group?['nama_grup'] ?? 'Grup';
                       final inviteLink = 'https://khataman2026.web.app/join?code=$code';
-                      Share.share(
-                        'Assalamu\'alaikum! 🌙\n\nYuk gabung di grup khataman Al-Quran "$gName"!\n\nKlik link di bawah ini untuk langsung bergabung:\n🔗 $inviteLink\n\n📋 Atau masukkan Kode Grup berikut di aplikasi:\n*$code*\n\nBarakallahu fiikum! 🤲',
-                      );
+                      final shareText = context.translate('tile_language') == 'id'
+                          ? 'Assalamu\'alaikum! 🌙\n\nYuk gabung di grup khataman Al-Quran "$gName"!\n\nKlik link di bawah ini untuk langsung bergabung:\n🔗 $inviteLink\n\n📋 Atau masukkan Kode Grup berikut di aplikasi:\n*$code*\n\nBarakallahu fiikum! 🤲'
+                          : 'Assalamu\'alaikum! 🌙\n\nLet\'s join the Quran khataman group "$gName"!\n\nClick the link below to join directly:\n🔗 $inviteLink\n\n📋 Or enter this Group Code in the app:\n*$code*\n\nBarakallahu fiikum! 🤲';
+                      Share.share(shareText);
                     },
                   )
                 ],
               ),
               const SizedBox(height: 8),
-              Text('Tekan lama kode untuk menyalin, atau ketuk ikon bagikan untuk menyebarkan.', textAlign: TextAlign.center, style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant, height: 1.5)),
+              Text(context.translate('group_detail_share_instruction'), textAlign: TextAlign.center, style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant, height: 1.5)),
             ],
           ),
         ),
         const SizedBox(height: 32),
         // Members list
-        Text('Anggota Bergabung (${_members.length})', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSurface)),
+        Text(context.translate('group_detail_members_count_label').replaceFirst('{count}', _members.length.toString()), style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSurface)),
         const SizedBox(height: 12),
         ..._members.map((m) {
           final user = m['users'] ?? {};
@@ -3213,9 +3238,9 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                       borderRadius: BorderRadius.circular(4),
                       border: Border.all(color: AppTheme.primaryGreen.withOpacity(0.3), width: 0.5),
                     ),
-                    child: const Text(
-                      'Admin',
-                      style: TextStyle(
+                    child: Text(
+                      context.translate('group_badge_admin'),
+                      style: const TextStyle(
                         color: AppTheme.primaryGreen,
                         fontSize: 10,
                         fontWeight: FontWeight.bold,
@@ -3255,8 +3280,8 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                 const SizedBox(width: 6),
                 Text(
                   isLimited 
-                      ? 'Batasan Pengambilan Juz: AKTIF (Maks $maxSlots Juz)' 
-                      : 'Batasan Pengambilan Juz: NONAKTIF (Bebas)',
+                      ? context.translate('group_detail_settings_limit_active_badge').replaceFirst('{count}', maxSlots.toString()) 
+                      : context.translate('group_detail_settings_limit_inactive_badge'),
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
@@ -3275,7 +3300,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
             child: ElevatedButton.icon(
               onPressed: () => _startNewPutaran(3),
               icon: const Icon(Icons.shuffle_rounded),
-              label: const Text('Rolling Juz (Acak Cerdas)'),
+              label: Text(context.translate('group_detail_roll_title_random')),
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF7C3AED),
                 foregroundColor: Colors.white,
@@ -3292,7 +3317,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
           child: ElevatedButton.icon(
             onPressed: () => _startNewPutaran(0),
             icon: const Icon(Icons.auto_awesome_rounded),
-            label: const Text('Bagi Rata Otomatis'),
+            label: Text(context.translate('group_detail_roll_title_equal')),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppTheme.primaryGreen,
               foregroundColor: Colors.white,
@@ -3308,7 +3333,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
           child: ElevatedButton.icon(
             onPressed: () => _startNewPutaran(2),
             icon: const Icon(Icons.brush_rounded),
-            label: const Text('Bagi Manual (Kuas Admin)'),
+            label: Text(context.translate('group_detail_roll_title_manual')),
             style: ElevatedButton.styleFrom(
               backgroundColor: isDark ? const Color(0xFF0D5257) : const Color(0xFF007A7C),
               foregroundColor: Colors.white,
@@ -3324,7 +3349,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
           child: OutlinedButton.icon(
             onPressed: () => _startNewPutaran(1),
             icon: const Icon(Icons.pan_tool_alt_rounded, color: AppTheme.accentGold),
-            label: const Text('Klaim Mandiri (Open Slot)', style: TextStyle(color: AppTheme.accentGold)),
+            label: Text(context.translate('group_detail_roll_title_claim'), style: const TextStyle(color: AppTheme.accentGold)),
             style: OutlinedButton.styleFrom(
               side: const BorderSide(color: AppTheme.accentGold),
               padding: const EdgeInsets.symmetric(vertical: 14),
@@ -3349,7 +3374,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
           size: 40,
         ),
         title: Text(
-          isRutin ? 'Konfirmasi Selesai Putaran' : 'Konfirmasi Khataman Grup',
+          isRutin ? context.translate('group_detail_confirm_cycle_complete_title') : context.translate('group_detail_confirm_archive_title'),
           style: TextStyle(
             color: Theme.of(context).colorScheme.onSurface,
             fontWeight: FontWeight.bold,
@@ -3357,12 +3382,8 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
         ),
         content: Text(
           isRutin
-              ? 'Apakah Anda sudah selesai membaca Doa Khatam Al-Quran?\n\n'
-                  'Jika sudah, putaran siklus ini akan diselesaikan dan dicatat ke dalam riwayat grup. Anda dapat langsung memulai putaran berikutnya.'
-              : 'Apakah Anda sudah selesai membaca Doa Khatam Al-Quran?\n\n'
-                  'Jika sudah, grup ini akan diarsipkan dan progres khataman '
-                  'akan dicatat ke dalam riwayat semua anggota. '
-                  'Anggota lain akan menerima notifikasi.',
+              ? context.translate('group_detail_confirm_cycle_complete_desc')
+              : context.translate('group_detail_confirm_archive_desc'),
           style: TextStyle(
             color: Theme.of(context).colorScheme.onSurfaceVariant,
             height: 1.6,
@@ -3378,12 +3399,12 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                 context,
                 onConfirmCompletion: _archiveGroup,
                 confirmationMessage: isRutin
-                    ? 'Tindakan ini akan menyelesaikan putaran siklus ini dan mencatatnya ke riwayat grup. Anda dapat langsung memulai putaran berikutnya. Lanjutkan?'
-                    : 'Tindakan ini akan menyelesaikan progres khataman, mengarsipkan grup ini secara permanen, dan mencatatnya ke riwayat seluruh anggota. Lanjutkan?',
+                    ? context.translate('group_detail_confirm_cycle_complete_instruction')
+                    : context.translate('group_detail_confirm_archive_instruction'),
               );
             },
             icon: const Icon(Icons.auto_stories_rounded, size: 16),
-            label: const Text('Belum, Baca Doa', style: TextStyle(fontWeight: FontWeight.w600)),
+            label: Text(context.translate('group_detail_btn_doa'), style: const TextStyle(fontWeight: FontWeight.w600)),
             style: OutlinedButton.styleFrom(
               foregroundColor: AppTheme.accentGold,
               side: BorderSide(color: AppTheme.accentGold.withOpacity(0.5)),
@@ -3397,7 +3418,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
               _archiveGroup();
             },
             icon: const Icon(Icons.check_circle_rounded, size: 16),
-            label: const Text('Ya, Sudah', style: TextStyle(fontWeight: FontWeight.bold)),
+            label: Text(context.translate('group_detail_btn_yes'), style: const TextStyle(fontWeight: FontWeight.bold)),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppTheme.primaryGreen,
               foregroundColor: Colors.white,
@@ -3468,10 +3489,10 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
         await NotificationService.sendToGroup(
           groupId: widget.groupId,
           type: 'KHATAMAN_COMPLETE',
-          title: isRutin ? '🎉 Putaran Khataman Selesai!' : '📁 Khataman Diarsipkan',
+          title: isRutin ? context.translate('group_detail_notif_cycle_complete_title') : context.translate('group_detail_notif_archive_title'),
           body: isRutin
-              ? '"$gName" telah menyelesaikan putaran siklus oleh $senderName. Alhamdulillah!'
-              : '"$gName" telah diarsipkan oleh $senderName setelah menyelesaikan Doa Khatam Al-Quran. Alhamdulillah!',
+              ? context.translate('group_detail_notif_cycle_complete_body').replaceFirst('{groupName}', gName).replaceFirst('{user}', senderName)
+              : context.translate('group_detail_notif_archive_body').replaceFirst('{groupName}', gName).replaceFirst('{user}', senderName),
           excludeUserId: _supabase.auth.currentUser?.id,
         );
       } catch (notifErr) {
@@ -3485,8 +3506,8 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(isRutin 
-                ? '🎉 Putaran khataman berhasil diselesaikan!' 
-                : '📁 Grup telah diarsipkan. Alhamdulillah!'),
+                ? context.translate('group_detail_success_cycle_complete') 
+                : context.translate('group_detail_success_archive')),
             backgroundColor: AppTheme.primaryGreen,
           ),
         );
@@ -3500,7 +3521,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Gagal menyelesaikan khataman: $e'),
+            content: Text(context.translate('group_detail_err_cycle_complete').replaceFirst('{error}', e.toString())),
             backgroundColor: Colors.redAccent,
           ),
         );
@@ -3597,7 +3618,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                             Row(
                               children: [
                                 Text(
-                                  'Putaran ${_putaran?['nomor_putaran'] ?? 1}${dateRangeText.isNotEmpty ? ' • $dateRangeText' : ''}',
+                                  '${context.translate('group_detail_cycle_title').replaceFirst('{number}', (_putaran?['nomor_putaran'] ?? 1).toString())}${dateRangeText.isNotEmpty ? ' • $dateRangeText' : ''}',
                                   style: TextStyle(color: titleTextColor, fontSize: 12),
                                 ),
                                 if (_completedCount > 0) ...[
@@ -3615,7 +3636,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                                         const Icon(Icons.emoji_events_rounded, size: 10, color: AppTheme.accentGold),
                                         const SizedBox(width: 3),
                                         Text(
-                                          '$_completedCount Khatam',
+                                          '$_completedCount ' + (context.translate('tile_language') == 'id' ? 'Khatam' : 'Khatam'),
                                           style: const TextStyle(color: AppTheme.accentGold, fontSize: 9, fontWeight: FontWeight.bold),
                                         ),
                                       ],
@@ -3649,9 +3670,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                                   ),
                                   const SizedBox(width: 4),
                                   Text(
-                                    isLimited 
-                                        ? 'Dibatasi: Maks $maxSlots Juz/orang' 
-                                        : 'Bebas mengambil Juz',
+                                    isLimited ? (context.translate('tile_language') == 'id' ? 'Dibatasi: Maks $maxSlots Juz/orang' : 'Limited: Max $maxSlots Juz/person') : context.translate('group_detail_unlimited_juz'),
                                     style: TextStyle(
                                       fontSize: 10,
                                       fontWeight: FontWeight.w600,
@@ -3671,7 +3690,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                         Opacity(
                           opacity: (1.0 - _shrinkFactor / 0.5).clamp(0.0, 1.0),
                           child: Text(
-                            '$completed / 30 Juz Selesai',
+                            context.translate('mandiri_juz_completed_count').replaceFirst('{completed}', completed.toString()),
                             style: TextStyle(
                               fontSize: completedFontSize,
                               fontWeight: FontWeight.bold,
@@ -3686,7 +3705,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                               Icon(Icons.group_rounded, color: percentColor, size: 15),
                               const SizedBox(width: 6),
                               Text(
-                                'Putaran ${_putaran?['nomor_putaran'] ?? 1}: $completed/30 Juz Selesai',
+                                '${context.translate('group_detail_cycle_title').replaceFirst('{number}', (_putaran?['nomor_putaran'] ?? 1).toString())}: ${context.translate('mandiri_juz_completed_count').replaceFirst('{completed}', completed.toString())}',
                                 style: TextStyle(
                                   fontSize: completedFontSize,
                                   fontWeight: FontWeight.bold,
@@ -3907,16 +3926,16 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
               title: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Row(
+                  Row(
                     children: [
-                      Icon(Icons.stars_rounded, color: AppTheme.accentGold, size: 28),
-                      SizedBox(width: 8),
-                      Text('Pilih Admin Baru', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                      const Icon(Icons.stars_rounded, color: AppTheme.accentGold, size: 28),
+                      const SizedBox(width: 8),
+                      Text(context.translate('dialog_title_new_admin'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
                     ],
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Anda adalah Admin grup "$groupName". Pilih anggota aktif untuk menggantikan kepemimpinan Anda sebelum keluar:',
+                    context.translate('group_detail_transfer_single_member').replaceFirst('{groupName}', groupName),
                     style: TextStyle(
                       fontSize: 12,
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -4012,7 +4031,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
-                        child: const Text('Batal', style: TextStyle(fontWeight: FontWeight.w600)),
+                        child: Text(context.translate('btn_cancel'), style: const TextStyle(fontWeight: FontWeight.w600)),
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -4029,7 +4048,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           textStyle: const TextStyle(fontWeight: FontWeight.w600),
                         ),
-                        child: const Text('Konfirmasi & Lanjut'),
+                        child: Text(context.translate('group_detail_btn_confirm_continue')),
                       ),
                     ),
                   ],
@@ -4052,7 +4071,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Grup berhasil dihapus'), backgroundColor: AppTheme.primaryGreen),
+          SnackBar(content: Text(context.translate('group_detail_delete_success')), backgroundColor: AppTheme.primaryGreen),
         );
         Navigator.pop(context, true); // Pop back to groups list
       }
@@ -4060,7 +4079,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
       if (mounted) {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Gagal menghapus grup: $e'), backgroundColor: Colors.redAccent),
+          SnackBar(content: Text(context.translate('group_detail_settings_type_failed').replaceFirst('{error}', e.toString())), backgroundColor: Colors.redAccent),
         );
       }
     }
@@ -4092,20 +4111,17 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
         context: context,
         builder: (ctx) => AlertDialog(
           backgroundColor: Theme.of(context).colorScheme.surface,
-          title: const Text('Keluar & Hapus Grup?'),
-          content: const Text(
-            'Anda adalah satu-satunya anggota di grup ini. Jika Anda keluar, '
-            'grup ini akan dihapus secara permanen dari server. Lanjutkan?',
-          ),
+          title: Text(context.translate('group_detail_kick_only_member_title')),
+          content: Text(context.translate('group_detail_kick_only_member_body')),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: Text('Batal', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+              child: Text(context.translate('btn_cancel'), style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
             ),
             ElevatedButton(
               onPressed: () => Navigator.pop(ctx, true),
               style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
-              child: const Text('Keluar & Hapus', style: TextStyle(color: Colors.white)),
+              child: Text(context.translate('group_detail_kick_only_member_confirm'), style: const TextStyle(color: Colors.white)),
             ),
           ],
         ),
@@ -4149,8 +4165,8 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
           await NotificationService.send(
             userId: newAdminId,
             type: 'JOIN_APPROVED',
-            title: 'Promosi Admin 👑',
-            body: 'Anda telah ditunjuk sebagai Admin baru untuk grup "$gName" oleh admin sebelumnya.',
+            title: context.translate('group_detail_notif_transfer_title'),
+            body: context.translate('group_detail_notif_transfer_body').replaceFirst('{groupName}', gName),
             groupId: widget.groupId,
           );
         } catch (_) {}
@@ -4181,7 +4197,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
         if (mounted) {
           Navigator.pop(context); // Dismiss loading dialog
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Berhasil menyerahkan admin dan keluar dari grup.'), backgroundColor: AppTheme.primaryGreen),
+            SnackBar(content: Text(context.translate('group_detail_success_transfer_leave')), backgroundColor: AppTheme.primaryGreen),
           );
           Navigator.pop(context, true); // Pop back to groups list
         }
@@ -4189,7 +4205,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen>
         if (mounted) {
           Navigator.pop(context); // Dismiss loading dialog
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Gagal keluar dari grup: $e'), backgroundColor: Colors.redAccent),
+            SnackBar(content: Text(context.translate('group_detail_err_transfer_leave').replaceFirst('{error}', e.toString())), backgroundColor: Colors.redAccent),
           );
         }
       }

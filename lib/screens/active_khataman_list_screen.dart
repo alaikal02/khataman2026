@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:quran/quran.dart' as quran;
+import 'package:provider/provider.dart';
 import '../theme/app_theme.dart';
 import 'mandiri_screen.dart';
 import '../features/group/presentation/group_detail_screen.dart';
+import '../providers/settings_provider.dart';
+import '../utils/localization.dart';
 
 class ActiveKhatamanListScreen extends StatefulWidget {
   const ActiveKhatamanListScreen({Key? key}) : super(key: key);
@@ -211,11 +214,12 @@ class _ActiveKhatamanListScreenState extends State<ActiveKhatamanListScreen> {
 
   @override
   Widget build(BuildContext context) {
+    Provider.of<SettingsProvider>(context); // Listen to settings changes
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF161B22) : const Color(0xFFEEEEEE),
       appBar: AppBar(
-        title: const Text('Khataman Aktif Anda'),
+        title: Text(context.translate('active_list_title')),
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
@@ -270,7 +274,7 @@ class _ActiveKhatamanListScreenState extends State<ActiveKhatamanListScreen> {
               ),
               const SizedBox(height: 18),
               Text(
-                'Belum Ada Khataman Aktif',
+                context.translate('active_list_empty_title'),
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
@@ -281,7 +285,7 @@ class _ActiveKhatamanListScreenState extends State<ActiveKhatamanListScreen> {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 40),
                 child: Text(
-                  'Silakan buat khataman mandiri atau bergabung dengan grup khataman terlebih dahulu.',
+                  context.translate('active_list_empty_body'),
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 13,
@@ -363,7 +367,7 @@ class _ActiveKhatamanListScreenState extends State<ActiveKhatamanListScreen> {
                           ),
                         ),
                         child: Text(
-                          isGroup ? 'Grup' : 'Mandiri',
+                          isGroup ? context.translate('home_type_group') : context.translate('home_type_mandiri'),
                           style: TextStyle(
                             fontSize: 10,
                             fontWeight: FontWeight.bold,
@@ -374,7 +378,7 @@ class _ActiveKhatamanListScreenState extends State<ActiveKhatamanListScreen> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          item['title'] as String,
+                          isGroup ? item['title'] as String : context.translate('mandiri_title'),
                           style: TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.bold,

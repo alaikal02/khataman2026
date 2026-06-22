@@ -466,7 +466,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
   @override
   Widget build(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context);
-    final settingsProvider = Provider.of<SettingsProvider>(context);
+    Provider.of<SettingsProvider>(context);
     final user = authProvider.user;
     final displayName = user?.userMetadata?['full_name'] as String? ??
         user?.email?.split('@')[0] ??

@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:quran/quran.dart' as quran;
+import 'package:provider/provider.dart';
 import '../data/surah_info_data.dart';
 import '../theme/app_theme.dart';
+import '../providers/settings_provider.dart';
+import '../utils/localization.dart';
 import 'mushaf_reader_screen.dart';
 
 class MushafListScreen extends StatefulWidget {
@@ -88,12 +91,13 @@ class _MushafListScreenState extends State<MushafListScreen> with SingleTickerPr
 
   @override
   Widget build(BuildContext context) {
+    Provider.of<SettingsProvider>(context); // Listen to settings changes
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        title: const Text('Mushaf Al-Quran'),
+        title: Text(context.translate('mushaf_title')),
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         leading: IconButton(
           icon: Icon(Icons.arrow_back_ios_rounded, color: Theme.of(context).colorScheme.onSurface),
@@ -105,9 +109,9 @@ class _MushafListScreenState extends State<MushafListScreen> with SingleTickerPr
           labelColor: AppTheme.primaryGreen,
           unselectedLabelColor: Theme.of(context).colorScheme.onSurfaceVariant,
           labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-          tabs: const [
-            Tab(text: 'Surah'),
-            Tab(text: 'Juz'),
+          tabs: [
+            Tab(text: context.translate('mushaf_tab_surah')),
+            Tab(text: context.translate('mushaf_tab_juz')),
           ],
         ),
       ),
@@ -186,9 +190,9 @@ class _MushafListScreenState extends State<MushafListScreen> with SingleTickerPr
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Terakhir Dibaca',
-                    style: TextStyle(
+                  Text(
+                    context.translate('mushaf_last_read_header'),
+                    style: const TextStyle(
                       fontSize: 11,
                       color: Colors.white70,
                       fontWeight: FontWeight.w600,
@@ -197,8 +201,11 @@ class _MushafListScreenState extends State<MushafListScreen> with SingleTickerPr
                   const SizedBox(height: 2),
                   Text(
                     _lastReadSurahName != null
-                        ? 'Surah $_lastReadSurahName (Ayat $_lastReadVerseNum)'
-                        : 'Juz $_lastReadJuzNum',
+                        ? context.translate('mushaf_last_read_surah_ayat')
+                            .replaceFirst('{surah}', _lastReadSurahName!)
+                            .replaceFirst('{ayat}', _lastReadVerseNum.toString())
+                        : context.translate('mushaf_last_read_juz')
+                            .replaceFirst('{juz}', _lastReadJuzNum.toString()),
                     style: const TextStyle(
                       fontSize: 14,
                       color: Colors.white,
@@ -208,9 +215,9 @@ class _MushafListScreenState extends State<MushafListScreen> with SingleTickerPr
                 ],
               ),
             ),
-            const Text(
-              'Lanjutkan',
-              style: TextStyle(
+            Text(
+              context.translate('mushaf_last_read_continue'),
+              style: const TextStyle(
                 fontSize: 12,
                 color: AppTheme.accentGold,
                 fontWeight: FontWeight.bold,
@@ -233,7 +240,7 @@ class _MushafListScreenState extends State<MushafListScreen> with SingleTickerPr
           child: TextField(
             controller: _searchController,
             decoration: InputDecoration(
-              hintText: 'Cari surah (contoh: Yasin, Al-Mulk...)',
+              hintText: context.translate('mushaf_search_hint'),
               prefixIcon: const Icon(Icons.search_rounded, color: AppTheme.primaryGreen),
               suffixIcon: _searchController.text.isNotEmpty
                   ? IconButton(
@@ -255,7 +262,11 @@ class _MushafListScreenState extends State<MushafListScreen> with SingleTickerPr
                   itemBuilder: (context, index) {
                     final surah = _filteredSurah[index];
                     final totalVerses = quran.getVerseCount(surah.number);
-                    final place = quran.getPlaceOfRevelation(surah.number) == 'Makkah' ? 'Makkiyah' : 'Madaniyah';
+                    final place = quran.getPlaceOfRevelation(surah.number) == 'Makkah'
+                        ? context.translate('mushaf_makkiyah')
+                        : context.translate('mushaf_madaniyah');
+                    final versesText = context.translate('mushaf_verses_count')
+                        .replaceFirst('{count}', totalVerses.toString());
                     final arabicName = quran.getSurahNameArabic(surah.number);
 
                     return Container(
@@ -299,9 +310,9 @@ class _MushafListScreenState extends State<MushafListScreen> with SingleTickerPr
                             child: Text(
                               '${surah.number}',
                               style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                                color: AppTheme.primaryGreen,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppTheme.primaryGreen,
                               ),
                             ),
                           ),
@@ -332,7 +343,7 @@ class _MushafListScreenState extends State<MushafListScreen> with SingleTickerPr
                         subtitle: Padding(
                           padding: const EdgeInsets.only(top: 2),
                           child: Text(
-                            '${surah.translation} • $place • $totalVerses Ayat',
+                            '${surah.translation} • $place • $versesText',
                             style: TextStyle(
                               fontSize: 11,
                               color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -369,9 +380,14 @@ class _MushafListScreenState extends State<MushafListScreen> with SingleTickerPr
           final lastSurahName = quran.getSurahName(lastSurah);
           
           if (firstSurah == lastSurah) {
-            detailsText = 'Surah $firstSurahName (Ayat ${surahMap[firstSurah]![0]}-${surahMap[firstSurah]![1]})';
+            detailsText = context.translate('mushaf_juz_detail_single')
+                .replaceFirst('{surah}', firstSurahName)
+                .replaceFirst('{start}', surahMap[firstSurah]![0].toString())
+                .replaceFirst('{end}', surahMap[firstSurah]![1].toString());
           } else {
-            detailsText = 'Surah $firstSurahName ke $lastSurahName';
+            detailsText = context.translate('mushaf_juz_detail_multi')
+                .replaceFirst('{start}', firstSurahName)
+                .replaceFirst('{end}', lastSurahName);
           }
         }
 
@@ -424,7 +440,7 @@ class _MushafListScreenState extends State<MushafListScreen> with SingleTickerPr
               ),
             ),
             title: Text(
-              'Juz $juzNum',
+              context.translate('mushaf_last_read_juz').replaceFirst('{juz}', juzNum.toString()),
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.bold,
@@ -464,7 +480,7 @@ class _MushafListScreenState extends State<MushafListScreen> with SingleTickerPr
           ),
           const SizedBox(height: 16),
           Text(
-            'Surah tidak ditemukan',
+            context.translate('mushaf_empty_search'),
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.bold,

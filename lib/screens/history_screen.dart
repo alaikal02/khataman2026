@@ -3,6 +3,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/personal_history_service.dart';
 import '../theme/app_theme.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:provider/provider.dart';
+import '../providers/settings_provider.dart';
+import '../utils/localization.dart';
 
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({Key? key}) : super(key: key);
@@ -62,7 +65,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
         }
         final juzList = deduped.values.toList()
           ..sort((a, b) => (int.tryParse(a['juz']?.toString() ?? '0') ?? 0)
-              .compareTo(int.tryParse(b['juz']?.toString() ?? '0') ?? 0));
+               .compareTo(int.tryParse(b['juz']?.toString() ?? '0') ?? 0));
         mandiriCycles.add({
           'title': 'Khataman Mandiri',
           'type': 'Mandiri',
@@ -119,7 +122,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
         groupCycles.add({
           'title': 'Khataman Grup "$groupName"',
-          'type': 'Grup: $groupName',
+          'type': 'Grup',
+          'groupName': groupName,
           'timestamp': completionDate,
           'description': '🏆 Khataman Grup bersama "$groupName"! Kontribusi ${juzDetails.length} Juz.',
           'juzDetails': juzDetails,
@@ -164,7 +168,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
     final overlay = Overlay.of(context);
     
     _infoOverlayEntry = OverlayEntry(
-      builder: (context) => Stack(
+      builder: (overlayContext) => Stack(
         children: [
           // Invisible detector to dismiss overlay when tapping anywhere else
           Positioned.fill(
@@ -197,9 +201,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   ],
                   border: Border.all(color: Colors.white.withOpacity(0.12), width: 0.8),
                 ),
-                child: const Text(
-                  'Jumlah total penyelesaian Khataman Al-Quran Anda, gabungan dari Khataman Mandiri dan kontribusi Khataman Grup.',
-                  style: TextStyle(
+                child: Text(
+                  context.translate('history_info_tooltip'),
+                  style: const TextStyle(
                     color: Colors.white70,
                     fontSize: 11,
                     height: 1.45,
@@ -229,20 +233,20 @@ class _HistoryScreenState extends State<HistoryScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: Theme.of(context).colorScheme.surface,
-        title: const Text('Hapus Seluruh Riwayat?', style: TextStyle(color: Colors.redAccent)),
-        content: const Text(
-          'Semua catatan aktivitas membaca dan statistik khatam personal Anda akan dihapus secara permanen.\n\nTindakan ini tidak dapat dibatalkan.',
-          style: TextStyle(height: 1.5),
+        title: Text(context.translate('history_confirm_clear_title'), style: const TextStyle(color: Colors.redAccent)),
+        content: Text(
+          context.translate('history_confirm_clear_body'),
+          style: const TextStyle(height: 1.5),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: Text('Batal', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+            child: Text(context.translate('btn_cancel'), style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: TextButton.styleFrom(foregroundColor: Colors.redAccent),
-            child: const Text('Ya, Hapus Semua'),
+            child: Text(context.translate('history_confirm_clear_yes')),
           ),
         ],
       ),
@@ -253,8 +257,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
       await _loadData();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Seluruh riwayat personal Anda telah dibersihkan.'),
+          SnackBar(
+            content: Text(context.translate('history_clear_success')),
             backgroundColor: Colors.grey,
           ),
         );
@@ -293,20 +297,20 @@ class _HistoryScreenState extends State<HistoryScreen> {
     return count;
   }
 
-  String _formatDisplayTime(String timestampStr) {
+  String _formatDisplayTime(BuildContext context, String timestampStr) {
     try {
       final dt = DateTime.parse(timestampStr).toLocal();
       final now = DateTime.now();
       final diff = now.difference(dt);
 
       if (diff.inMinutes < 1) {
-        return 'Baru saja';
+        return context.translate('history_time_just_now');
       } else if (diff.inMinutes < 60) {
-        return '${diff.inMinutes} menit yang lalu';
+        return context.translate('history_time_minutes_ago').replaceFirst('{minutes}', diff.inMinutes.toString());
       } else if (diff.inHours < 24) {
-        return '${diff.inHours} jam yang lalu';
+        return context.translate('history_time_hours_ago').replaceFirst('{hours}', diff.inHours.toString());
       } else if (diff.inDays == 1) {
-        return 'Kemarin, ${_pad(dt.hour)}:${_pad(dt.minute)}';
+        return context.translate('history_time_yesterday').replaceFirst('{time}', '${_pad(dt.hour)}:${_pad(dt.minute)}');
       } else {
         return '${dt.day}/${dt.month}/${dt.year} - ${_pad(dt.hour)}:${_pad(dt.minute)}';
       }
@@ -319,6 +323,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   @override
   Widget build(BuildContext context) {
+    Provider.of<SettingsProvider>(context); // Listen to settings changes
+
     // Menghitung statistik khatam 30 Juz
     final weekKhatamCount = _getKhatamStatsCount(daysRange: 7);
     final monthKhatamCount = _getKhatamStatsCount(daysRange: 30);
@@ -332,7 +338,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        title: const Text('Riwayat & Statistik Saya'),
+        title: Text(context.translate('history_title')),
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         leading: IconButton(
           icon: Icon(Icons.arrow_back_ios_rounded, color: Theme.of(context).colorScheme.onSurface),
@@ -342,7 +348,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
           if (_cycles.isNotEmpty)
             IconButton(
               icon: const Icon(Icons.delete_sweep_rounded, color: Colors.redAccent),
-              tooltip: 'Hapus Semua Riwayat',
+              tooltip: context.translate('history_confirm_clear_title'),
               onPressed: _confirmClearHistory,
             ),
         ],
@@ -393,9 +399,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  const Text(
-                                    'TOTAL KHATAM AL-QURAN',
-                                    style: TextStyle(
+                                  Text(
+                                    context.translate('history_stat_title_total'),
+                                    style: const TextStyle(
                                       fontSize: 10,
                                       color: Colors.white70,
                                       fontWeight: FontWeight.bold,
@@ -406,7 +412,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                   Row(
                                     children: [
                                       Text(
-                                        '$_khatamCount Kali',
+                                        '$_khatamCount ${context.translate('history_stat_count_suffix')}',
                                         style: const TextStyle(
                                           fontSize: 28,
                                           fontWeight: FontWeight.bold,
@@ -446,7 +452,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
                   // Interactive Reading Statistics Title
                   Text(
-                    'Statistik Membaca Saya',
+                    context.translate('history_section_my_stats'),
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
@@ -461,7 +467,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       Expanded(
                         child: _buildPeriodStatCard(
                           context: context,
-                          title: 'Minggu Ini',
+                          title: context.translate('history_stat_week'),
                           khatamCount: weekKhatamCount,
                           juzCount: weekJuzCompleted,
                           color: AppTheme.primaryGreen,
@@ -471,7 +477,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       Expanded(
                         child: _buildPeriodStatCard(
                           context: context,
-                          title: 'Bulan Ini',
+                          title: context.translate('history_stat_month'),
                           khatamCount: monthKhatamCount,
                           juzCount: monthJuzCompleted,
                           color: AppTheme.accentGold,
@@ -481,7 +487,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       Expanded(
                         child: _buildPeriodStatCard(
                           context: context,
-                          title: 'Tahun Ini',
+                          title: context.translate('history_stat_year'),
                           khatamCount: yearKhatamCount,
                           juzCount: yearJuzCompleted,
                           color: AppTheme.accentTeal,
@@ -496,7 +502,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        'Catatan Riwayat Aktivitas',
+                        context.translate('history_section_log_title'),
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
@@ -505,7 +511,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       ),
                       if (_cycles.isNotEmpty)
                         Text(
-                          '${_cycles.length} Khataman',
+                          context.translate('history_section_log_count').replaceFirst('{count}', _cycles.length.toString()),
                           style: TextStyle(
                             fontSize: 12,
                             color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -529,16 +535,16 @@ class _HistoryScreenState extends State<HistoryScreen> {
                             ),
                             const SizedBox(height: 16),
                             Text(
-                              'Mulai Membaca Al-Quran',
+                              context.translate('history_empty_title'),
                               style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.bold,
-                                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.bold,
+                                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                               ),
                             ),
                             const SizedBox(height: 8),
                             Text(
-                              'Simpan progres membaca Anda di Khataman Mandiri atau Khataman Grup untuk melihat histori membaca Anda di sini.',
+                              context.translate('history_empty_body'),
                               textAlign: TextAlign.center,
                               style: TextStyle(
                                 fontSize: 11,
@@ -558,12 +564,23 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       itemBuilder: (context, idx) {
                         final cycle = _cycles[idx];
                         final isExpanded = _expandedIndices.contains(idx);
-                        final title = cycle['title'] ?? 'Khataman';
-                        final timestamp = cycle['timestamp'] ?? '';
-                        final description = cycle['description'] ?? '';
                         final type = cycle['type'] ?? 'Mandiri';
+                        final isGroup = type == 'Grup';
+                        final timestamp = cycle['timestamp'] ?? '';
                         final juzDetails = cycle['juzDetails'] as List? ?? [];
-                        final isGroup = type.toString().startsWith('Grup');
+
+                        String title;
+                        String description;
+                        if (isGroup) {
+                          final groupName = cycle['groupName'] ?? context.translate('history_cycle_group_fallback');
+                          title = context.translate('history_cycle_title_group').replaceFirst('{groupName}', groupName);
+                          description = context.translate('history_cycle_desc_group')
+                              .replaceFirst('{groupName}', groupName)
+                              .replaceFirst('{count}', juzDetails.length.toString());
+                        } else {
+                          title = context.translate('history_cycle_title_mandiri');
+                          description = context.translate('history_cycle_desc_mandiri');
+                        }
 
                         return Container(
                           margin: const EdgeInsets.only(bottom: 12),
@@ -630,7 +647,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                       borderRadius: BorderRadius.circular(8),
                                     ),
                                     child: Text(
-                                      isGroup ? 'Grup' : 'Mandiri',
+                                      isGroup ? context.translate('home_type_group') : context.translate('home_type_mandiri'),
                                       style: TextStyle(
                                         fontSize: 8,
                                         fontWeight: FontWeight.bold,
@@ -645,7 +662,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                               subtitle: Padding(
                                 padding: const EdgeInsets.only(top: 4),
                                 child: Text(
-                                  _formatDisplayTime(timestamp),
+                                  _formatDisplayTime(context, timestamp),
                                   style: TextStyle(
                                     fontSize: 10,
                                     color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.7),
@@ -676,7 +693,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                       ),
                                       const SizedBox(height: 16),
                                       Text(
-                                        'Rincian Juz yang Dibaca:',
+                                        context.translate('history_detail_read_juz'),
                                         style: TextStyle(
                                           fontSize: 11,
                                           fontWeight: FontWeight.bold,
@@ -687,7 +704,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                       const SizedBox(height: 10),
                                       if (juzDetails.isEmpty)
                                         Text(
-                                          'Tidak ada detail juz terekam.',
+                                          context.translate('history_detail_no_juz'),
                                           style: TextStyle(
                                             fontSize: 11,
                                             fontStyle: FontStyle.italic,
@@ -700,7 +717,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                           runSpacing: 8,
                                           children: juzDetails.map((j) {
                                             final juzNum = j['juz'];
-                                            final timeStr = _formatDisplayTime(j['timestamp'] ?? '');
+                                            final timeStr = _formatDisplayTime(context, j['timestamp'] ?? '');
                                             return Container(
                                               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                                               decoration: BoxDecoration(
@@ -774,16 +791,16 @@ class _HistoryScreenState extends State<HistoryScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            '$khatamCount Kali',
+            '$khatamCount ${context.translate('history_stat_count_suffix')}',
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.bold,
               color: color,
             ),
           ),
-          const Text(
-            'Khatam 30 Juz',
-            style: TextStyle(fontSize: 8, color: Colors.grey, fontWeight: FontWeight.w500),
+          Text(
+            context.translate('history_stat_khatam_label'),
+            style: const TextStyle(fontSize: 8, color: Colors.grey, fontWeight: FontWeight.w500),
           ),
           const SizedBox(height: 10),
           Row(
@@ -802,9 +819,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
               ),
             ],
           ),
-          const Text(
-            'Juz Selesai',
-            style: TextStyle(fontSize: 8, color: Colors.grey, fontWeight: FontWeight.w500),
+          Text(
+            context.translate('history_stat_juz_completed'),
+            style: const TextStyle(fontSize: 8, color: Colors.grey, fontWeight: FontWeight.w500),
           ),
         ],
       ),

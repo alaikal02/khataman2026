@@ -6,6 +6,9 @@ import '../features/group/presentation/group_detail_screen.dart';
 import '../features/group/presentation/juz_assignment_screen.dart';
 import '../features/group/presentation/group_list_screen.dart';
 import 'active_khataman_list_screen.dart';
+import 'package:provider/provider.dart';
+import '../providers/settings_provider.dart';
+import '../utils/localization.dart';
 
 class NotificationScreen extends StatefulWidget {
   const NotificationScreen({Key? key}) : super(key: key);
@@ -97,8 +100,8 @@ class _NotificationScreenState extends State<NotificationScreen> {
             _processingNotifIds.remove(notifId);
           });
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Permintaan telah diproses'),
+            SnackBar(
+              content: Text(context.translate('notif_request_processed')),
               backgroundColor: Colors.orangeAccent,
             ),
           );
@@ -121,8 +124,8 @@ class _NotificationScreenState extends State<NotificationScreen> {
             _processingNotifIds.remove(notifId);
           });
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Permintaan telah diproses'),
+            SnackBar(
+              content: Text(context.translate('notif_request_processed')),
               backgroundColor: Colors.orangeAccent,
             ),
           );
@@ -185,8 +188,8 @@ class _NotificationScreenState extends State<NotificationScreen> {
           _processingNotifIds.remove(notifId);
         });
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Permintaan bergabung berhasil disetujui'),
+          SnackBar(
+            content: Text(context.translate('notif_join_approved_msg')),
             backgroundColor: AppTheme.primaryGreen,
           ),
         );
@@ -198,7 +201,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
         });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Gagal menyetujui permintaan: $e'),
+            content: Text(context.translate('notif_join_approve_failed').replaceFirst('{error}', e.toString())),
             backgroundColor: Colors.redAccent,
           ),
         );
@@ -217,17 +220,17 @@ class _NotificationScreenState extends State<NotificationScreen> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Tolak Permintaan?'),
-        content: const Text('Apakah Anda yakin ingin menolak permintaan bergabung ini?'),
+        title: Text(context.translate('notif_reject_confirm_title')),
+        content: Text(context.translate('notif_reject_confirm_body')),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Batal', style: TextStyle(color: AppTheme.textSecondary)),
+            child: Text(context.translate('btn_cancel'), style: const TextStyle(color: AppTheme.textSecondary)),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
-            child: const Text('Tolak'),
+            child: Text(context.translate('notif_reject_btn_confirm')),
           ),
         ],
       ),
@@ -256,8 +259,8 @@ class _NotificationScreenState extends State<NotificationScreen> {
             _processingNotifIds.remove(notifId);
           });
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Permintaan telah diproses'),
+            SnackBar(
+              content: Text(context.translate('notif_request_processed')),
               backgroundColor: Colors.orangeAccent,
             ),
           );
@@ -280,8 +283,8 @@ class _NotificationScreenState extends State<NotificationScreen> {
             _processingNotifIds.remove(notifId);
           });
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Permintaan telah diproses'),
+            SnackBar(
+              content: Text(context.translate('notif_request_processed')),
               backgroundColor: Colors.orangeAccent,
             ),
           );
@@ -344,8 +347,8 @@ class _NotificationScreenState extends State<NotificationScreen> {
           _processingNotifIds.remove(notifId);
         });
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Permintaan bergabung berhasil ditolak'),
+          SnackBar(
+            content: Text(context.translate('notif_join_rejected_msg')),
             backgroundColor: Colors.redAccent,
           ),
         );
@@ -357,7 +360,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
         });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Gagal menolak permintaan: $e'),
+            content: Text(context.translate('notif_join_reject_failed').replaceFirst('{error}', e.toString())),
             backgroundColor: Colors.redAccent,
           ),
         );
@@ -399,8 +402,8 @@ class _NotificationScreenState extends State<NotificationScreen> {
             _processingNotifIds.remove(notifId);
           });
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Permintaan telah diproses'),
+            SnackBar(
+              content: Text(context.translate('notif_request_processed')),
               backgroundColor: Colors.orangeAccent,
             ),
           );
@@ -425,8 +428,8 @@ class _NotificationScreenState extends State<NotificationScreen> {
             _processingNotifIds.remove(notifId);
           });
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Permintaan telah diproses'),
+            SnackBar(
+              content: Text(context.translate('notif_request_processed')),
               backgroundColor: Colors.orangeAccent,
             ),
           );
@@ -495,8 +498,8 @@ class _NotificationScreenState extends State<NotificationScreen> {
           _processingNotifIds.remove(notifId);
         });
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Pengajuan lepas Juz berhasil disetujui'),
+          SnackBar(
+            content: Text(context.translate('notif_release_approved_msg')),
             backgroundColor: AppTheme.primaryGreen,
           ),
         );
@@ -508,7 +511,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
         });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Gagal menyetujui pelepasan: $e'),
+            content: Text(context.translate('notif_release_approve_failed').replaceFirst('{error}', e.toString())),
             backgroundColor: Colors.redAccent,
           ),
         );
@@ -533,17 +536,17 @@ class _NotificationScreenState extends State<NotificationScreen> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Tolak Pengajuan?'),
-        content: Text('Apakah Anda yakin ingin menolak pengajuan pelepasan Juz $juzNo ini?'),
+        title: Text(context.translate('notif_release_reject_title')),
+        content: Text(context.translate('notif_release_reject_body').replaceFirst('{juz}', juzNo.toString())),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Batal', style: TextStyle(color: AppTheme.textSecondary)),
+            child: Text(context.translate('btn_cancel'), style: const TextStyle(color: AppTheme.textSecondary)),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
-            child: const Text('Tolak'),
+            child: Text(context.translate('notif_reject_btn_confirm')),
           ),
         ],
       ),
@@ -572,8 +575,8 @@ class _NotificationScreenState extends State<NotificationScreen> {
             _processingNotifIds.remove(notifId);
           });
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Permintaan telah diproses'),
+            SnackBar(
+              content: Text(context.translate('notif_request_processed')),
               backgroundColor: Colors.orangeAccent,
             ),
           );
@@ -598,8 +601,8 @@ class _NotificationScreenState extends State<NotificationScreen> {
             _processingNotifIds.remove(notifId);
           });
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Permintaan telah diproses'),
+            SnackBar(
+              content: Text(context.translate('notif_request_processed')),
               backgroundColor: Colors.orangeAccent,
             ),
           );
@@ -658,8 +661,8 @@ class _NotificationScreenState extends State<NotificationScreen> {
           _processingNotifIds.remove(notifId);
         });
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Pengajuan lepas Juz berhasil ditolak'),
+          SnackBar(
+            content: Text(context.translate('notif_release_rejected_msg')),
             backgroundColor: Colors.redAccent,
           ),
         );
@@ -671,7 +674,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
         });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Gagal menolak pelepasan: $e'),
+            content: Text(context.translate('notif_release_reject_failed').replaceFirst('{error}', e.toString())),
             backgroundColor: Colors.redAccent,
           ),
         );
@@ -685,7 +688,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
     await NotificationService.markAllAsRead();
     await _loadNotifications();
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Semua notifikasi telah ditandai dibaca')),
+      SnackBar(content: Text(context.translate('notif_mark_all_read_msg'))),
     );
   }
 
@@ -708,11 +711,11 @@ class _NotificationScreenState extends State<NotificationScreen> {
         ScaffoldMessenger.of(context).hideCurrentSnackBar();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text('Notifikasi berhasil dihapus 🗑️'),
+            content: Text(context.translate('notif_delete_success')),
             backgroundColor: Colors.orangeAccent,
             duration: const Duration(seconds: 4),
             action: SnackBarAction(
-              label: 'URUNGKAN',
+              label: context.translate('notif_undo_label'),
               textColor: Colors.white,
               onPressed: () async {
                 setState(() {
@@ -737,7 +740,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: Text('Gagal mengurungkan penghapusan: $err'),
+                        content: Text(context.translate('notif_undo_failed').replaceFirst('{error}', err.toString())),
                         backgroundColor: Colors.redAccent,
                       ),
                     );
@@ -756,7 +759,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
         });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Gagal menghapus notifikasi: $e'),
+            content: Text(context.translate('notif_delete_failed').replaceFirst('{error}', e.toString())),
             backgroundColor: Colors.redAccent,
           ),
         );
@@ -772,16 +775,16 @@ class _NotificationScreenState extends State<NotificationScreen> {
         return AlertDialog(
           backgroundColor: isDark ? const Color(0xFF161B22) : const Color(0xFFFAFCFA),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: const Row(
+          title: Row(
             children: [
-              Icon(Icons.delete_forever_rounded, color: Colors.redAccent),
-              SizedBox(width: 10),
+              const Icon(Icons.delete_forever_rounded, color: Colors.redAccent),
+              const SizedBox(width: 10),
               Expanded(
                 child: FittedBox(
                   fit: BoxFit.scaleDown,
                   alignment: Alignment.centerLeft,
                   child: Text(
-                    'Hapus Semua Notifikasi?',
+                    context.translate('notif_clear_all_title'),
                     maxLines: 1,
                     softWrap: false,
                   ),
@@ -790,14 +793,14 @@ class _NotificationScreenState extends State<NotificationScreen> {
             ],
           ),
           content: Text(
-            'Apakah Anda yakin ingin menghapus seluruh riwayat notifikasi Anda? Tindakan ini tidak dapat dibatalkan.',
+            context.translate('notif_clear_all_body'),
             style: TextStyle(color: isDark ? Colors.white70 : const Color(0xFF5F6E65)),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
               child: Text(
-                'Batal',
+                context.translate('btn_cancel'),
                 style: TextStyle(color: isDark ? Colors.white60 : Colors.grey.shade600),
               ),
             ),
@@ -807,7 +810,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
               onPressed: () => Navigator.pop(context, true),
-              child: const Text('Hapus Semua', style: TextStyle(color: Colors.white)),
+              child: Text(context.translate('notif_clear_all_confirm'), style: const TextStyle(color: Colors.white)),
             ),
           ],
         );
@@ -823,8 +826,8 @@ class _NotificationScreenState extends State<NotificationScreen> {
       await _loadNotifications();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Seluruh notifikasi berhasil dibersihkan'),
+          SnackBar(
+            content: Text(context.translate('notif_clear_all_success')),
             backgroundColor: Colors.redAccent,
           ),
         );
@@ -834,7 +837,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Gagal menghapus semua notifikasi: $e'),
+            content: Text(context.translate('notif_clear_all_failed').replaceFirst('{error}', e.toString())),
             backgroundColor: Colors.redAccent,
           ),
         );
@@ -862,7 +865,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
 
     if (groupId != null && mounted) {
       // Find the group name
-      String groupName = 'Detail Grup';
+      String groupName = context.translate('history_cycle_group_fallback');
       if (notif['groups'] != null && notif['groups']['nama_grup'] != null) {
         groupName = notif['groups']['nama_grup'] as String;
       }
@@ -948,13 +951,13 @@ class _NotificationScreenState extends State<NotificationScreen> {
       final difference = DateTime.now().difference(dateTime);
 
       if (difference.inSeconds < 60) {
-        return 'Baru saja';
+        return context.translate('notif_time_just_now');
       } else if (difference.inMinutes < 60) {
-        return '${difference.inMinutes} menit yang lalu';
+        return context.translate('notif_time_minutes_ago').replaceFirst('{minutes}', difference.inMinutes.toString());
       } else if (difference.inHours < 24) {
-        return '${difference.inHours} jam yang lalu';
+        return context.translate('notif_time_hours_ago').replaceFirst('{hours}', difference.inHours.toString());
       } else if (difference.inDays < 7) {
-        return '${difference.inDays} hari yang lalu';
+        return context.translate('notif_time_days_ago').replaceFirst('{days}', difference.inDays.toString());
       } else {
         return '${dateTime.day}/${dateTime.month}/${dateTime.year}';
       }
@@ -965,24 +968,25 @@ class _NotificationScreenState extends State<NotificationScreen> {
 
   @override
   Widget build(BuildContext context) {
+    Provider.of<SettingsProvider>(context); // Listen to settings changes
     final unreadCount = _notifications.where((n) => !(n['is_read'] as bool? ?? false)).length;
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF161B22) : const Color(0xFFEEEEEE),
       appBar: AppBar(
-        title: const Text('Notifikasi'),
+        title: Text(context.translate('notif_title')),
         actions: [
           if (unreadCount > 0)
             IconButton(
               icon: const Icon(Icons.done_all_rounded),
-              tooltip: 'Tandai semua dibaca',
+              tooltip: context.translate('notif_btn_mark_read'),
               onPressed: _markAllAsRead,
             ),
           if (_notifications.isNotEmpty)
             IconButton(
               icon: const Icon(Icons.delete_sweep_rounded, color: Colors.redAccent),
-              tooltip: 'Hapus semua notifikasi',
+              tooltip: context.translate('notif_btn_clear_all'),
               onPressed: _deleteAllNotifications,
             ),
         ],
@@ -1051,7 +1055,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
       return _buildStatusBadge(
         context,
         icon: Icons.info_outline_rounded,
-        text: 'Permintaan telah diproses',
+        text: context.translate('notif_badge_processed'),
         color: isDark ? Colors.white60 : Colors.grey.shade700,
         bgColor: Colors.grey.withOpacity(0.12),
         borderColor: Colors.grey.withOpacity(0.35),
@@ -1063,7 +1067,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
       return _buildStatusBadge(
         context,
         icon: Icons.check_circle_rounded,
-        text: 'Berhasil Disetujui',
+        text: context.translate('notif_badge_approved'),
         color: AppTheme.primaryGreen,
         bgColor: AppTheme.primaryGreen.withOpacity(0.1),
         borderColor: AppTheme.primaryGreen.withOpacity(0.3),
@@ -1074,7 +1078,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
       return _buildStatusBadge(
         context,
         icon: Icons.cancel_rounded,
-        text: 'Berhasil Ditolak',
+        text: context.translate('notif_badge_rejected'),
         color: Colors.redAccent,
         bgColor: Colors.redAccent.withOpacity(0.1),
         borderColor: Colors.redAccent.withOpacity(0.3),
@@ -1086,7 +1090,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
       return _buildStatusBadge(
         context,
         icon: Icons.cancel_outlined,
-        text: 'Permintaan dibatalkan',
+        text: context.translate('notif_badge_cancelled_label'),
         color: isDark ? Colors.white60 : Colors.grey.shade700,
         bgColor: Colors.grey.withOpacity(0.12),
         borderColor: Colors.grey.withOpacity(0.35),
@@ -1097,7 +1101,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
       return _buildStatusBadge(
         context,
         icon: Icons.cancel_rounded,
-        text: 'Permintaan ditolak',
+        text: context.translate('notif_badge_rejected_label'),
         color: Colors.redAccent,
         bgColor: Colors.redAccent.withOpacity(0.1),
         borderColor: Colors.redAccent.withOpacity(0.3),
@@ -1108,7 +1112,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
       return _buildStatusBadge(
         context,
         icon: Icons.check_circle_rounded,
-        text: 'Permintaan disetujui',
+        text: context.translate('notif_badge_approved_label'),
         color: AppTheme.primaryGreen,
         bgColor: AppTheme.primaryGreen.withOpacity(0.1),
         borderColor: AppTheme.primaryGreen.withOpacity(0.3),
@@ -1120,7 +1124,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
       return _buildStatusBadge(
         context,
         icon: Icons.check_circle_rounded,
-        text: 'Pengajuan lepas Juz disetujui',
+        text: context.translate('notif_badge_release_approved_label'),
         color: AppTheme.primaryGreen,
         bgColor: AppTheme.primaryGreen.withOpacity(0.1),
         borderColor: AppTheme.primaryGreen.withOpacity(0.3),
@@ -1131,7 +1135,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
       return _buildStatusBadge(
         context,
         icon: Icons.cancel_rounded,
-        text: 'Pengajuan lepas Juz ditolak',
+        text: context.translate('notif_badge_release_rejected_label'),
         color: Colors.redAccent,
         bgColor: Colors.redAccent.withOpacity(0.1),
         borderColor: Colors.redAccent.withOpacity(0.3),
@@ -1165,7 +1169,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
               child: ElevatedButton.icon(
                 onPressed: () => _approveReleaseRequest(notif),
                 icon: const Icon(Icons.check_rounded, size: 14, color: Colors.white),
-                label: const Text('Setujui', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                label: Text(context.translate('notif_btn_approve_action'), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppTheme.primaryGreen,
                   foregroundColor: Colors.white,
@@ -1181,7 +1185,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
               child: OutlinedButton.icon(
                 onPressed: () => _rejectReleaseRequest(notif),
                 icon: const Icon(Icons.close_rounded, size: 14, color: Colors.redAccent),
-                label: const Text('Tolak', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.redAccent)),
+                label: Text(context.translate('notif_btn_reject_action'), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.redAccent)),
                 style: OutlinedButton.styleFrom(
                   side: const BorderSide(color: Colors.redAccent, width: 1.2),
                   padding: const EdgeInsets.symmetric(horizontal: 14),
@@ -1200,7 +1204,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
         return _buildStatusBadge(
           context,
           icon: Icons.cancel_outlined,
-          text: 'Permintaan bergabung dibatalkan',
+          text: context.translate('notif_badge_cancelled_label'),
           color: isDark ? Colors.white60 : Colors.grey.shade700,
           bgColor: Colors.grey.withOpacity(0.12),
           borderColor: Colors.grey.withOpacity(0.35),
@@ -1216,7 +1220,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
               child: ElevatedButton.icon(
                 onPressed: () => _approveJoinRequest(notif),
                 icon: const Icon(Icons.check_rounded, size: 14, color: Colors.white),
-                label: const Text('Setujui', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                label: Text(context.translate('notif_btn_approve_action'), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppTheme.primaryGreen,
                   foregroundColor: Colors.white,
@@ -1232,7 +1236,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
               child: OutlinedButton.icon(
                 onPressed: () => _rejectJoinRequest(notif),
                 icon: const Icon(Icons.close_rounded, size: 14, color: Colors.redAccent),
-                label: const Text('Tolak', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.redAccent)),
+                label: Text(context.translate('notif_btn_reject_action'), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.redAccent)),
                 style: OutlinedButton.styleFrom(
                   side: const BorderSide(color: Colors.redAccent, width: 1.2),
                   padding: const EdgeInsets.symmetric(horizontal: 14),
@@ -1284,7 +1288,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
                 ),
                 const SizedBox(height: 24),
                 Text(
-                  'Belum Ada Notifikasi',
+                  context.translate('notif_empty_title'),
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
@@ -1293,7 +1297,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Aktivitas grup Anda akan muncul di sini.',
+                  context.translate('notif_empty_body'),
                   style: TextStyle(
                     fontSize: 14,
                     color: onSurfaceVariant,
@@ -1336,7 +1340,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
 
         if (isSuperseded) {
           type = 'JOIN_CANCELLED';
-          title = 'Permintaan Dibatalkan';
+          title = context.translate('notif_join_cancelled_title');
         }
 
         final cardBg = isRead

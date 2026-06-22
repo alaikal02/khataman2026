@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../theme/app_theme.dart';
 import '../providers/auth_provider.dart';
+import '../providers/settings_provider.dart';
+import '../utils/localization.dart';
 import 'package:provider/provider.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -59,15 +61,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _saveUsername() async {
     final newUsername = _usernameController.text.trim();
     if (newUsername.isEmpty) {
-      _showSnackbar('Username tidak boleh kosong', isError: true);
+      _showSnackbar(context.translate('profile_err_empty_username'), isError: true);
       return;
     }
     if (newUsername.length < 3) {
-      _showSnackbar('Username minimal 3 karakter', isError: true);
+      _showSnackbar(context.translate('profile_err_min_char'), isError: true);
       return;
     }
     if (!RegExp(r'^[a-zA-Z0-9_.]+$').hasMatch(newUsername)) {
-      _showSnackbar('Username hanya boleh huruf, angka, titik (.), dan underscore (_)', isError: true);
+      _showSnackbar(context.translate('profile_err_invalid_char'), isError: true);
       return;
     }
 
@@ -84,13 +86,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _isEditing = false;
         _isSaving = false;
       });
-      _showSnackbar('Username berhasil diubah!');
+      _showSnackbar(context.translate('profile_success_username_changed'));
     } catch (e) {
       setState(() => _isSaving = false);
       if (e.toString().contains('unique') || e.toString().contains('duplicate')) {
-        _showSnackbar('Username sudah dipakai orang lain, coba yang lain', isError: true);
+        _showSnackbar(context.translate('profile_err_username_taken'), isError: true);
       } else {
-        _showSnackbar('Gagal menyimpan: $e', isError: true);
+        _showSnackbar(context.translate('mandiri_save_failed').replaceFirst('{error}', e.toString()), isError: true);
       }
     }
   }
@@ -108,15 +110,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
       context: context,
       builder: (_) => AlertDialog(
         backgroundColor: Theme.of(context).colorScheme.surface,
-        title: Text('Keluar?', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
+        title: Text(context.translate('profile_confirm_logout_title'), style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
         content: Text(
-          'Anda akan keluar dari akun ini.',
+          context.translate('profile_confirm_logout_body'),
           style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Batal'),
+            child: Text(context.translate('btn_cancel')),
           ),
           TextButton(
             onPressed: () {
@@ -125,7 +127,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               auth.signOut();
             },
             style: TextButton.styleFrom(foregroundColor: Colors.redAccent),
-            child: const Text('Ya, Keluar'),
+            child: Text(context.translate('profile_confirm_logout_yes')),
           ),
         ],
       ),
@@ -134,6 +136,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    Provider.of<SettingsProvider>(context); // Listen to settings changes
     final authProvider = Provider.of<AuthProvider>(context);
     final user = _supabase.auth.currentUser;
     final avatarUrl = user?.userMetadata?['avatar_url'] as String?;
@@ -144,7 +147,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        title: const Text('Profil Saya'),
+        title: Text(context.translate('profile_title')),
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         leading: IconButton(
           icon: Icon(Icons.arrow_back_ios_rounded, color: Theme.of(context).colorScheme.onSurface),
@@ -179,7 +182,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                   // ── Display name from Google ─────────────────
                   Text(
-                    user?.userMetadata?['full_name'] as String? ?? 'Pengguna',
+                    user?.userMetadata?['full_name'] as String? ?? context.translate('profile_fallback_username'),
                     style: TextStyle(
                       fontSize: 20, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSurface,
                     ),
@@ -216,7 +219,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 )),
                                 const SizedBox(width: 6),
                                 Tooltip(
-                                  message: 'Aturan Username:\n• Minimal 3 karakter\n• Hanya huruf (a-z), angka (0-9), titik (.), & underscore (_)',
+                                  message: context.translate('profile_username_rules'),
                                   textStyle: const TextStyle(color: Colors.white, fontSize: 11, height: 1.4),
                                   decoration: BoxDecoration(
                                     color: Colors.grey[850],
@@ -241,11 +244,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                     color: AppTheme.primaryGreen.withOpacity(0.12),
                                     borderRadius: BorderRadius.circular(8),
                                   ),
-                                  child: const Row(
+                                  child: Row(
                                     children: [
-                                      Icon(Icons.edit_rounded, size: 14, color: AppTheme.primaryGreen),
-                                      SizedBox(width: 4),
-                                      Text('Ubah', style: TextStyle(color: AppTheme.primaryGreen, fontSize: 13, fontWeight: FontWeight.w600)),
+                                      const Icon(Icons.edit_rounded, size: 14, color: AppTheme.primaryGreen),
+                                      const SizedBox(width: 4),
+                                      Text(context.translate('profile_btn_edit'), style: const TextStyle(color: AppTheme.primaryGreen, fontSize: 13, fontWeight: FontWeight.w600)),
                                     ],
                                   ),
                                 ),
@@ -257,10 +260,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           TextField(
                             controller: _usernameController,
                             style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontSize: 16),
-                            decoration: const InputDecoration(
-                              hintText: 'Masukkan username baru',
+                            decoration: InputDecoration(
+                              hintText: context.translate('profile_hint_new_username'),
                               prefixText: '@',
-                              prefixStyle: TextStyle(color: AppTheme.primaryGreen, fontWeight: FontWeight.w600),
+                              prefixStyle: const TextStyle(color: AppTheme.primaryGreen, fontWeight: FontWeight.w600),
                             ),
                             autofocus: true,
                           ),
@@ -268,9 +271,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              _buildGuidelineRow(context, 'Minimal 3 karakter'),
+                              _buildGuidelineRow(context, context.translate('profile_rule_min_char')),
                               const SizedBox(height: 4),
-                              _buildGuidelineRow(context, 'Hanya huruf, angka, titik (.), dan underscore (_)'),
+                              _buildGuidelineRow(context, context.translate('profile_rule_valid_char')),
                             ],
                           ),
                           const SizedBox(height: 16),
@@ -295,7 +298,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                                     minimumSize: const Size.fromHeight(48),
                                   ),
-                                  child: const Text('Batal', style: TextStyle(fontWeight: FontWeight.w600)),
+                                  child: Text(context.translate('btn_cancel'), style: const TextStyle(fontWeight: FontWeight.w600)),
                                 ),
                               ),
                               const SizedBox(width: 10),
@@ -315,7 +318,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                           width: 20, height: 20,
                                           child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                                         )
-                                      : const Text('Simpan', style: TextStyle(fontWeight: FontWeight.bold)),
+                                      : Text(context.translate('btn_save'), style: const TextStyle(fontWeight: FontWeight.bold)),
                                 ),
                               ),
                             ],
@@ -353,7 +356,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                     child: Column(
                       children: [
-                        _buildInfoRow(Icons.email_rounded, 'Email', email),
+                        _buildInfoRow(Icons.email_rounded, context.translate('profile_tile_email'), email),
                         Divider(
                           color: isDark 
                               ? AppTheme.primaryGreen.withOpacity(0.15) 
@@ -363,7 +366,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                         _buildInfoRow(
                           Icons.login_rounded,
-                          'Login dengan',
+                          context.translate('profile_tile_login_with'),
                           'Google',
                           trailing: Image.network(
                             'https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg',
@@ -380,9 +383,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         ),
                         _buildInfoRow(
                           Icons.calendar_today_rounded,
-                          'Bergabung sejak',
+                          context.translate('profile_tile_joined_since'),
                           _profile?['created_at'] != null
-                              ? _formatDate(_profile!['created_at'])
+                              ? _formatDate(context, _profile!['created_at'])
                               : '-',
                         ),
                       ],
@@ -396,7 +399,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     child: OutlinedButton.icon(
                       onPressed: () => _confirmLogout(authProvider),
                       icon: const Icon(Icons.logout_rounded, color: Colors.redAccent, size: 20),
-                      label: const Text('Keluar dari Akun', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+                      label: Text(context.translate('profile_btn_logout'), style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: Colors.redAccent,
                         side: const BorderSide(color: Colors.redAccent, width: 1.5),
@@ -439,11 +442,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  String _formatDate(String isoDate) {
+  String _formatDate(BuildContext context, String isoDate) {
     try {
       final date = DateTime.parse(isoDate);
-      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Ags', 'Sep', 'Okt', 'Nov', 'Des'];
-      return '${date.day} ${months[date.month - 1]} ${date.year}';
+      final monthKeys = [
+        'month_jan_short',
+        'month_feb_short',
+        'month_mar_short',
+        'month_apr_short',
+        'month_may_short',
+        'month_jun_short',
+        'month_jul_short',
+        'month_aug_short',
+        'month_sep_short',
+        'month_oct_short',
+        'month_nov_short',
+        'month_dec_short',
+      ];
+      final monthName = context.translate(monthKeys[date.month - 1]);
+      return '${date.day} $monthName ${date.year}';
     } catch (_) {
       return isoDate;
     }
