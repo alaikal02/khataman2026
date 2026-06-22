@@ -16,6 +16,7 @@ import 'history_screen.dart';
 import '../services/personal_history_service.dart';
 import 'package:app_links/app_links.dart';
 import 'dart:async';
+import 'dart:ui' show PathMetric;
 import '../features/group/presentation/group_detail_screen.dart';
 import 'surah_info_screen.dart';
 import 'prayer_time_screen.dart';
@@ -23,6 +24,7 @@ import 'qibla_screen.dart';
 import 'package:quran/quran.dart' as quran;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'mushaf_list_screen.dart';
+import '../components/progress_update_sheet.dart';
 import '../services/widget_update_service.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -42,7 +44,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
   StreamSubscription<Uri>? _linkSubscription;
   List<Map<String, dynamic>> _activePrograms = [];
   bool _loadingActivePrograms = true;
-  bool _isExpanded = false;
   late AnimationController _shimmerController;
 
   @override
@@ -143,9 +144,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
         setState(() {
           _activePrograms = programs;
           _loadingActivePrograms = false;
-          if (programs.length <= 2) {
-            _isExpanded = false;
-          }
         });
       }
     } catch (e) {
@@ -497,6 +495,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
                   _buildPersonalHistoryCard(context),
                   // Active Khataman Section
                   _buildActiveKhatamanSection(context),
+                  // Quick Update Progress Button (Always visible)
+                  _buildQuickUpdateProgressButton(context),
                   const SizedBox(height: 18),
                   // Section Title
                   Text(
@@ -731,12 +731,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
       );
     }
 
-    if (_activePrograms.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    final hasMoreThanTwo = _activePrograms.length > 2;
-
     return Padding(
       padding: const EdgeInsets.only(top: 12),
       child: Column(
@@ -753,12 +747,55 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
 
           const SizedBox(height: 10),
           _buildActiveKhatamanList(),
-          if (hasMoreThanTwo) ...[
-            const SizedBox(height: 4),
-            _buildExpandCollapseButton(),
-          ],
         ],
       ),
+    );
+  }
+
+  Widget _buildQuickUpdateProgressButton(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(top: 4, bottom: 8),
+      child: OutlinedButton.icon(
+        onPressed: () => _showProgressUpdateSheet(context),
+        icon: const Icon(Icons.playlist_add_check_rounded, color: AppTheme.primaryGreen, size: 20),
+        label: Text(
+          context.translate('home_btn_quick_update'),
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            color: AppTheme.primaryGreen,
+          ),
+        ),
+        style: OutlinedButton.styleFrom(
+          side: BorderSide(
+            color: AppTheme.primaryGreen.withOpacity(0.5),
+            width: 1.2,
+          ),
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          backgroundColor: AppTheme.primaryGreen.withOpacity(isDark ? 0.08 : 0.04),
+        ),
+      ),
+    );
+  }
+
+  void _showProgressUpdateSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return ProgressUpdateSheet(
+          onSaved: () {
+            _loadActivePrograms();
+            _loadPersonalStats();
+          },
+        );
+      },
     );
   }
 
@@ -848,58 +885,176 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
   }
 
   Widget _buildActiveKhatamanList() {
-    if (_isExpanded) {
-      return ConstrainedBox(
-        constraints: BoxConstraints(
-          maxHeight: MediaQuery.of(context).size.height * 0.45,
-        ),
-        child: SingleChildScrollView(
-          physics: const ClampingScrollPhysics(),
-          child: Column(
-            children: _activePrograms.map((item) => _buildShortcutCard(context, item)).toList(),
-          ),
-        ),
-      );
-    } else {
-      final displayItems = _activePrograms.take(2).toList();
-      return Column(
-        children: displayItems.map((item) => _buildShortcutCard(context, item)).toList(),
-      );
+    final list = <Widget>[];
+    
+    // Add up to 2 active program cards
+    final displayItems = _activePrograms.take(2).toList();
+    for (var item in displayItems) {
+      list.add(_buildShortcutCard(context, item));
     }
+    
+    // Fill the rest with empty placeholder cards to make sure we always show exactly 2 slots
+    while (list.length < 2) {
+      list.add(_buildEmptyPlaceholderCard());
+    }
+    
+    return Column(
+      children: list,
+    );
   }
 
-  Widget _buildExpandCollapseButton() {
-    return InkWell(
-      onTap: () {
-        setState(() {
-          _isExpanded = !_isExpanded;
-        });
-      },
-      borderRadius: BorderRadius.circular(12),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              _isExpanded ? context.translate('home_show_less') : context.translate('home_show_more'),
-              style: const TextStyle(
-                color: AppTheme.primaryGreen,
-                fontWeight: FontWeight.bold,
-                fontSize: 13,
+  Widget _buildEmptyPlaceholderCard() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final borderColor = isDark 
+        ? AppTheme.primaryGreen.withOpacity(0.15) 
+        : Colors.grey.withOpacity(0.3);
+    final textColor = isDark ? Colors.white30 : Colors.black38;
+    final titleColor = isDark ? Colors.white54 : Colors.black54;
+
+    return GestureDetector(
+      onTap: () => _showStartKhatamanBottomSheet(context),
+      child: Container(
+        height: 78,
+        margin: const EdgeInsets.only(bottom: 12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          color: isDark ? Colors.white.withOpacity(0.01) : Colors.black.withOpacity(0.01),
+        ),
+        child: CustomPaint(
+          painter: DashedRectPainter(
+            color: borderColor,
+            strokeWidth: 1.2,
+            gap: 4.0,
+            dash: 6.0,
+            radius: 16.0,
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.add_circle_outline_rounded,
+                color: isDark ? AppTheme.primaryGreen.withOpacity(0.5) : AppTheme.primaryGreen.withOpacity(0.7),
+                size: 22,
               ),
-            ),
-            const SizedBox(width: 4),
-            Icon(
-              _isExpanded
-                  ? Icons.keyboard_arrow_up_rounded
-                  : Icons.keyboard_arrow_down_rounded,
-              color: AppTheme.primaryGreen,
-              size: 20,
-            ),
-          ],
+              const SizedBox(width: 10),
+              Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    context.translate('home_empty_slot_title'),
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: titleColor,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    context.translate('home_empty_slot_desc'),
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: textColor,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
+    );
+  }
+
+  void _showStartKhatamanBottomSheet(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF161B22) : const Color(0xFFFCFDFC),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            border: Border.all(
+              color: isDark ? AppTheme.primaryGreen.withOpacity(0.3) : AppTheme.primaryGreen.withOpacity(0.15),
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 45,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 18),
+                  decoration: BoxDecoration(
+                    color: isDark ? Colors.white24 : Colors.black12,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              Text(
+                'Mulai Khataman Baru',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
+              ),
+              const SizedBox(height: 16),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2ECC71).withOpacity(0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.person_rounded, color: Color(0xFF2ECC71)),
+                ),
+                title: const Text('Khataman Mandiri', style: TextStyle(fontWeight: FontWeight.bold)),
+                subtitle: const Text('Lacak progres membaca pribadi Anda'),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const MandiriScreen()),
+                  ).then((_) {
+                    _loadActivePrograms();
+                    _loadPersonalStats();
+                  });
+                },
+              ),
+              const Divider(height: 16, indent: 56),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF6C63FF).withOpacity(0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.group_rounded, color: Color(0xFF6C63FF)),
+                ),
+                title: const Text('Khataman Grup', style: TextStyle(fontWeight: FontWeight.bold)),
+                subtitle: const Text('Khataman Al-Quran bersama anggota grup'),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const GroupScreen()),
+                  ).then((_) {
+                    _loadActivePrograms();
+                    _loadPersonalStats();
+                  });
+                },
+              ),
+              const SizedBox(height: 12),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -1543,4 +1698,56 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
       }
     }
   }
+}
+
+class DashedRectPainter extends CustomPainter {
+  final Color color;
+  final double strokeWidth;
+  final double gap;
+  final double dash;
+  final double radius;
+
+  DashedRectPainter({
+    required this.color,
+    this.strokeWidth = 1.2,
+    this.gap = 4.0,
+    this.dash = 6.0,
+    this.radius = 16.0,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Paint paint = Paint()
+      ..color = color
+      ..strokeWidth = strokeWidth
+      ..style = PaintingStyle.stroke;
+
+    final Path path = Path();
+    path.addRRect(RRect.fromRectAndRadius(
+      Rect.fromLTWH(0, 0, size.width, size.height),
+      Radius.circular(radius),
+    ));
+
+    final Path dashedPath = Path();
+    double distance = 0.0;
+    for (final PathMetric measurePath in path.computeMetrics()) {
+      while (distance < measurePath.length) {
+        dashedPath.addPath(
+          measurePath.extractPath(distance, distance + dash),
+          Offset.zero,
+        );
+        distance += dash + gap;
+      }
+      distance = 0.0;
+    }
+    canvas.drawPath(dashedPath, paint);
+  }
+
+  @override
+  bool shouldRepaint(DashedRectPainter oldDelegate) =>
+      color != oldDelegate.color ||
+      strokeWidth != oldDelegate.strokeWidth ||
+      gap != oldDelegate.gap ||
+      dash != oldDelegate.dash ||
+      radius != oldDelegate.radius;
 }
