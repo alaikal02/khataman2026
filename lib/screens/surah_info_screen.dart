@@ -187,7 +187,7 @@ class _SurahInfoScreenState extends State<SurahInfoScreen> {
                                       fontSize: 18,
                                       fontWeight: FontWeight.bold,
                                       color: AppTheme.primaryGreen,
-                                      fontFamily: 'sans-serif',
+                                      fontFamily: 'LPMQ-IsepMisbah',
                                     ),
                                   ),
                                 ],

@@ -335,7 +335,7 @@ class _MushafListScreenState extends State<MushafListScreen> with SingleTickerPr
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
                                 color: AppTheme.primaryGreen,
-                                fontFamily: 'sans-serif',
+                                fontFamily: 'LPMQ-IsepMisbah',
                               ),
                             ),
                           ],

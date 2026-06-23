@@ -86,7 +86,7 @@ void showDoaKhatamBottomSheet(
                       fontSize: 22,
                       height: 1.8,
                       fontWeight: FontWeight.w600,
-                      fontFamily: 'serif',
+                      fontFamily: 'LPMQ-IsepMisbah',
                     ),
                   ),
                 ),

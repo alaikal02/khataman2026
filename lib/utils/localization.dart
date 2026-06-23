@@ -436,7 +436,7 @@ const Map<String, Map<String, String>> localizedStrings = {
 
     // Mushaf Reader Screen
     'mushaf_reader_bookmark_saved': 'Penanda buku disimpan: Surah {surah} ayat {ayat}',
-    'mushaf_reader_err_reverse': '🔒 Progres tidak bisa dimundurkan! Silakan pilih ayat yang lebih tinggi.',
+    'mushaf_reader_err_reverse': 'Anda telah membaca ayat ini.',
     'mushaf_reader_log_juz_completed_mushaf': 'Alhamdulillah, telah menyelesaikan Juz {juz} melalui Mushaf!',
     'mushaf_reader_notif_completed_title': 'Juz Selesai Dibaca',
     'mushaf_reader_notif_completed_body': '{user} telah menyelesaikan Juz {juz} di grup "{group}" melalui Mushaf',
@@ -455,6 +455,15 @@ const Map<String, Map<String, String>> localizedStrings = {
     'mushaf_reader_save_progress_label': 'Simpan Progres',
     'mushaf_reader_juz_completed_banner': '✨ Alhamdulillah, Juz ini telah selesai dibaca!',
     'mushaf_reader_tap_instruction_banner': '💡 Ketuk ayat terakhir yang Anda baca untuk memperbarui progres.',
+    'mushaf_reader_no_program_title': 'Tidak ada program aktif untuk Juz {juz}',
+    'mushaf_reader_no_program_desc': 'Mulai khataman mandiri atau cari grup untuk melacak progres membaca Juz ini.',
+    'mushaf_reader_btn_start_mandiri': 'Mulai Mandiri',
+    'mushaf_reader_btn_find_group': 'Cari Grup',
+    'mushaf_reader_switch_program_label': 'Pilih Program:',
+    'mushaf_reader_btn_select_verse': 'Pilih Ayat',
+    'mushaf_reader_dialog_select_verse_title': 'Pilih Ayat Progres',
+    'mushaf_reader_select_verse_tip': 'Tip: Anda juga bisa langsung mengetuk teks ayat mana saja di atas untuk memilih.',
+    'mushaf_reader_btn_apply': 'Terapkan',
 
     // Surah Info Screen
     'surah_info_title': 'Info & Makna Surah',
@@ -1201,7 +1210,7 @@ const Map<String, Map<String, String>> localizedStrings = {
 
     // Mushaf Reader Screen
     'mushaf_reader_bookmark_saved': 'Bookmark saved: Surah {surah} ayah {ayat}',
-    'mushaf_reader_err_reverse': '🔒 Progress cannot go backwards! Please select a higher verse.',
+    'mushaf_reader_err_reverse': 'You have already read this verse.',
     'mushaf_reader_log_juz_completed_mushaf': 'Alhamdulillah, completed Juz {juz} via Mushaf!',
     'mushaf_reader_notif_completed_title': 'Juz Completed',
     'mushaf_reader_notif_completed_body': '{user} has completed Juz {juz} in group "{group}" via Mushaf',
@@ -1220,6 +1229,15 @@ const Map<String, Map<String, String>> localizedStrings = {
     'mushaf_reader_save_progress_label': 'Save Progress',
     'mushaf_reader_juz_completed_banner': '✨ Alhamdulillah, this Juz has been completed!',
     'mushaf_reader_tap_instruction_banner': '💡 Tap the last ayah you read to update progress.',
+    'mushaf_reader_no_program_title': 'No active program for Juz {juz}',
+    'mushaf_reader_no_program_desc': 'Start a personal khataman or find a group to track reading progress for this Juz.',
+    'mushaf_reader_btn_start_mandiri': 'Start Personal',
+    'mushaf_reader_btn_find_group': 'Find Group',
+    'mushaf_reader_switch_program_label': 'Select Program:',
+    'mushaf_reader_btn_select_verse': 'Select Ayah',
+    'mushaf_reader_dialog_select_verse_title': 'Select Progress Ayah',
+    'mushaf_reader_select_verse_tip': 'Tip: You can also tap any verse text above directly to select.',
+    'mushaf_reader_btn_apply': 'Apply',
 
     // Surah Info Screen
     'surah_info_title': 'Surah Info & Meaning',

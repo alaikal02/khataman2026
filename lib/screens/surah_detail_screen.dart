@@ -69,7 +69,7 @@ class SurahDetailScreen extends StatelessWidget {
                         arabicName,
                         style: const TextStyle(
                           fontSize: 32,
-                          fontFamily: 'sans-serif',
+                          fontFamily: 'LPMQ-IsepMisbah',
                           color: Colors.white,
                           fontWeight: FontWeight.bold,
                         ),

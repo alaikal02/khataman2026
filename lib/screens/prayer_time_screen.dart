@@ -800,7 +800,7 @@ class _PrayerTimeScreenState extends State<PrayerTimeScreen>
                   style: TextStyle(
                     fontSize: 11,
                     color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.7),
-                    fontFamily: 'serif',
+                    fontFamily: 'LPMQ-IsepMisbah',
                   ),
                 ),
               ],
