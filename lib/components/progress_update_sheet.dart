@@ -72,23 +72,30 @@ class _ProgressUpdateSheetState extends State<ProgressUpdateSheet> {
       return;
     }
 
+    // 1. Fetch Mandiri Progress
     try {
-      // 1. Fetch Mandiri Progress
       final mandiriData = await _supabase
           .from('khataman_mandiri')
           .select()
           .eq('user_id', userId);
+      _mandiriProgress = List<Map<String, dynamic>>.from(mandiriData);
+    } catch (e) {
+      debugPrint('Error fetching mandiri progress: $e');
+    }
 
-      // 2. Fetch Active Group Slots
+    // 2. Fetch Active Group Slots
+    try {
       final slotsData = await _supabase
           .from('slot_khataman')
-          .select('*, putaran_siklus!inner(group_id, groups:groups(nama_grup, id_group, kode_gk_unik))')
+          .select('*, putaran_siklus!inner(group_id, groups:groups!putaran_siklus_group_id_fkey(nama_grup, id_group, kode_gk_unik))')
           .eq('user_id', userId)
           .eq('putaran_siklus.status_aktif_selesai', 'AKTIF');
-
-      _mandiriProgress = List<Map<String, dynamic>>.from(mandiriData);
       _groupSlots = List<Map<String, dynamic>>.from(slotsData as List);
+    } catch (e) {
+      debugPrint('Error fetching group slots: $e');
+    }
 
+    try {
       // Build program options
       _programOptions = [];
       
@@ -514,7 +521,7 @@ class _ProgressUpdateSheetState extends State<ProgressUpdateSheet> {
         left: 24,
         right: 24,
         top: 14,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+        bottom: MediaQuery.of(context).viewInsets.bottom + MediaQuery.of(context).padding.bottom + 16,
       ),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF161B22) : const Color(0xFFFCFDFC),

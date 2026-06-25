@@ -80,6 +80,11 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
   Timer? _scrollDebounceTimer;
   List<double> _itemOffsets = [];
   bool _showSurahInfoTooltip = false;
+  bool _isMinimized = false;
+  bool _minimizeToLeft = false;
+  bool _showNextJuzButton = false;
+  double? _bubbleLeft;
+  double? _bubbleTop;
 
   String _cleanArabicText(String text) {
     // 1. Replace Uthmani sukun (small high jazm) with normal sukun
@@ -261,13 +266,41 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
     _loadSettings();
     _initVerses();
     _scrollController.addListener(_onScroll);
-    if (widget.slotId == null && !widget.selectForMandiri) {
-      _loadAllActivePrograms();
-    } else {
+    
+    // Set initial preset program context synchronously if preset
+    if (widget.slotId != null || widget.selectForMandiri) {
+      if (widget.slotId != null) {
+        _currentProgram = {
+          'type': 'GROUP',
+          'id': 'group_${widget.slotId}',
+          'juz': widget.initialJuzNumber ?? _activeJuz,
+          'name': '${widget.groupName ?? 'Grup'} (Juz ${widget.initialJuzNumber ?? _activeJuz})',
+          'slotId': widget.slotId,
+          'groupId': widget.selectForGroupId,
+          'groupName': widget.groupName,
+          'ayat_terakhir': 0,
+        };
+      } else {
+        _currentProgram = {
+          'type': 'MANDIRI',
+          'id': 'mandiri_${widget.initialJuzNumber ?? _activeJuz}',
+          'juz': widget.initialJuzNumber ?? _activeJuz,
+          'name': 'Khataman Mandiri (Juz ${widget.initialJuzNumber ?? _activeJuz})',
+          'ayat_terakhir': 0,
+        };
+      }
       _fetchDBSavedProgress().then((_) {
-        _updateSelectedProgramContext();
+        if (mounted) {
+          setState(() {
+            if (_currentProgram != null) {
+              _currentProgram!['ayat_terakhir'] = _dbSavedAbsoluteIndex;
+            }
+          });
+        }
       });
     }
+
+    _loadAllActivePrograms();
   }
 
   Future<void> _loadSettings() async {
@@ -396,35 +429,56 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
 
   Future<void> _loadAllActivePrograms() async {
     final userId = _supabase.auth.currentUser?.id;
-    if (userId == null) return;
+    debugPrint('DEBUG_MR: _loadAllActivePrograms starting. userId: $userId');
+    if (userId == null) {
+      debugPrint('DEBUG_MR: userId is null, returning early.');
+      return;
+    }
 
+    final List<Map<String, dynamic>> programs = [];
+
+    // 1. Fetch Mandiri (all rows to check completions)
     try {
-      // 1. Fetch Mandiri (non-completed ones)
+      debugPrint('DEBUG_MR: Fetching khataman_mandiri...');
       final mandiriData = await _supabase
           .from('khataman_mandiri')
           .select()
-          .eq('user_id', userId)
-          .eq('selesai', false);
+          .eq('user_id', userId);
+      debugPrint('DEBUG_MR: Fetching khataman_mandiri done. Count: ${mandiriData.length}');
 
-      // 2. Fetch Active Group Slots claimed by user
+      // Convert mandiriData to a Map for fast lookup
+      final Map<int, Map<String, dynamic>> mandiriMap = {};
+      for (var row in mandiriData) {
+        final juz = row['nomor_juz'] as int;
+        mandiriMap[juz] = row;
+      }
+
+      // For every Juz 1 to 30, add as active Mandiri program
+      for (int juzNum = 1; juzNum <= 30; juzNum++) {
+        final row = mandiriMap[juzNum];
+        programs.add({
+          'type': 'MANDIRI',
+          'id': 'mandiri_$juzNum',
+          'juz': juzNum,
+          'name': 'Khataman Mandiri (Juz $juzNum)',
+          'ayat_terakhir': row != null ? (row['ayat_terakhir'] as int? ?? 0) : 0,
+        });
+      }
+      debugPrint('DEBUG_MR: Mandiri programs generated. Total programs currently: ${programs.length}');
+    } catch (e) {
+      debugPrint('DEBUG_MR: Error loading active mandiri programs: $e');
+    }
+
+    // 2. Fetch Active Group Slots claimed by user
+    try {
+      debugPrint('DEBUG_MR: Fetching active group slots...');
       final slotsData = await _supabase
           .from('slot_khataman')
-          .select('*, putaran_siklus!inner(group_id, groups:groups(nama_grup, id_group, kode_gk_unik))')
+          .select('*, putaran_siklus!inner(group_id, groups:groups!putaran_siklus_group_id_fkey(nama_grup, id_group, kode_gk_unik))')
           .eq('user_id', userId)
           .eq('status_checklist', false)
           .eq('putaran_siklus.status_aktif_selesai', 'AKTIF');
-
-      final List<Map<String, dynamic>> programs = [];
-
-      for (var row in mandiriData) {
-        programs.add({
-          'type': 'MANDIRI',
-          'id': 'mandiri_${row['nomor_juz']}',
-          'juz': row['nomor_juz'] as int,
-          'name': 'Khataman Mandiri (Juz ${row['nomor_juz']})',
-          'ayat_terakhir': row['ayat_terakhir'] as int? ?? 0,
-        });
-      }
+      debugPrint('DEBUG_MR: Fetching active group slots done. Count: ${slotsData.length}');
 
       for (var slot in slotsData as List) {
         final putaran = slot['putaran_siklus'] as Map<String, dynamic>?;
@@ -443,19 +497,22 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
           'ayat_terakhir': slot['ayat_terakhir_input'] as int? ?? 0,
         });
       }
-
-      if (mounted) {
-        setState(() {
-          _userPrograms = programs;
-          _updateSelectedProgramContext();
-        });
-      }
+      debugPrint('DEBUG_MR: Group slots added. Total programs count: ${programs.length}');
     } catch (e) {
-      debugPrint('Error loading user programs: $e');
+      debugPrint('DEBUG_MR: Error loading active group slots: $e');
+    }
+
+    if (mounted) {
+      setState(() {
+        _userPrograms = programs;
+        debugPrint('DEBUG_MR: setState called with ${programs.length} programs.');
+        _updateSelectedProgramContext();
+      });
     }
   }
 
   void _updateSelectedProgramContext() {
+    debugPrint('DEBUG_MR: _updateSelectedProgramContext starting. selectForMandiri: ${widget.selectForMandiri}, slotId: ${widget.slotId}');
     if (widget.slotId != null || widget.selectForMandiri) {
       // Locked context
       if (_currentProgram == null) {
@@ -480,6 +537,7 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
           };
         }
       }
+      debugPrint('DEBUG_MR: Locked context set. _currentProgram: $_currentProgram');
       return;
     }
 
@@ -488,8 +546,10 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
     if (_selectedVerse != null) {
       targetJuz = quran.getJuzNumber(_selectedVerse!.surahNumber, _selectedVerse!.verseNumber);
     }
+    debugPrint('DEBUG_MR: Dynamic context mode. targetJuz: $targetJuz, _activeJuz: $_activeJuz, selectedVerse: ${_selectedVerse?.surahNumber}:${_selectedVerse?.verseNumber}');
 
     final matching = _userPrograms.where((p) => p['juz'] == targetJuz).toList();
+    debugPrint('DEBUG_MR: Matching programs count for Juz $targetJuz: ${matching.length}. Matching: $matching');
 
     if (matching.isNotEmpty) {
       final currentIsStillMatching = _currentProgram != null && 
@@ -500,12 +560,21 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
           _currentProgram = matching.first;
           _dbSavedAbsoluteIndex = _currentProgram!['ayat_terakhir'] as int;
         });
+        debugPrint('DEBUG_MR: _currentProgram updated dynamically to: $_currentProgram, _dbSavedAbsoluteIndex: $_dbSavedAbsoluteIndex');
+      } else {
+        final updatedProg = matching.firstWhere((p) => p['id'] == _currentProgram!['id']);
+        setState(() {
+          _currentProgram = updatedProg;
+          _dbSavedAbsoluteIndex = updatedProg['ayat_terakhir'] as int;
+        });
+        debugPrint('DEBUG_MR: _currentProgram updated details from DB: $_currentProgram, _dbSavedAbsoluteIndex: $_dbSavedAbsoluteIndex');
       }
     } else {
       setState(() {
         _currentProgram = null;
         _dbSavedAbsoluteIndex = 0;
       });
+      debugPrint('DEBUG_MR: No matching programs found for Juz $targetJuz. _currentProgram reset to null.');
     }
   }
 
@@ -527,7 +596,7 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Khataman Mandiri untuk Juz $juzNum berhasil dimulai!'),
+            content: Text('Khataman Mandiri untuk Juz $juzNum berhasil dimulai!', style: const TextStyle(color: Colors.white)),
             backgroundColor: AppTheme.primaryGreen,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -544,6 +613,98 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
     setState(() {
       _currentProgram = newProgram;
       _dbSavedAbsoluteIndex = newProgram['ayat_terakhir'] as int;
+    });
+
+    final int newJuz = newProgram['juz'] as int;
+    _changeJuz(newJuz, targetVerseAbsoluteIndex: newProgram['ayat_terakhir'] as int?);
+  }
+
+  void _changeJuz(int juzNum, {int? targetVerseAbsoluteIndex}) {
+    if (juzNum == _activeJuz) {
+      if (targetVerseAbsoluteIndex != null && targetVerseAbsoluteIndex > 0) {
+        int idx = 0;
+        int currentAbsolute = 0;
+        final surahMap = quran.getSurahAndVersesFromJuz(juzNum);
+        bool found = false;
+        for (var entry in surahMap.entries) {
+          int sNum = entry.key;
+          int start = entry.value[0];
+          int end = entry.value[1];
+          int count = end - start + 1;
+          
+          if (currentAbsolute + count >= targetVerseAbsoluteIndex) {
+            int verseNum = start + (targetVerseAbsoluteIndex - currentAbsolute - 1);
+            int itemIdx = _verses.indexWhere((v) => v.surahNumber == sNum && v.verseNumber == verseNum);
+            if (itemIdx != -1) {
+              idx = itemIdx;
+              found = true;
+            }
+            break;
+          } else {
+            currentAbsolute += count;
+          }
+        }
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _scrollToIndex(found ? idx : 0);
+        });
+      }
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _activeJuz = juzNum;
+      _selectedVerse = null;
+      final surahMap = quran.getSurahAndVersesFromJuz(juzNum);
+      _verses = [];
+      surahMap.forEach((surahNum, bounds) {
+        for (int i = bounds[0]; i <= bounds[1]; i++) {
+          _verses.add(VerseItem(surahNumber: surahNum, verseNumber: i));
+        }
+      });
+      _totalAyatInJuz = _verses.length;
+      
+      _dbSavedAbsoluteIndex = _currentProgram != null ? (_currentProgram!['ayat_terakhir'] as int? ?? 0) : 0;
+      
+      if (_verses.isNotEmpty) {
+        _currentVisibleSurah = _verses.first.surahNumber;
+      }
+      
+      _isLoading = false;
+    });
+
+    _safePrecomputeOffsets();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (targetVerseAbsoluteIndex != null && targetVerseAbsoluteIndex > 0) {
+        int idx = 0;
+        int currentAbsolute = 0;
+        final surahMap = quran.getSurahAndVersesFromJuz(juzNum);
+        bool found = false;
+        for (var entry in surahMap.entries) {
+          int sNum = entry.key;
+          int start = entry.value[0];
+          int end = entry.value[1];
+          int count = end - start + 1;
+          
+          if (currentAbsolute + count >= targetVerseAbsoluteIndex) {
+            int verseNum = start + (targetVerseAbsoluteIndex - currentAbsolute - 1);
+            int itemIdx = _verses.indexWhere((v) => v.surahNumber == sNum && v.verseNumber == verseNum);
+            if (itemIdx != -1) {
+              idx = itemIdx;
+              found = true;
+            }
+            break;
+          } else {
+            currentAbsolute += count;
+          }
+        }
+        _scrollToIndex(found ? idx : 0);
+      } else {
+        if (_scrollController.hasClients) {
+          _scrollController.jumpTo(0.0);
+        }
+      }
     });
   }
 
@@ -582,9 +743,12 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(context.translate('mushaf_reader_bookmark_saved')
-              .replaceFirst('{surah}', surahName)
-              .replaceFirst('{ayat}', verse.verseNumber.toString())),
+          content: Text(
+            context.translate('mushaf_reader_bookmark_saved')
+                .replaceFirst('{surah}', surahName)
+                .replaceFirst('{ayat}', verse.verseNumber.toString()),
+            style: const TextStyle(color: Colors.white),
+          ),
           duration: const Duration(seconds: 2),
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -618,7 +782,7 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
     if (absoluteIndex < _dbSavedAbsoluteIndex && _dbSavedAbsoluteIndex > 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(context.translate('mushaf_reader_err_reverse')),
+          content: Text(context.translate('mushaf_reader_err_reverse'), style: const TextStyle(color: Colors.white)),
           backgroundColor: Colors.redAccent,
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -712,7 +876,7 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
             : context.translate('mushaf_reader_success_saved');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(contentText),
+            content: Text(contentText, style: const TextStyle(color: Colors.white)),
             backgroundColor: isComplete ? AppTheme.primaryGreen : const Color(0xFF323232),
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -739,7 +903,10 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(context.translate('mushaf_reader_err_save').replaceFirst('{error}', e.toString())),
+            content: Text(
+              context.translate('mushaf_reader_err_save').replaceFirst('{error}', e.toString()),
+              style: const TextStyle(color: Colors.white),
+            ),
             backgroundColor: Colors.redAccent,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -864,6 +1031,7 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
   Widget build(BuildContext context) {
     Provider.of<SettingsProvider>(context); // Listen to settings changes
     final isDark = Theme.of(context).brightness == Brightness.dark;
+
     
     // Page Title
     final isSurahMode = widget.initialSurahNumber != null && widget.initialJuzNumber == null;
@@ -900,102 +1068,140 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
       },
       child: Scaffold(
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-        appBar: AppBar(
-        title: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(pageTitle, style: const TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(width: 6),
-            GestureDetector(
-              onTap: () {
-                setState(() {
-                  _showSurahInfoTooltip = !_showSurahInfoTooltip;
-                });
-              },
-              child: Icon(
-                Icons.info_outline_rounded,
-                size: 18,
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
-        ),
-        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back_ios_rounded, color: Theme.of(context).colorScheme.onSurface),
-          onPressed: () => Navigator.pop(context),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.text_fields_rounded),
-            tooltip: context.translate('mushaf_reader_settings_title'),
-            onPressed: _showSettingsBottomSheet,
+        body: Container(
+          decoration: BoxDecoration(
+            gradient: isDark ? AppTheme.darkBgGradient : AppTheme.lightBgGradient,
           ),
-        ],
-      ),
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: isDark ? AppTheme.darkBgGradient : AppTheme.lightBgGradient,
-        ),
-        child: SafeArea(
           child: _isLoading
               ? const Center(child: CircularProgressIndicator(color: AppTheme.primaryGreen))
-              : Column(
-                  children: [
-                    AnimatedCrossFade(
-                      firstChild: _buildStickySurahHeader(isDark),
-                      secondChild: const SizedBox(width: double.infinity),
-                      crossFadeState: !isSurahMode && _scrollOffset > 80 && _currentVisibleSurah != null
-                          ? CrossFadeState.showFirst
-                          : CrossFadeState.showSecond,
-                      duration: const Duration(milliseconds: 200),
-                    ),
-                    Expanded(
-                      child: Stack(
-                        children: [
-                          Positioned.fill(
-                            child: ListView.builder(
-                              controller: _scrollController,
-                              padding: const EdgeInsets.only(
-                                left: 16,
-                                right: 16,
-                                top: 12,
-                                bottom: 240, // Bottom padding to prevent content from being covered by floating sync bar
-                              ),
-                              itemCount: _verses.length,
-                              itemBuilder: (context, index) {
-                                final item = _verses[index];
-                                final isSelected = _selectedVerse != null && 
-                                    _selectedVerse!.surahNumber == item.surahNumber &&
-                                    _selectedVerse!.verseNumber == item.verseNumber;
+              : LayoutBuilder(
+                  builder: (context, constraints) {
+                    final parentWidth = constraints.maxWidth;
+                    final parentHeight = constraints.maxHeight;
 
-                                final showSurahHeader = index == 0 || 
-                                    _verses[index - 1].surahNumber != item.surahNumber;
+                    final statusBarHeight = MediaQuery.of(context).padding.top;
+                    final minTop = statusBarHeight + 16.0;
+                    final maxTop = parentHeight - 72.0;
+                    const minLeft = 16.0;
+                    final maxLeft = parentWidth - 72.0;
 
-                                return Column(
-                                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                                  children: [
-                                    if (showSurahHeader && item.surahNumber != 9) _buildBismillah(isDark),
-                                    _buildVerseRow(item, index, isSelected, isDark),
-                                  ],
-                                );
-                              },
+                    _bubbleLeft ??= _minimizeToLeft ? minLeft : maxLeft;
+                    _bubbleTop ??= parentHeight - 120.0;
+                    _bubbleLeft = _bubbleLeft!.clamp(minLeft, maxLeft);
+                    _bubbleTop = _bubbleTop!.clamp(minTop, maxTop);
+
+                    return Stack(
+                      children: [
+                        Positioned.fill(
+                          child: SafeArea(
+                            child: Column(
+                              children: [
+                                _buildCustomAppBar(context, pageTitle),
+                                AnimatedCrossFade(
+                                  firstChild: _buildStickySurahHeader(isDark),
+                                  secondChild: const SizedBox(width: double.infinity),
+                                  crossFadeState: !isSurahMode && _scrollOffset > 80 && _currentVisibleSurah != null
+                                      ? CrossFadeState.showFirst
+                                      : CrossFadeState.showSecond,
+                                  duration: const Duration(milliseconds: 200),
+                                ),
+                                Expanded(
+                                  child: NotificationListener<ScrollNotification>(
+                                    onNotification: (ScrollNotification notification) {
+                                      if (notification is ScrollUpdateNotification) {
+                                        final metrics = notification.metrics;
+                                        // Detect overscroll at the bottom (45px past the end)
+                                        if (metrics.pixels >= metrics.maxScrollExtent + 45.0) {
+                                          if (!_showNextJuzButton && (_activeJuz ?? 1) < 30) {
+                                            setState(() {
+                                              _showNextJuzButton = true;
+                                            });
+                                          }
+                                        }
+                                        // Hide only if they scroll back up significantly (80px above the bottom)
+                                        else if (metrics.pixels < metrics.maxScrollExtent - 80.0) {
+                                          if (_showNextJuzButton) {
+                                            setState(() {
+                                              _showNextJuzButton = false;
+                                            });
+                                          }
+                                        }
+                                      }
+                                      return false;
+                                    },
+                                    child: ListView.builder(
+                                      controller: _scrollController,
+                                      physics: const AlwaysScrollableScrollPhysics(),
+                                      padding: const EdgeInsets.only(
+                                        left: 16,
+                                        right: 16,
+                                        top: 12,
+                                        bottom: 240, // Bottom padding to prevent content from being covered by floating sync bar
+                                      ),
+                                      itemCount: _verses.length,
+                                      itemBuilder: (context, index) {
+                                        final item = _verses[index];
+                                        final isSelected = _selectedVerse != null && 
+                                            _selectedVerse!.surahNumber == item.surahNumber &&
+                                            _selectedVerse!.verseNumber == item.verseNumber;
+
+                                        final showSurahHeader = index == 0 || 
+                                            _verses[index - 1].surahNumber != item.surahNumber;
+
+                                        return Column(
+                                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                                          children: [
+                                            if (showSurahHeader && item.surahNumber != 9 && item.surahNumber != 1) _buildBismillah(isDark),
+                                            _buildVerseRow(item, index, isSelected, isDark),
+                                          ],
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                          Positioned(
+                        ),
+                        Positioned(
                             left: 0,
                             right: 0,
                             bottom: 0,
                             child: AnimatedSlide(
-                              offset: _isScrolling ? const Offset(0, 1.2) : Offset.zero,
+                              offset: (_isScrolling || _isMinimized) ? const Offset(0, 1.2) : Offset.zero,
                               duration: const Duration(milliseconds: 250),
                               curve: Curves.easeOutCubic,
-                              child: _buildFloatingSyncBar(isDark),
+                              child: SafeArea(
+                                top: false,
+                                child: _buildFloatingSyncBar(isDark),
+                              ),
                             ),
                           ),
+                        AnimatedPositioned(
+                          duration: const Duration(milliseconds: 250),
+                          curve: Curves.easeOutCubic,
+                          bottom: _showNextJuzButton && (_activeJuz ?? 1) < 30
+                              ? (_isMinimized ? 24.0 : 200.0)
+                              : -100.0,
+                          left: 0,
+                          right: 0,
+                          child: Center(
+                            child: AnimatedOpacity(
+                              opacity: _showNextJuzButton && (_activeJuz ?? 1) < 30 ? 1.0 : 0.0,
+                              duration: const Duration(milliseconds: 200),
+                              child: _buildNextJuzButton(),
+                            ),
+                          ),
+                        ),
+                          if (_isMinimized)
+                            Positioned(
+                              left: _bubbleLeft,
+                              top: _bubbleTop,
+                              child: _buildMinimizedBubble(isDark, parentWidth, parentHeight),
+                            ),
                           if (_showSurahInfoTooltip)
                             Positioned(
-                              top: 8,
+                              top: MediaQuery.of(context).padding.top + 56.0,
                               left: 16,
                               right: 16,
                               child: GestureDetector(
@@ -1062,15 +1268,60 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
                               ),
                             ),
                         ],
-                      ),
-                    ),
-                  ],
-                ),
+                      );
+                    },
+                  ),
         ),
       ),
-    ),
-  );
-}
+    );
+  }
+
+  Widget _buildCustomAppBar(BuildContext context, String pageTitle) {
+    return Container(
+      height: 56.0,
+      width: double.infinity,
+      color: Colors.transparent,
+      child: NavigationToolbar(
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back_ios_rounded, color: Theme.of(context).colorScheme.onSurface),
+          onPressed: () => Navigator.pop(context),
+        ),
+        middle: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              pageTitle,
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 20.0,
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
+            ),
+            const SizedBox(width: 6),
+            GestureDetector(
+              onTap: () {
+                setState(() {
+                  _showSurahInfoTooltip = !_showSurahInfoTooltip;
+                });
+              },
+              child: Icon(
+                Icons.info_outline_rounded,
+                size: 18,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+        trailing: IconButton(
+          icon: const Icon(Icons.text_fields_rounded),
+          tooltip: context.translate('mushaf_reader_settings_title'),
+          onPressed: _showSettingsBottomSheet,
+        ),
+        centerMiddle: true,
+      ),
+    );
+  }
+
 
   Widget _buildStickySurahHeader(bool isDark) {
     if (_currentVisibleSurah == null) return const SizedBox.shrink();
@@ -1138,86 +1389,13 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
     );
   }
 
-  Widget _buildSurahHeader(int surahNum, bool isDark) {
-    final name = quran.getSurahName(surahNum);
-    final firstVerseOfSurah = _verses.firstWhere(
-      (v) => v.surahNumber == surahNum,
-      orElse: () => VerseItem(surahNumber: surahNum, verseNumber: 1),
-    );
-    final juzNum = quran.getJuzNumber(surahNum, firstVerseOfSurah.verseNumber);
-    final place = quran.getPlaceOfRevelation(surahNum) == 'Makkah'
-        ? context.translate('mushaf_makkiyah')
-        : context.translate('mushaf_madaniyah');
-    final arabic = quran.getSurahNameArabic(surahNum);
-
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 18),
-      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1E293B) : Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: AppTheme.primaryGreen.withOpacity(0.18),
-          width: 1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(isDark ? 0.2 : 0.03),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Surah $name (Surah ke-$surahNum)',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Theme.of(context).colorScheme.onSurface,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Juz $juzNum • $place • ${context.translate('mushaf_verses_count').replaceFirst('{count}', quran.getVerseCount(surahNum).toString())}',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ),
-              Text(
-                arabic,
-                style: const TextStyle(
-                  fontSize: 22,
-                  fontFamily: 'LPMQ-IsepMisbah',
-                  fontWeight: FontWeight.bold,
-                  color: AppTheme.primaryGreen,
-                ),
-              ),
-            ],
-          ),
-          // Bismillah is now rendered separately below the card
-        ],
-      ),
-    );
-  }
-
   Widget _buildBismillah(bool isDark) {
-    return const Padding(
-      padding: EdgeInsets.only(top: 12, bottom: 8),
+    return Padding(
+      padding: const EdgeInsets.only(top: 12, bottom: 8),
       child: Text(
-        'بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ',
+        _cleanArabicText(quran.getVerse(1, 1)),
         textAlign: TextAlign.center,
-        style: TextStyle(
+        style: const TextStyle(
           fontSize: 22,
           fontFamily: 'LPMQ-IsepMisbah',
           fontWeight: FontWeight.bold,
@@ -1561,10 +1739,7 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
         ? (_currentProgram != null ? [_currentProgram!] : <Map<String, dynamic>>[])
         : _userPrograms.where((p) => p['juz'] == targetJuz).toList();
 
-    // If no selected verse, and no active program for this Juz, keep it hidden.
-    if (_selectedVerse == null && matching.isEmpty) {
-      return const SizedBox.shrink();
-    }
+    // Determine target Juz
 
     if (matching.isEmpty) {
       return Container(
@@ -1602,6 +1777,17 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
                     ),
                   ),
                 ),
+                IconButton(
+                  icon: const Icon(Icons.close_fullscreen_rounded, color: Colors.grey, size: 20),
+                  onPressed: () {
+                    setState(() {
+                      _isMinimized = true;
+                    });
+                  },
+                  tooltip: 'Minimize',
+                  constraints: const BoxConstraints(),
+                  padding: const EdgeInsets.all(8),
+                ),
               ],
             ),
             const SizedBox(height: 8),
@@ -1612,6 +1798,69 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
+            if (_userPrograms.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF1E293B) : Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey.withOpacity(0.2)),
+                ),
+                child: Row(
+                  children: [
+                    Text(
+                      context.translate('mushaf_reader_switch_program_label'),
+                      style: const TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<Map<String, dynamic>>(
+                          isExpanded: true,
+                          value: null,
+                          hint: Text(
+                            'Pilih Program Aktif Lain...',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                          isDense: true,
+                          menuMaxHeight: 300,
+                          icon: const Icon(Icons.arrow_drop_down_rounded, color: AppTheme.primaryGreen),
+                          dropdownColor: isDark ? const Color(0xFF1F2937) : Colors.white,
+                          items: () {
+                            final mandiriProgram = _userPrograms.firstWhere(
+                              (p) => p['type'] == 'MANDIRI' && p['juz'] == targetJuz,
+                              orElse: () => _userPrograms.firstWhere((p) => p['type'] == 'MANDIRI'),
+                            );
+                            final groupPrograms = _userPrograms.where((p) => p['type'] == 'GROUP').toList();
+                            return [mandiriProgram, ...groupPrograms].map((prog) {
+                              final isMandiri = prog['type'] == 'MANDIRI';
+                              final displayName = isMandiri ? 'Khataman Mandiri' : (prog['name'] as String);
+                              return DropdownMenuItem<Map<String, dynamic>>(
+                                value: prog,
+                                child: Text(
+                                  displayName,
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                    color: Theme.of(context).colorScheme.onSurface,
+                                  ),
+                                ),
+                              );
+                            }).toList();
+                          }(),
+                          onChanged: _onProgramChanged,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 14),
             Row(
               children: [
@@ -1706,56 +1955,16 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          // Row 1: Header Row (Progress Title & Action Buttons)
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
+              // Progress Title
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    if (!isPreset && matching.length > 1) ...[
-                      Row(
-                        children: [
-                          Text(
-                            context.translate('mushaf_reader_switch_program_label'),
-                            style: const TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: DropdownButtonHideUnderline(
-                              child: DropdownButton<Map<String, dynamic>>(
-                                value: activeProgram,
-                                isDense: true,
-                                icon: const Icon(Icons.arrow_drop_down_rounded, color: AppTheme.primaryGreen),
-                                dropdownColor: isDark ? const Color(0xFF1F2937) : Colors.white,
-                                items: matching.map((prog) {
-                                  return DropdownMenuItem<Map<String, dynamic>>(
-                                    value: prog,
-                                    child: Text(
-                                      prog['name'] as String,
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.bold,
-                                        color: Theme.of(context).colorScheme.onSurface,
-                                      ),
-                                    ),
-                                  );
-                                }).toList(),
-                                onChanged: _onProgramChanged,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ] else ...[
-                      Text(
-                        activeProgram['name'] as String,
-                        style: const TextStyle(fontSize: 11, color: AppTheme.primaryGreen, fontWeight: FontWeight.bold),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                    const SizedBox(height: 4),
                     Text(
                       context.translate('mushaf_reader_juz_progress_text')
                           .replaceFirst('{juz}', activeProgram['juz'].toString())
@@ -1763,30 +1972,180 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
                           .replaceFirst('{total}', totalAyat.toString())
                           .replaceFirst('{percent}', progressPercent.toString()),
                       style: TextStyle(
-                        fontSize: 13,
+                        fontSize: 12,
                         fontWeight: FontWeight.bold,
                         color: Theme.of(context).colorScheme.onSurface,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 6),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: LinearProgressIndicator(
+                        value: progressPercent / 100.0,
+                        minHeight: 6.0,
+                        backgroundColor: AppTheme.primaryGreen.withOpacity(0.12),
+                        valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.primaryGreen),
                       ),
                     ),
                   ],
                 ),
               ),
               const SizedBox(width: 8),
-              
-              if (_dbSavedAbsoluteIndex < totalAyat)
-                TextButton(
-                  onPressed: () => _saveProgressToDB(totalAyat),
-                  child: Text(
-                    context.translate('mushaf_reader_mark_juz_done'),
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: AppTheme.primaryGreen,
-                      fontWeight: FontWeight.bold,
+              // Action Buttons (Tandai Selesai & Minimize)
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (_dbSavedAbsoluteIndex < totalAyat)
+                    TextButton.icon(
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      onPressed: () => _saveProgressToDB(totalAyat),
+                      icon: const Icon(Icons.check_circle_outline_rounded, size: 14, color: AppTheme.primaryGreen),
+                      label: Text(
+                        context.translate('mushaf_reader_mark_juz_done'),
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: AppTheme.primaryGreen,
+                        ),
+                      ),
                     ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    icon: const Icon(Icons.close_fullscreen_rounded, color: Colors.grey, size: 18),
+                    onPressed: () {
+                      setState(() {
+                        _isMinimized = true;
+                      });
+                    },
+                    tooltip: 'Minimize',
+                    constraints: const BoxConstraints(),
+                    padding: const EdgeInsets.all(6),
                   ),
-                ),
+                ],
+              ),
             ],
           ),
+          const SizedBox(height: 12),
+
+          // Row 2: Program Switcher Row (Full Width)
+          if (_userPrograms.isNotEmpty) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1E293B) : Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey.withOpacity(0.15)),
+              ),
+              child: Row(
+                children: [
+                  Text(
+                    context.translate('mushaf_reader_switch_program_label'),
+                    style: const TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    flex: 4,
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<Map<String, dynamic>>(
+                        isExpanded: true,
+                        value: () {
+                          final currentJuz = activeProgram['juz'] as int;
+                          final mandiriProgram = _userPrograms.firstWhere(
+                            (p) => p['type'] == 'MANDIRI' && p['juz'] == currentJuz,
+                            orElse: () => _userPrograms.firstWhere((p) => p['type'] == 'MANDIRI'),
+                          );
+                          final groupPrograms = _userPrograms.where((p) => p['type'] == 'GROUP').toList();
+                          final list = [mandiriProgram, ...groupPrograms];
+                          return list.any((p) => p['id'] == activeProgram['id'])
+                              ? list.firstWhere((p) => p['id'] == activeProgram['id'])
+                              : mandiriProgram;
+                        }(),
+                        isDense: true,
+                        menuMaxHeight: 300,
+                        icon: const Icon(Icons.arrow_drop_down_rounded, color: AppTheme.primaryGreen),
+                        dropdownColor: isDark ? const Color(0xFF1F2937) : Colors.white,
+                        items: () {
+                          final currentJuz = activeProgram['juz'] as int;
+                          final mandiriProgram = _userPrograms.firstWhere(
+                            (p) => p['type'] == 'MANDIRI' && p['juz'] == currentJuz,
+                            orElse: () => _userPrograms.firstWhere((p) => p['type'] == 'MANDIRI'),
+                          );
+                          final groupPrograms = _userPrograms.where((p) => p['type'] == 'GROUP').toList();
+                          return [mandiriProgram, ...groupPrograms].map((prog) {
+                            final isMandiri = prog['type'] == 'MANDIRI';
+                            final displayName = isMandiri ? 'Khataman Mandiri' : (prog['name'] as String);
+                            return DropdownMenuItem<Map<String, dynamic>>(
+                              value: prog,
+                              child: Text(
+                                displayName,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: Theme.of(context).colorScheme.onSurface,
+                                ),
+                              ),
+                            );
+                          }).toList();
+                        }(),
+                        onChanged: _onProgramChanged,
+                      ),
+                    ),
+                  ),
+                  if (activeProgram['type'] == 'MANDIRI') ...[
+                    const SizedBox(width: 12),
+                    const Text(
+                      'Juz:',
+                      style: TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(width: 4),
+                    DropdownButtonHideUnderline(
+                      child: DropdownButton<int>(
+                        value: activeProgram['juz'] as int,
+                        isDense: true,
+                        menuMaxHeight: 300,
+                        icon: const Icon(Icons.arrow_drop_down_rounded, color: AppTheme.primaryGreen),
+                        dropdownColor: isDark ? const Color(0xFF1F2937) : Colors.white,
+                        items: List.generate(30, (i) => i + 1).map((juzNum) {
+                          return DropdownMenuItem<int>(
+                            value: juzNum,
+                            child: Text(
+                              '$juzNum',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: Theme.of(context).colorScheme.onSurface,
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                        onChanged: (newJuz) {
+                          if (newJuz != null) {
+                            final newMandiriProg = _userPrograms.firstWhere(
+                              (p) => p['type'] == 'MANDIRI' && p['juz'] == newJuz,
+                            );
+                            _onProgramChanged(newMandiriProg);
+                          }
+                        },
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ] else ...[
+            Text(
+              activeProgram['name'] as String,
+              style: const TextStyle(fontSize: 11, color: AppTheme.primaryGreen, fontWeight: FontWeight.bold),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
           const SizedBox(height: 12),
 
           if (_selectedVerse != null && hasProgressToSave) ...[
@@ -1946,6 +2305,201 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
       ),
     );
   }
+
+  Widget _buildMinimizedBubble(bool isDark, double parentWidth, double parentHeight) {
+    // Get active program progress or default progress
+    final isPreset = widget.slotId != null || widget.selectForMandiri;
+    int targetJuz = _activeJuz ?? 1;
+    if (_selectedVerse != null) {
+      targetJuz = quran.getJuzNumber(_selectedVerse!.surahNumber, _selectedVerse!.verseNumber);
+    }
+    final matching = isPreset
+        ? (_currentProgram != null ? [_currentProgram!] : <Map<String, dynamic>>[])
+        : _userPrograms.where((p) => p['juz'] == targetJuz).toList();
+
+    double progressPercent = 0.0;
+    bool hasActive = false;
+
+    if (matching.isNotEmpty) {
+      hasActive = true;
+      final activeProgram = _currentProgram ?? matching.first;
+      int totalAyat = _totalAyatInJuz;
+      if (activeProgram['juz'] != _activeJuz) {
+        final surahMap = quran.getSurahAndVersesFromJuz(activeProgram['juz']);
+        int count = 0;
+        surahMap.forEach((surahNum, bounds) {
+          count += (bounds[1] - bounds[0] + 1);
+        });
+        totalAyat = count;
+      }
+      final currentSaved = activeProgram['ayat_terakhir'] as int? ?? 0;
+      progressPercent = totalAyat > 0 ? (currentSaved / totalAyat) : 0.0;
+    }
+
+    final statusBarHeight = MediaQuery.of(context).padding.top;
+    final minTop = statusBarHeight + 16.0;
+    final maxTop = parentHeight - 72.0;
+    const minLeft = 16.0;
+    final maxLeft = parentWidth - 72.0;
+
+    return GestureDetector(
+      onPanUpdate: (details) {
+        setState(() {
+          _bubbleLeft = (_bubbleLeft! + details.delta.dx).clamp(minLeft, maxLeft);
+          _bubbleTop = (_bubbleTop! + details.delta.dy).clamp(minTop, maxTop);
+        });
+      },
+      onPanEnd: (details) {
+        // Keep the bubble exactly where it was dropped (including the middle),
+        // but keep track of which side of the screen it is on for initial position context.
+        setState(() {
+          _minimizeToLeft = _bubbleLeft! < (parentWidth - 56.0) / 2;
+        });
+      },
+      onTap: () {
+        setState(() {
+          _isMinimized = false;
+        });
+      },
+      child: Container(
+        width: 56,
+        height: 56,
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF1F2937) : Colors.white,
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: isDark ? Colors.white.withOpacity(0.08) : AppTheme.primaryGreen.withOpacity(0.12),
+            width: 1.0,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: isDark 
+                  ? AppTheme.primaryGreen.withOpacity(0.35) 
+                  : Colors.black.withOpacity(0.12),
+              blurRadius: isDark ? 16 : 12,
+              spreadRadius: isDark ? 2 : 0,
+              offset: Offset(0, isDark ? 2 : 4),
+            ),
+          ],
+        ),
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            if (hasActive)
+              Positioned.fill(
+                child: Padding(
+                  padding: const EdgeInsets.all(4.0),
+                  child: CircularProgressIndicator(
+                    value: progressPercent,
+                    strokeWidth: 3.5,
+                    valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.primaryGreen),
+                    backgroundColor: isDark ? Colors.white10 : AppTheme.primaryGreen.withOpacity(0.12),
+                  ),
+                ),
+              ),
+            if (hasActive)
+              Text(
+                '${(progressPercent * 100).round()}%',
+                style: TextStyle(
+                  color: isDark ? Colors.white : AppTheme.primaryGreen,
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                ),
+              )
+            else
+              Icon(
+                Icons.menu_book_rounded,
+                color: isDark ? Colors.white : AppTheme.primaryGreen,
+                size: 22,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _proceedToNextJuz() {
+    if ((_activeJuz ?? 1) >= 30) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Anda sudah berada di akhir Juz 30!', style: TextStyle(color: Colors.white)),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+      return;
+    }
+    
+    final int nextJuz = (_activeJuz ?? 1) + 1;
+    
+    setState(() {
+      _showNextJuzButton = false;
+    });
+
+    // If the active program is MANDIRI, switch to the next Juz Mandiri program
+    if (_currentProgram != null && _currentProgram!['type'] == 'MANDIRI') {
+      final nextMandiriProg = _userPrograms.firstWhere(
+        (p) => p['type'] == 'MANDIRI' && p['juz'] == nextJuz,
+        orElse: () => {
+          'type': 'MANDIRI',
+          'id': 'mandiri_$nextJuz',
+          'juz': nextJuz,
+          'name': 'Khataman Mandiri (Juz $nextJuz)',
+          'ayat_terakhir': 0,
+        },
+      );
+      _onProgramChanged(nextMandiriProg);
+    } else {
+      // Otherwise, just change the active Juz
+      _changeJuz(nextJuz);
+    }
+    
+    // Scroll list back to top
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scrollController.animateTo(
+        0.0,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+    });
+  }
+
+  Widget _buildNextJuzButton() {
+    final nextJuz = (_activeJuz ?? 1) + 1;
+    return Container(
+      decoration: BoxDecoration(
+        boxShadow: [
+          BoxShadow(
+            color: AppTheme.primaryGreen.withOpacity(0.35),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: ElevatedButton.icon(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppTheme.primaryGreen,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(30),
+          ),
+          elevation: 0,
+        ),
+        onPressed: _proceedToNextJuz,
+        icon: const Icon(Icons.arrow_forward_rounded, size: 18),
+        label: Text(
+          'Lanjut ke Juz $nextJuz',
+          style: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 0.5,
+          ),
+        ),
+      ),
+    );
+  }
+
 }
 
 class DashedRectPainter extends CustomPainter {
