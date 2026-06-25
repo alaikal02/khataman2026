@@ -422,7 +422,7 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
       offset = _itemOffsets[index];
     }
     _scrollController.animateTo(
-      offset.clamp(0.0, _scrollController.position.maxScrollExtent),
+      offset,
       duration: const Duration(milliseconds: 500),
       curve: Curves.easeOutCubic,
     );
