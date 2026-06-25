@@ -63,7 +63,6 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
   VerseItem? _selectedVerse;
   int _lastReadVerseIndex = 0;
   bool _isLoading = true;
-  bool _isInitialScrollDone = false;
   
   // Saved Progress offset in database
   int _dbSavedAbsoluteIndex = 0;
@@ -152,7 +151,6 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
       
       final rawArabicText = quran.getVerse(item.surahNumber, item.verseNumber);
       final arabicText = _cleanArabicText(rawArabicText);
-      final formattedArabicText = '$arabicText (${_toArabicNumerals(item.verseNumber)})';
       
       final arabicPainter = TextPainter(
         text: TextSpan(
@@ -400,8 +398,6 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _scrollProgrammaticallyToIndex(_lastReadVerseIndex, animate: false);
       });
-    } else {
-      _isInitialScrollDone = true;
     }
   }
 
@@ -424,16 +420,7 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
 
   Future<void> _scrollProgrammaticallyToIndex(int index, {bool animate = true}) async {
     if (!mounted) return;
-    setState(() {
-      _isInitialScrollDone = false;
-    });
     await _scrollToIndex(index, animate: animate);
-    await Future.delayed(const Duration(milliseconds: 150));
-    if (mounted) {
-      setState(() {
-        _isInitialScrollDone = true;
-      });
-    }
   }
 
   Future<void> _fetchDBSavedProgress() async {

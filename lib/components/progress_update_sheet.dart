@@ -109,17 +109,30 @@ class _ProgressUpdateSheetState extends State<ProgressUpdateSheet> {
         });
       }
 
+      // Group active group slots by group ID to avoid duplicate group entries in the program dropdown
+      final Map<String, List<Map<String, dynamic>>> slotsByGroup = {};
+      final Map<String, String> groupNames = {};
       for (var slot in _groupSlots) {
         final putaran = slot['putaran_siklus'] as Map<String, dynamic>?;
         final group = putaran != null ? putaran['groups'] as Map<String, dynamic>? : null;
+        final groupId = group != null ? group['id_group']?.toString() ?? '' : '';
         final groupName = group != null ? group['nama_grup'] as String? : 'Grup';
-        final juzNum = slot['nomor_juz'] as int;
+        if (groupId.isNotEmpty) {
+          slotsByGroup.putIfAbsent(groupId, () => []).add(slot);
+          groupNames[groupId] = groupName ?? 'Grup';
+        }
+      }
+
+      for (var entry in slotsByGroup.entries) {
+        final groupId = entry.key;
+        final groupSlots = entry.value;
+        final groupName = groupNames[groupId] ?? 'Grup';
 
         _programOptions.add({
           'type': 'GROUP',
-          'id': slot['id_slot'].toString(),
-          'name': '$groupName (Juz $juzNum)',
-          'slot': slot,
+          'id': groupId,
+          'name': groupName,
+          'slots': groupSlots,
         });
       }
 
@@ -143,6 +156,17 @@ class _ProgressUpdateSheetState extends State<ProgressUpdateSheet> {
         });
       }
     }
+  }
+
+  Map<String, dynamic>? get _activeGroupSlot {
+    if (_selectedProgram == null || _selectedProgram!['type'] != 'GROUP') return null;
+    final slots = List<Map<String, dynamic>>.from(_selectedProgram!['slots'] as List);
+    for (var s in slots) {
+      if (s['nomor_juz'] == _selectedJuz) {
+        return s;
+      }
+    }
+    return null;
   }
 
   void _onProgramChanged(Map<String, dynamic>? program) {
@@ -173,12 +197,19 @@ class _ProgressUpdateSheetState extends State<ProgressUpdateSheet> {
           _selectedSurah = null;
         }
       } else {
-        // Group Mode: Juz is fixed by the slot
-        final slot = program['slot'] as Map<String, dynamic>;
-        final juzNum = slot['nomor_juz'] as int;
-        _juzOptions = [juzNum];
-        _selectedJuz = juzNum;
-        _onJuzChanged(juzNum);
+        // Group Mode: Juz options are the ones assigned to the user in this group
+        final slots = List<Map<String, dynamic>>.from(program['slots'] as List);
+        _juzOptions = slots.map((s) => s['nomor_juz'] as int).toList();
+        _juzOptions.sort(); // Sort Juz numbers ascending
+        
+        if (_juzOptions.isNotEmpty) {
+          _selectedJuz = _juzOptions.first;
+          _onJuzChanged(_selectedJuz);
+        } else {
+          _selectedJuz = null;
+          _surahOptions = [];
+          _selectedSurah = null;
+        }
       }
     });
   }
@@ -209,8 +240,8 @@ class _ProgressUpdateSheetState extends State<ProgressUpdateSheet> {
         );
         currentAbsoluteIndex = mandiriRow['ayat_terakhir'] as int? ?? 0;
       } else {
-        final slot = _selectedProgram?['slot'] as Map<String, dynamic>;
-        currentAbsoluteIndex = slot['ayat_terakhir_input'] as int? ?? 0;
+        final slot = _activeGroupSlot;
+        currentAbsoluteIndex = slot != null && slot.isNotEmpty ? slot['ayat_terakhir_input'] as int? ?? 0 : 0;
       }
 
       _currentLastAyatIndex = currentAbsoluteIndex;
@@ -372,7 +403,8 @@ class _ProgressUpdateSheetState extends State<ProgressUpdateSheet> {
         WidgetUpdateService.updateKhatamanWidget();
       } else {
         // Save Group Slot
-        final slot = _selectedProgram?['slot'] as Map<String, dynamic>;
+        final slot = _activeGroupSlot;
+        if (slot == null || slot.isEmpty) return;
         final slotId = slot['id_slot'] as int;
         final putaran = slot['putaran_siklus'] as Map<String, dynamic>?;
         final group = putaran != null ? putaran['groups'] as Map<String, dynamic>? : null;
@@ -594,24 +626,16 @@ class _ProgressUpdateSheetState extends State<ProgressUpdateSheet> {
                     value: _selectedJuz,
                     decoration: _inputDecoration('Juz', Icons.layers_rounded),
                     dropdownColor: isDark ? const Color(0xFF1F2937) : Colors.white,
-                    disabledHint: _selectedJuz != null
-                        ? Text(
-                            'Juz $_selectedJuz',
-                            style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.6), fontSize: 14),
-                          )
-                        : null,
-                    items: _selectedProgram?['type'] == 'GROUP'
-                        ? null // Disabled dropdown for groups (Juz is fixed)
-                        : _juzOptions.map((juz) {
-                            return DropdownMenuItem<int>(
-                              value: juz,
-                              child: Text(
-                                'Juz $juz',
-                                style: TextStyle(color: theme.colorScheme.onSurface, fontSize: 14),
-                              ),
-                            );
-                          }).toList(),
-                    onChanged: _selectedProgram?['type'] == 'GROUP' ? null : _onJuzChanged,
+                    items: _juzOptions.map((juz) {
+                      return DropdownMenuItem<int>(
+                        value: juz,
+                        child: Text(
+                          'Juz $juz',
+                          style: TextStyle(color: theme.colorScheme.onSurface, fontSize: 14),
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: _onJuzChanged,
                   ),
                 ),
                 const SizedBox(width: 10),

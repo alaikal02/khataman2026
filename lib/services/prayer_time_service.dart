@@ -261,10 +261,10 @@ class PrayerTimeService {
     );
 
     // Calculate Imsak: 10 minutes before Fajr
-    final imsak = prayerTimes.fajr!.subtract(const Duration(minutes: 10));
+    final imsak = prayerTimes.fajr.subtract(const Duration(minutes: 10));
 
     // Calculate Dhuha: ~15 minutes after Sunrise
-    final dhuha = prayerTimes.sunrise!.add(const Duration(minutes: 15));
+    final dhuha = prayerTimes.sunrise.add(const Duration(minutes: 15));
 
     final entries = <PrayerTimeEntry>[
       PrayerTimeEntry(
@@ -276,13 +276,13 @@ class PrayerTimeService {
       PrayerTimeEntry(
         name: 'Subuh',
         arabicName: 'الفجر',
-        time: prayerTimes.fajr!.toLocal(),
+        time: prayerTimes.fajr.toLocal(),
         isFard: true,
       ),
       PrayerTimeEntry(
         name: 'Syuruk',
         arabicName: 'الشروق',
-        time: prayerTimes.sunrise!.toLocal(),
+        time: prayerTimes.sunrise.toLocal(),
         isFard: false,
       ),
       PrayerTimeEntry(
@@ -294,25 +294,25 @@ class PrayerTimeService {
       PrayerTimeEntry(
         name: 'Dzuhur',
         arabicName: 'الظهر',
-        time: prayerTimes.dhuhr!.toLocal(),
+        time: prayerTimes.dhuhr.toLocal(),
         isFard: true,
       ),
       PrayerTimeEntry(
         name: 'Ashar',
         arabicName: 'العصر',
-        time: prayerTimes.asr!.toLocal(),
+        time: prayerTimes.asr.toLocal(),
         isFard: true,
       ),
       PrayerTimeEntry(
         name: 'Maghrib',
         arabicName: 'المغرب',
-        time: prayerTimes.maghrib!.toLocal(),
+        time: prayerTimes.maghrib.toLocal(),
         isFard: true,
       ),
       PrayerTimeEntry(
         name: 'Isya',
         arabicName: 'العشاء',
-        time: prayerTimes.isha!.toLocal(),
+        time: prayerTimes.isha.toLocal(),
         isFard: true,
       ),
     ];
