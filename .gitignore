@@ -46,3 +46,8 @@ app.*.map.json
 
 # Environment variables
 .env*
+
+# Sensitive test/debug scripts (contain hardcoded credentials)
+test_supabase_user_data.dart
+test_*.dart
+!test/
