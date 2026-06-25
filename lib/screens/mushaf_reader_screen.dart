@@ -134,12 +134,8 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
       _itemOffsets.add(currentOffset);
       
       final item = _verses[i];
-      final showSurahHeader = i == 0 || _verses[i - 1].surahNumber != item.surahNumber;
-      
-      if (showSurahHeader) {
-        if (item.surahNumber != 9) {
-          currentOffset += 70.0; // Bismillah only: margin 12 + text ~58
-        }
+      if (item.verseNumber == 1 && item.surahNumber != 9 && item.surahNumber != 1) {
+        currentOffset += 70.0; // Bismillah only: margin 12 + text ~58
       }
       
       double verseHeight = 32.0 + 24.0 + 12.0; // Padding 32 + Badge row 24 + Spacing 12
@@ -1162,13 +1158,10 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
                                             _selectedVerse!.surahNumber == item.surahNumber &&
                                             _selectedVerse!.verseNumber == item.verseNumber;
 
-                                        final showSurahHeader = index == 0 || 
-                                            _verses[index - 1].surahNumber != item.surahNumber;
-
                                         return Column(
                                           crossAxisAlignment: CrossAxisAlignment.stretch,
                                           children: [
-                                            if (showSurahHeader && item.surahNumber != 9 && item.surahNumber != 1) _buildBismillah(isDark),
+                                            if (item.verseNumber == 1 && item.surahNumber != 9 && item.surahNumber != 1) _buildBismillah(isDark),
                                             _buildVerseRow(item, index, isSelected, isDark),
                                           ],
                                         );
