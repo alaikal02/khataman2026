@@ -211,7 +211,6 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
         setState(() {
           _isScrolling = false;
         });
-        _saveLastReadFromScroll();
       }
     });
 
@@ -236,40 +235,7 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
     }
   }
 
-  Future<void> _saveLastReadFromScroll() async {
-    if (!_isInitialScrollDone) return;
-    if (_itemOffsets.isEmpty || !_scrollController.hasClients) return;
-    final offset = _scrollController.offset;
-    if (offset <= 0) return;
 
-    int visibleIndex = 0;
-    for (int i = 0; i < _itemOffsets.length; i++) {
-      if (_itemOffsets[i] > offset) {
-        visibleIndex = (i - 1).clamp(0, _itemOffsets.length - 1);
-        break;
-      }
-      if (i == _itemOffsets.length - 1) {
-        visibleIndex = i;
-      }
-    }
-
-    if (visibleIndex >= 0 && visibleIndex < _verses.length) {
-      final verse = _verses[visibleIndex];
-      final prefs = await SharedPreferences.getInstance();
-      
-      final currentSurahNum = prefs.getInt('last_read_surah_number');
-      final currentVerseNum = prefs.getInt('last_read_verse_number');
-      if (currentSurahNum != verse.surahNumber || currentVerseNum != verse.verseNumber) {
-        final surahName = quran.getSurahName(verse.surahNumber);
-        final juzNumber = quran.getJuzNumber(verse.surahNumber, verse.verseNumber);
-        await prefs.setInt('last_read_surah_number', verse.surahNumber);
-        await prefs.setString('last_read_surah_name', surahName);
-        await prefs.setInt('last_read_verse_number', verse.verseNumber);
-        await prefs.setInt('last_read_juz_number', juzNumber);
-        debugPrint('Auto-saved last read on scroll: $surahName Ayat ${verse.verseNumber}');
-      }
-    }
-  }
 
   void _startAutoHideTimer() {
     _autoHideTimer?.cancel();
@@ -790,33 +756,7 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
     return absoluteIndex;
   }
 
-  Future<void> _saveAsLastRead(VerseItem verse) async {
-    final prefs = await SharedPreferences.getInstance();
-    final surahName = quran.getSurahName(verse.surahNumber);
-    final juzNumber = quran.getJuzNumber(verse.surahNumber, verse.verseNumber);
 
-    await prefs.setInt('last_read_surah_number', verse.surahNumber);
-    await prefs.setString('last_read_surah_name', surahName);
-    await prefs.setInt('last_read_verse_number', verse.verseNumber);
-    await prefs.setInt('last_read_juz_number', juzNumber);
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            context.translate('mushaf_reader_bookmark_saved')
-                .replaceFirst('{surah}', surahName)
-                .replaceFirst('{ayat}', verse.verseNumber.toString()),
-            style: const TextStyle(color: Colors.white),
-          ),
-          duration: const Duration(seconds: 2),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          backgroundColor: AppTheme.primaryGreen,
-        ),
-      );
-    }
-  }
 
   Future<void> _saveProgressToDB(int absoluteIndex) async {
     final userId = _supabase.auth.currentUser?.id;
@@ -945,9 +885,14 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
       }
 
       // Update last read locally when progress is saved
-      if (absoluteIndex > 0 && absoluteIndex <= _verses.length) {
+      final prefs = await SharedPreferences.getInstance();
+      if (absoluteIndex == 0) {
+        await prefs.remove('last_read_surah_number');
+        await prefs.remove('last_read_surah_name');
+        await prefs.remove('last_read_verse_number');
+        await prefs.remove('last_read_juz_number');
+      } else if (absoluteIndex > 0 && absoluteIndex <= _verses.length) {
         final lastReadVerse = _verses[absoluteIndex - 1];
-        final prefs = await SharedPreferences.getInstance();
         final surahName = quran.getSurahName(lastReadVerse.surahNumber);
         final juzNumber = quran.getJuzNumber(lastReadVerse.surahNumber, lastReadVerse.verseNumber);
         await prefs.setInt('last_read_surah_number', lastReadVerse.surahNumber);
@@ -1546,22 +1491,8 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
                   ),
                 ),
                 
-                Row(
-                  children: [
-                    if (isReadInDBSaved)
-                      Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: Icon(Icons.check_circle_rounded, color: AppTheme.primaryGreen.withOpacity(0.6), size: 16),
-                      ),
-                    IconButton(
-                      icon: const Icon(Icons.bookmark_border_rounded, size: 18),
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                      tooltip: context.translate('mushaf_reader_bookmark_label'),
-                      onPressed: () => _saveAsLastRead(item),
-                    ),
-                  ],
-                ),
+                if (isReadInDBSaved)
+                  Icon(Icons.check_circle_rounded, color: AppTheme.primaryGreen.withOpacity(0.6), size: 16),
               ],
             ),
             const SizedBox(height: 12),
