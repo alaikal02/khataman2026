@@ -210,6 +210,7 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
         setState(() {
           _isScrolling = false;
         });
+        _saveLastReadFromScroll();
       }
     });
 
@@ -230,6 +231,40 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
         setState(() {
           _currentVisibleSurah = currentSurah;
         });
+      }
+    }
+  }
+
+  Future<void> _saveLastReadFromScroll() async {
+    if (_itemOffsets.isEmpty || !_scrollController.hasClients) return;
+    final offset = _scrollController.offset;
+    if (offset <= 0) return;
+
+    int visibleIndex = 0;
+    for (int i = 0; i < _itemOffsets.length; i++) {
+      if (_itemOffsets[i] > offset) {
+        visibleIndex = (i - 1).clamp(0, _itemOffsets.length - 1);
+        break;
+      }
+      if (i == _itemOffsets.length - 1) {
+        visibleIndex = i;
+      }
+    }
+
+    if (visibleIndex >= 0 && visibleIndex < _verses.length) {
+      final verse = _verses[visibleIndex];
+      final prefs = await SharedPreferences.getInstance();
+      
+      final currentSurahNum = prefs.getInt('last_read_surah_number');
+      final currentVerseNum = prefs.getInt('last_read_verse_number');
+      if (currentSurahNum != verse.surahNumber || currentVerseNum != verse.verseNumber) {
+        final surahName = quran.getSurahName(verse.surahNumber);
+        final juzNumber = quran.getJuzNumber(verse.surahNumber, verse.verseNumber);
+        await prefs.setInt('last_read_surah_number', verse.surahNumber);
+        await prefs.setString('last_read_surah_name', surahName);
+        await prefs.setInt('last_read_verse_number', verse.verseNumber);
+        await prefs.setInt('last_read_juz_number', juzNumber);
+        debugPrint('Auto-saved last read on scroll: $surahName Ayat ${verse.verseNumber}');
       }
     }
   }
@@ -885,6 +920,18 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
         );
+      }
+
+      // Update last read locally when progress is saved
+      if (absoluteIndex > 0 && absoluteIndex <= _verses.length) {
+        final lastReadVerse = _verses[absoluteIndex - 1];
+        final prefs = await SharedPreferences.getInstance();
+        final surahName = quran.getSurahName(lastReadVerse.surahNumber);
+        final juzNumber = quran.getJuzNumber(lastReadVerse.surahNumber, lastReadVerse.verseNumber);
+        await prefs.setInt('last_read_surah_number', lastReadVerse.surahNumber);
+        await prefs.setString('last_read_surah_name', surahName);
+        await prefs.setInt('last_read_verse_number', lastReadVerse.verseNumber);
+        await prefs.setInt('last_read_juz_number', juzNumber);
       }
       
       WidgetUpdateService.updateKhatamanWidget();
