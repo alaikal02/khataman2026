@@ -63,6 +63,7 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
   VerseItem? _selectedVerse;
   int _lastReadVerseIndex = 0;
   bool _isLoading = true;
+  bool _isInitialScrollDone = false;
   
   // Saved Progress offset in database
   int _dbSavedAbsoluteIndex = 0;
@@ -236,6 +237,7 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
   }
 
   Future<void> _saveLastReadFromScroll() async {
+    if (!_isInitialScrollDone) return;
     if (_itemOffsets.isEmpty || !_scrollController.hasClients) return;
     final offset = _scrollController.offset;
     if (offset <= 0) return;
@@ -410,22 +412,42 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
     // Auto Scroll to the verse after initial build
     if (_lastReadVerseIndex > 0) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        _scrollToIndex(_lastReadVerseIndex);
+        _scrollProgrammaticallyToIndex(_lastReadVerseIndex, animate: false);
       });
+    } else {
+      _isInitialScrollDone = true;
     }
   }
 
-  void _scrollToIndex(int index) {
+  Future<void> _scrollToIndex(int index, {bool animate = true}) async {
     if (!_scrollController.hasClients) return;
     double offset = index * 140.0;
     if (_itemOffsets.isNotEmpty && index < _itemOffsets.length) {
       offset = _itemOffsets[index];
     }
-    _scrollController.animateTo(
-      offset,
-      duration: const Duration(milliseconds: 500),
-      curve: Curves.easeOutCubic,
-    );
+    if (animate) {
+      await _scrollController.animateTo(
+        offset,
+        duration: const Duration(milliseconds: 500),
+        curve: Curves.easeOutCubic,
+      );
+    } else {
+      _scrollController.jumpTo(offset);
+    }
+  }
+
+  Future<void> _scrollProgrammaticallyToIndex(int index, {bool animate = true}) async {
+    if (!mounted) return;
+    setState(() {
+      _isInitialScrollDone = false;
+    });
+    await _scrollToIndex(index, animate: animate);
+    await Future.delayed(const Duration(milliseconds: 150));
+    if (mounted) {
+      setState(() {
+        _isInitialScrollDone = true;
+      });
+    }
   }
 
   Future<void> _fetchDBSavedProgress() async {
@@ -683,7 +705,7 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
           }
         }
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          _scrollToIndex(found ? idx : 0);
+          _scrollProgrammaticallyToIndex(found ? idx : 0, animate: false);
         });
       }
       return;
@@ -737,7 +759,7 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
             currentAbsolute += count;
           }
         }
-        _scrollToIndex(found ? idx : 0);
+        _scrollProgrammaticallyToIndex(found ? idx : 0, animate: false);
       } else {
         if (_scrollController.hasClients) {
           _scrollController.jumpTo(0.0);
@@ -1757,7 +1779,7 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
                       v.verseNumber == selectedVerse
                     );
                     if (idx != -1) {
-                      _scrollToIndex(idx);
+                      _scrollProgrammaticallyToIndex(idx, animate: true);
                     }
                   },
                   style: ElevatedButton.styleFrom(
@@ -2506,11 +2528,7 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
     
     // Scroll list back to top
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _scrollController.animateTo(
-        0.0,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-      );
+      _scrollProgrammaticallyToIndex(0, animate: true);
     });
   }
 
