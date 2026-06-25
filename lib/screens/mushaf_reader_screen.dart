@@ -382,7 +382,10 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
 
   void _scrollToIndex(int index) {
     if (!_scrollController.hasClients) return;
-    final offset = index * 140.0;
+    double offset = index * 140.0;
+    if (_itemOffsets.isNotEmpty && index < _itemOffsets.length) {
+      offset = _itemOffsets[index];
+    }
     _scrollController.animateTo(
       offset.clamp(0.0, _scrollController.position.maxScrollExtent),
       duration: const Duration(milliseconds: 500),
