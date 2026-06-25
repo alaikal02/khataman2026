@@ -107,6 +107,16 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
     return text;
   }
 
+  String _toArabicNumerals(int number) {
+    final latinDigits = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
+    final arabicDigits = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+    String numberStr = number.toString();
+    for (int i = 0; i < 10; i++) {
+      numberStr = numberStr.replaceAll(latinDigits[i], arabicDigits[i]);
+    }
+    return numberStr;
+  }
+
   void _safePrecomputeOffsets() {
     if (!mounted) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -138,19 +148,32 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
         currentOffset += 70.0; // Bismillah only: margin 12 + text ~58
       }
       
-      double verseHeight = 32.0 + 24.0 + 12.0; // Padding 32 + Badge row 24 + Spacing 12
+      double verseHeight = 32.0; // Card padding: 16 top + 16 bottom
       
       final rawArabicText = quran.getVerse(item.surahNumber, item.verseNumber);
       final arabicText = _cleanArabicText(rawArabicText);
+      final formattedArabicText = '$arabicText (${_toArabicNumerals(item.verseNumber)})';
       
       final arabicPainter = TextPainter(
         text: TextSpan(
-          text: arabicText,
-          style: TextStyle(
-            fontSize: _arabicFontSize,
-            fontFamily: 'LPMQ-IsepMisbah',
-            height: 1.8,
-          ),
+          children: [
+            TextSpan(
+              text: arabicText,
+              style: TextStyle(
+                fontSize: _arabicFontSize,
+                fontFamily: 'LPMQ-IsepMisbah',
+                height: 1.8,
+              ),
+            ),
+            TextSpan(
+              text: '  (${_toArabicNumerals(item.verseNumber)})',
+              style: TextStyle(
+                fontSize: _arabicFontSize * 0.8,
+                fontFamily: 'sans-serif',
+                height: 1.8,
+              ),
+            ),
+          ],
         ),
         textDirection: TextDirection.rtl,
       );
@@ -167,10 +190,11 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
                 translation: quran.Translation.enSaheeh,
               )
             : quranIndonesianTranslation['${item.surahNumber}:${item.verseNumber}'] ?? '';
+        final formattedTranslationText = '${item.verseNumber}. $translationText';
             
         final translationPainter = TextPainter(
           text: TextSpan(
-            text: translationText,
+            text: formattedTranslationText,
             style: TextStyle(
               fontSize: _translationFontSize,
               height: 1.5,
@@ -1445,7 +1469,6 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
       },
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: isSelected
               ? AppTheme.primaryGreen.withOpacity(isDark ? 0.12 : 0.06)
@@ -1462,57 +1485,64 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
             width: isSelected ? 1.5 : 1,
           ),
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+        child: Stack(
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: AppTheme.primaryGreen.withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    '${item.verseNumber}',
-                    style: const TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                      color: AppTheme.primaryGreen,
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text.rich(
+                    TextSpan(
+                      children: [
+                        TextSpan(
+                          text: arabicText,
+                          style: TextStyle(
+                            fontSize: _arabicFontSize,
+                            fontFamily: 'LPMQ-IsepMisbah',
+                            height: 1.8,
+                            color: Theme.of(context).colorScheme.onSurface,
+                          ),
+                        ),
+                        TextSpan(
+                          text: '  (${_toArabicNumerals(item.verseNumber)})',
+                          style: TextStyle(
+                            fontSize: _arabicFontSize * 0.8,
+                            fontFamily: 'sans-serif',
+                            height: 1.8,
+                            color: AppTheme.primaryGreen,
+                          ),
+                        ),
+                      ],
                     ),
+                    textAlign: TextAlign.right,
+                    textDirection: TextDirection.rtl,
                   ),
-                ),
-                
-                if (isReadInDBSaved)
-                  Icon(Icons.check_circle_rounded, color: AppTheme.primaryGreen.withOpacity(0.6), size: 16),
-              ],
-            ),
-            const SizedBox(height: 12),
-            
-            Text(
-              arabicText,
-              textAlign: TextAlign.right,
-              textDirection: TextDirection.rtl,
-              style: TextStyle(
-                fontSize: _arabicFontSize,
-                fontFamily: 'LPMQ-IsepMisbah',
-                height: 1.8,
-                color: Theme.of(context).colorScheme.onSurface,
+                  
+                  if (_showTranslation) ...[
+                    const SizedBox(height: 14),
+                    Text(
+                      '${item.verseNumber}. $translationText',
+                      style: TextStyle(
+                        fontSize: _translationFontSize,
+                        height: 1.5,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ),
-            
-            if (_showTranslation) ...[
-              const SizedBox(height: 14),
-              Text(
-                translationText,
-                style: TextStyle(
-                  fontSize: _translationFontSize,
-                  height: 1.5,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+            if (isReadInDBSaved)
+              Positioned(
+                top: 8,
+                left: 8,
+                child: Icon(
+                  Icons.check_circle_rounded,
+                  color: AppTheme.primaryGreen.withOpacity(0.6),
+                  size: 16,
                 ),
               ),
-            ],
           ],
         ),
       ),
