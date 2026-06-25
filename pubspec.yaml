@@ -41,6 +41,7 @@ flutter:
     - assets/images/app_icon.png
     - assets/images/app_icon_dark.png
     - assets/images/adaptive_foreground.png
+    - assets/images/google_logo.png
     - assets/audio/azan_makkah.mp3
     - assets/audio/azan_madinah.mp3
 

@@ -276,11 +276,10 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Image.network(
-              'https://www.google.com/favicon.ico',
-              width: 22,
-              height: 22,
-              errorBuilder: (_, __, ___) => const Icon(Icons.g_mobiledata, color: Colors.blue, size: 26),
+            Image.asset(
+              'assets/images/google_logo.png',
+              width: 20,
+              height: 20,
             ),
             const SizedBox(width: 12),
             Text(
