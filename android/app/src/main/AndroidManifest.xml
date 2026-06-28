@@ -2,6 +2,8 @@
     <!-- Lokasi GPS untuk Jadwal Shalat & Kiblat -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <!-- Izin Notifikasi (Android 13+) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <!-- Alarm Eksak untuk Notifikasi Azan (Android 12+) -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
     <!-- Bangunkan perangkat & re-schedule setelah reboot -->
