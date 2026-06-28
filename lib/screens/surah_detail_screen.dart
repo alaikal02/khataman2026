@@ -95,7 +95,9 @@ class SurahDetailScreen extends StatelessWidget {
                         ),
                         child: Text(
                           context.translate('surah_detail_translation_label')
-                              .replaceFirst('{translation}', surahInfo.translation),
+                              .replaceFirst('{translation}', Provider.of<SettingsProvider>(context, listen: false).language == 'en'
+                                  ? quran.getSurahNameEnglish(surahInfo.number)
+                                  : surahInfo.translation),
                           style: const TextStyle(
                             fontSize: 14,
                             color: AppTheme.accentGold,

@@ -36,13 +36,17 @@ class _SurahInfoScreenState extends State<SurahInfoScreen> {
 
   void _onSearchChanged() {
     final query = _searchController.text.toLowerCase();
+    final isEnglish = Provider.of<SettingsProvider>(context, listen: false).language == 'en';
     setState(() {
       if (query.isEmpty) {
         _filteredSurah = _allSurah;
       } else {
         _filteredSurah = _allSurah.where((surah) {
           final matchName = surah.name.toLowerCase().contains(query);
-          final matchTranslation = surah.translation.toLowerCase().contains(query);
+          final translationText = isEnglish 
+              ? quran.getSurahNameEnglish(surah.number) 
+              : surah.translation;
+          final matchTranslation = translationText.toLowerCase().contains(query);
           final matchNumber = surah.number.toString() == query;
           return matchName || matchTranslation || matchNumber;
         }).toList();
@@ -124,6 +128,10 @@ class _SurahInfoScreenState extends State<SurahInfoScreen> {
                           final versesText = context.translate('mushaf_verses_count')
                               .replaceFirst('{count}', totalVerses.toString());
                           final arabicName = quran.getSurahNameArabic(surah.number);
+                          final isEnglish = Provider.of<SettingsProvider>(context, listen: false).language == 'en';
+                          final surahTranslation = isEnglish 
+                              ? quran.getSurahNameEnglish(surah.number) 
+                              : surah.translation;
 
                           return Container(
                             margin: const EdgeInsets.only(bottom: 10),
@@ -195,7 +203,7 @@ class _SurahInfoScreenState extends State<SurahInfoScreen> {
                               subtitle: Padding(
                                 padding: const EdgeInsets.only(top: 4),
                                 child: Text(
-                                  '${surah.translation} • $place • $versesText',
+                                  '$surahTranslation • $place • $versesText',
                                   style: TextStyle(
                                     fontSize: 11,
                                     color: Theme.of(context).colorScheme.onSurfaceVariant,

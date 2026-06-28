@@ -417,7 +417,7 @@ const Map<String, Map<String, String>> localizedStrings = {
     'notif_time_minutes_ago': '{minutes} menit yang lalu',
     'notif_time_hours_ago': '{hours} jam yang lalu',
     'notif_time_days_ago': '{days} hari yang lalu',
-    
+
     // Mushaf Screen
     'mushaf_title': 'Mushaf Al-Quran',
     'mushaf_tab_surah': 'Surah',
