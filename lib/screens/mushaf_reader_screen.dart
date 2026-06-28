@@ -116,6 +116,92 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
     return numberStr;
   }
 
+  List<InlineSpan> _buildArabicTextSpansList(String text, BuildContext context, {Color? overrideColor}) {
+    final waqafRegex = RegExp(r'([\u06d6-\u06dc\u06e2])');
+    final matches = waqafRegex.allMatches(text);
+    
+    if (matches.isEmpty) {
+      return [
+        TextSpan(
+          text: text,
+          style: TextStyle(
+            fontSize: _arabicFontSize,
+            fontFamily: 'LPMQ-IsepMisbah',
+            height: 1.8,
+            color: overrideColor ?? Theme.of(context).colorScheme.onSurface,
+          ),
+        )
+      ];
+    }
+    
+    final List<InlineSpan> spans = [];
+    int lastIndex = 0;
+    
+    for (var match in matches) {
+      if (match.start > lastIndex) {
+        var segment = text.substring(lastIndex, match.start);
+        if (lastIndex > 0) {
+          segment = segment.trimLeft();
+        }
+        segment = segment.trimRight();
+        
+        if (segment.isNotEmpty) {
+          spans.add(
+            TextSpan(
+              text: segment,
+              style: TextStyle(
+                fontSize: _arabicFontSize,
+                fontFamily: 'LPMQ-IsepMisbah',
+                height: 1.8,
+                color: overrideColor ?? Theme.of(context).colorScheme.onSurface,
+              ),
+            ),
+          );
+        }
+      }
+      
+      final waqafChar = match.group(0)!;
+      // Both صلى (\u06d6) and قلى (\u06d7) are wide ligatures that need 2 spaces before and 1 space after to center them.
+      final textVal = (waqafChar == '\u06d6' || waqafChar == '\u06d7') ? '  $waqafChar ' : ' $waqafChar ';
+      
+      spans.add(
+        TextSpan(
+          text: textVal,
+          style: TextStyle(
+            fontSize: _arabicFontSize * 0.65, // 35% smaller for waqaf signs
+            fontFamily: 'LPMQ-IsepMisbah',
+            height: 1.8,
+            color: overrideColor ?? Theme.of(context).colorScheme.onSurface,
+          ),
+        ),
+      );
+      
+      lastIndex = match.end;
+    }
+    
+    if (lastIndex < text.length) {
+      var remaining = text.substring(lastIndex);
+      if (lastIndex > 0) {
+        remaining = remaining.trimLeft();
+      }
+      if (remaining.isNotEmpty) {
+        spans.add(
+          TextSpan(
+            text: remaining,
+            style: TextStyle(
+              fontSize: _arabicFontSize,
+              fontFamily: 'LPMQ-IsepMisbah',
+              height: 1.8,
+              color: overrideColor ?? Theme.of(context).colorScheme.onSurface,
+            ),
+          ),
+        );
+      }
+    }
+    
+    return spans;
+  }
+
   void _safePrecomputeOffsets() {
     if (!mounted) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -155,14 +241,7 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
       final arabicPainter = TextPainter(
         text: TextSpan(
           children: [
-            TextSpan(
-              text: arabicText,
-              style: TextStyle(
-                fontSize: _arabicFontSize,
-                fontFamily: 'LPMQ-IsepMisbah',
-                height: 1.8,
-              ),
-            ),
+            ..._buildArabicTextSpansList(arabicText, context),
             TextSpan(
               text: '  (${_toArabicNumerals(item.verseNumber)})',
               style: TextStyle(
@@ -1482,15 +1561,7 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
                   Text.rich(
                     TextSpan(
                       children: [
-                        TextSpan(
-                          text: arabicText,
-                          style: TextStyle(
-                            fontSize: _arabicFontSize,
-                            fontFamily: 'LPMQ-IsepMisbah',
-                            height: 1.8,
-                            color: Theme.of(context).colorScheme.onSurface,
-                          ),
-                        ),
+                        ..._buildArabicTextSpansList(arabicText, context),
                         TextSpan(
                           text: '  (${_toArabicNumerals(item.verseNumber)})',
                           style: TextStyle(
