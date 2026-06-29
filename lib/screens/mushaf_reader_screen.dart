@@ -13,6 +13,7 @@ import '../data/quran_id_translation.dart';
 import '../utils/localization.dart';
 import '../services/widget_update_service.dart';
 import '../features/group/presentation/group_list_screen.dart';
+import 'auth_screen.dart';
 
 class VerseItem {
   final int surahNumber;
@@ -547,6 +548,16 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
       return;
     }
 
+    final currentSession = _supabase.auth.currentSession;
+    if (currentSession != null && currentSession.isExpired) {
+      try {
+        debugPrint('DEBUG_MR: JWT proactively detected as expired on load, refreshing...');
+        await _supabase.auth.refreshSession();
+      } catch (e) {
+        debugPrint('DEBUG_MR: Proactive load refresh failed: $e');
+      }
+    }
+
     final List<Map<String, dynamic>> programs = [];
 
     // 1. Fetch Mandiri (all rows to check completions)
@@ -692,7 +703,43 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
 
   Future<void> _startMandiriForJuz(int juzNum) async {
     final userId = _supabase.auth.currentUser?.id;
-    if (userId == null) return;
+    if (userId == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              context.translate('mushaf_reader_err_not_logged_in'),
+              style: const TextStyle(color: Colors.white),
+            ),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            action: SnackBarAction(
+              label: context.translate('mushaf_reader_btn_login'),
+              textColor: Colors.white,
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const AuthScreen()),
+                );
+              },
+            ),
+          ),
+        );
+      }
+      return;
+    }
+
+    // Proactively refresh if expired
+    final currentSession = _supabase.auth.currentSession;
+    if (currentSession != null && currentSession.isExpired) {
+      try {
+        debugPrint('DEBUG_MR: JWT proactively detected as expired, refreshing...');
+        await _supabase.auth.refreshSession();
+      } catch (e) {
+        debugPrint('DEBUG_MR: Proactive refresh failed: $e');
+      }
+    }
     
     try {
       await _supabase.from('khataman_mandiri').upsert({
@@ -717,6 +764,55 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
       }
     } catch (e) {
       debugPrint('Error starting mandiri: $e');
+
+      // If it is a JWT expired or unauthorized error, try to refresh session and retry once
+      if (e is PostgrestException && (e.code == 'PGRST303' || e.message.contains('JWT expired') || e.message.contains('Unauthorized'))) {
+        try {
+          debugPrint('DEBUG_MR: JWT expired caught, attempting session refresh and retry...');
+          await _supabase.auth.refreshSession();
+          
+          final freshUserId = _supabase.auth.currentUser?.id;
+          if (freshUserId != null) {
+            await _supabase.from('khataman_mandiri').upsert({
+              'user_id': freshUserId,
+              'nomor_juz': juzNum,
+              'ayat_terakhir': 0,
+              'selesai': false,
+              'updated_at': DateTime.now().toIso8601String(),
+            }, onConflict: 'user_id,nomor_juz');
+            
+            await _loadAllActivePrograms();
+            
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Khataman Mandiri untuk Juz $juzNum berhasil dimulai!', style: const TextStyle(color: Colors.white)),
+                  backgroundColor: AppTheme.primaryGreen,
+                  behavior: SnackBarBehavior.floating,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              );
+            }
+            return;
+          }
+        } catch (refreshErr) {
+          debugPrint('DEBUG_MR: Refresh retry failed: $refreshErr');
+        }
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              context.translate('mushaf_reader_err_start_mandiri').replaceFirst('{error}', e.toString()),
+              style: const TextStyle(color: Colors.white),
+            ),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      }
     }
   }
 
