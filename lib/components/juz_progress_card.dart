@@ -76,6 +76,20 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
   late bool _localIsComplete;
   double _sliderValue = 2.0;
 
+  int get _maxAllowedIndex {
+    if (_localLastAyat == _totalAyat && !_localIsComplete && _surahsInJuz.length > 1) {
+      final lastSurahNum = _surahsInJuz.keys.last;
+      final bounds = _surahsInJuz[lastSurahNum]!;
+      return _totalAyat - (bounds[1] - bounds[0] + 1);
+    }
+    return _totalAyat;
+  }
+
+  double get _maxSliderValue {
+    if (_totalAyat <= 0) return 20.0;
+    return (_maxAllowedIndex / _totalAyat) * 20.0;
+  }
+
   final LayerLink _layerLink = LayerLink();
   OverlayEntry? _tooltipOverlayEntry;
 
@@ -148,6 +162,12 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
     int absoluteIndex = _localLastAyat;
     
     if (absoluteIndex == 0) {
+      _selectedSurah = _surahsInJuz.keys.first;
+      _ayatController.text = '';
+      _sliderValue = 1.0;
+    } else if (absoluteIndex == _totalAyat && !_localIsComplete && _surahsInJuz.length > 1) {
+      // Special case: only the last surah was completed, first surah(s) unread.
+      // Direct the form to the first surah (the one that still needs reading).
       _selectedSurah = _surahsInJuz.keys.first;
       _ayatController.text = '';
       _sliderValue = 1.0;
@@ -323,7 +343,10 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
     final isComplete = absoluteIndex == _totalAyat;
 
     // PROTEKSI ANTI-REDUCTION: Jangan izinkan progres mundur dari posisi tersimpan
-    if (absoluteIndex < _localLastAyat && _localLastAyat > 0) {
+    // Exception: when only the last surah was completed (localLastAyat == totalAyat && !complete),
+    // user is now filling in the first surah, so absoluteIndex will naturally be lower.
+    final isLastSurahOnlyCase = _localLastAyat == _totalAyat && !_localIsComplete && _surahsInJuz.length > 1;
+    if (!isLastSurahOnlyCase && absoluteIndex < _localLastAyat && _localLastAyat > 0) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -694,7 +717,15 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
 
   int _calculateProgress() {
     if (_totalAyat == 0) return 0;
-    final p = ((_localLastAyat / _totalAyat) * 100).round();
+    
+    int lastAyat = _localLastAyat;
+    if (lastAyat == _totalAyat && !_localIsComplete && _surahsInJuz.isNotEmpty) {
+      final lastSurahNum = _surahsInJuz.keys.last;
+      final bounds = _surahsInJuz[lastSurahNum]!;
+      lastAyat = bounds[1] - bounds[0] + 1;
+    }
+    
+    final p = ((lastAyat / _totalAyat) * 100).round();
     return p > 100 ? 100 : p;
   }
 
@@ -842,6 +873,74 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final isComplete = _localIsComplete;
     final progress = isComplete ? 100 : _calculateProgress();
+
+    final List<Widget> segmentWidgets = [];
+    if (_surahsInJuz.isNotEmpty && _totalAyat > 0) {
+      final List<MapEntry<int, List<int>>> surahEntries = _surahsInJuz.entries.toList();
+      for (int i = 0; i < surahEntries.length; i++) {
+        final entry = surahEntries[i];
+        final bounds = entry.value;
+        final segmentLength = bounds[1] - bounds[0] + 1;
+        final segmentWeight = segmentLength / _totalAyat;
+
+        int startAbsolute = 1;
+        for (int prev = 0; prev < i; prev++) {
+          final prevBounds = surahEntries[prev].value;
+          startAbsolute += (prevBounds[1] - prevBounds[0] + 1);
+        }
+        int endAbsolute = startAbsolute + segmentLength - 1;
+
+        double fillFraction = 0.0;
+        if (isComplete) {
+          fillFraction = 1.0;
+        } else if (_localLastAyat == _totalAyat && !_localIsComplete) {
+          if (i == surahEntries.length - 1) {
+            fillFraction = 1.0;
+          } else {
+            fillFraction = 0.0;
+          }
+        } else {
+          if (_localLastAyat < startAbsolute) {
+            fillFraction = 0.0;
+          } else if (_localLastAyat >= endAbsolute) {
+            fillFraction = 1.0;
+          } else {
+            fillFraction = (_localLastAyat - startAbsolute + 1) / segmentLength;
+          }
+        }
+
+        segmentWidgets.add(
+          Expanded(
+            flex: (segmentWeight * 1000).round().clamp(1, 1000),
+            child: Container(
+              height: 5,
+              decoration: BoxDecoration(
+                color: fillFraction >= 1.0
+                    ? (isComplete ? AppTheme.primaryGreen : AppTheme.accentTeal)
+                    : Theme.of(context).colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: fillFraction > 0.0 && fillFraction < 1.0
+                  ? FractionallySizedBox(
+                      alignment: Alignment.centerLeft,
+                      widthFactor: fillFraction,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: isComplete ? AppTheme.primaryGreen : AppTheme.accentTeal,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                    )
+                  : null,
+            ),
+          ),
+        );
+
+        if (i < surahEntries.length - 1) {
+          segmentWidgets.add(const SizedBox(width: 3));
+        }
+      }
+    }
     final savedPosition = _getSurahAndAyatFromAbsolute(_localLastAyat);
     final savedSurah = savedPosition['surah'] ?? 0;
     final savedAyat = savedPosition['ayat'] ?? 0;
@@ -1134,18 +1233,23 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
                           ),
                         ],
                         const SizedBox(height: 8),
-                        // Progress Bar
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(4),
-                          child: LinearProgressIndicator(
-                            value: progress / 100,
-                            minHeight: 5,
-                            backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              isComplete ? AppTheme.primaryGreen : AppTheme.accentTeal,
+                        // Segmented Progress Bar
+                        if (segmentWidgets.isNotEmpty)
+                          Row(
+                            children: segmentWidgets,
+                          )
+                        else
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(4),
+                            child: LinearProgressIndicator(
+                              value: progress / 100,
+                              minHeight: 5,
+                              backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                isComplete ? AppTheme.primaryGreen : AppTheme.accentTeal,
+                              ),
                             ),
                           ),
-                        ),
                       ],
                     ),
                   ),
@@ -1295,6 +1399,13 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
                     const SizedBox(height: 4),
                     SliderTheme(
                       data: SliderTheme.of(context).copyWith(
+                        trackShape: SegmentedSliderTrackShape(
+                          surahsInJuz: _surahsInJuz,
+                          totalAyat: _totalAyat,
+                          localLastAyat: _localLastAyat,
+                          isComplete: isComplete,
+                          context: context,
+                        ),
                         activeTrackColor: AppTheme.primaryGreen,
                         inactiveTrackColor: isDark ? Colors.white10 : Colors.grey.shade200,
                         thumbColor: AppTheme.primaryGreen,
@@ -1305,14 +1416,24 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
                         overlayShape: const RoundSliderOverlayShape(overlayRadius: 16),
                       ),
                       child: Slider(
-                        value: _sliderValue,
+                        value: _sliderValue.clamp(1.0, 20.0),
                         min: 1.0,
                         max: 20.0,
                         divisions: 19,
                         onChanged: (double val) {
+                          final isLastSurahOnlyCase = _localLastAyat == _totalAyat && !_localIsComplete && _surahsInJuz.length > 1;
+                          if (isLastSurahOnlyCase) {
+                            final maxAllowed = _maxSliderValue;
+                            if (val > maxAllowed) {
+                              val = maxAllowed;
+                            }
+                          }
+
                           final fraction = val / 20.0;
                           final targetIndex = (fraction * _totalAyat).round();
-                          if (targetIndex < _localLastAyat) {
+
+                          // For normal sequential cases, lock backward dragging
+                          if (!isLastSurahOnlyCase && targetIndex < _localLastAyat) {
                             return; // Lock backward dragging
                           }
                           setState(() {
@@ -1320,6 +1441,13 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
                           });
                         },
                         onChangeEnd: (double val) {
+                          final isLastSurahOnlyCase = _localLastAyat == _totalAyat && !_localIsComplete && _surahsInJuz.length > 1;
+                          if (isLastSurahOnlyCase) {
+                            final maxAllowed = _maxSliderValue;
+                            if (val > maxAllowed) {
+                              val = maxAllowed;
+                            }
+                          }
                           final fraction = val / 20.0;
                           final targetIndex = (fraction * _totalAyat).round();
                           _setFormProgressFromAbsoluteIndex(targetIndex);
@@ -1341,7 +1469,11 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
                           icon: const Icon(Icons.keyboard_arrow_down_rounded, color: AppTheme.primaryGreen),
                           items: _surahsInJuz.entries.map((entry) {
                             final bounds = entry.value;
-                            final isEnabled = entry.key >= savedSurah;
+                            final isLastSurahOnlyCase = _localLastAyat == _totalAyat && !_localIsComplete && _surahsInJuz.length > 1;
+                            final lastSurahNum = _surahsInJuz.keys.last;
+                            final isEnabled = isLastSurahOnlyCase
+                                ? entry.key != lastSurahNum
+                                : entry.key >= savedSurah;
                             return DropdownMenuItem<int>(
                               value: entry.key,
                               enabled: isEnabled,
@@ -1357,11 +1489,19 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
                           }).toList(),
                           onChanged: (val) {
                             if (val == null) return;
-                            if (val < savedSurah) return;
+                            final isLastSurahOnlyCase = _localLastAyat == _totalAyat && !_localIsComplete && _surahsInJuz.length > 1;
+                            final lastSurahNum = _surahsInJuz.keys.last;
+                            final isAllowed = isLastSurahOnlyCase
+                                ? val != lastSurahNum
+                                : val >= savedSurah;
+                            if (!isAllowed) return;
+
                             setState(() {
                               _selectedSurah = val;
                               final int targetAyat;
-                              if (val == savedSurah) {
+                              if (isLastSurahOnlyCase) {
+                                targetAyat = _surahsInJuz[val]![0];
+                              } else if (val == savedSurah) {
                                 targetAyat = savedAyat;
                               } else {
                                 targetAyat = _surahsInJuz[val]![0];
@@ -1775,3 +1915,158 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
     );
   }
 }
+
+class SegmentedSliderTrackShape extends SliderTrackShape {
+  final Map<int, List<int>> surahsInJuz;
+  final int totalAyat;
+  final int localLastAyat;
+  final bool isComplete;
+  final BuildContext context;
+
+  SegmentedSliderTrackShape({
+    required this.surahsInJuz,
+    required this.totalAyat,
+    required this.localLastAyat,
+    required this.isComplete,
+    required this.context,
+  });
+
+  @override
+  Rect getPreferredRect({
+    required RenderBox parentBox,
+    Offset offset = Offset.zero,
+    required SliderThemeData sliderTheme,
+    bool isEnabled = false,
+    bool isDiscrete = false,
+  }) {
+    final double trackHeight = sliderTheme.trackHeight ?? 4.0;
+    final double trackLeft = offset.dx;
+    final double trackTop = offset.dy + (parentBox.size.height - trackHeight) / 2;
+    final double trackWidth = parentBox.size.width;
+    return Rect.fromLTWH(trackLeft, trackTop, trackWidth, trackHeight);
+  }
+
+  @override
+  void paint(
+    PaintingContext context,
+    Offset offset, {
+    required RenderBox parentBox,
+    required SliderThemeData sliderTheme,
+    required Animation<double> enableAnimation,
+    required TextDirection textDirection,
+    required Offset thumbCenter,
+    Offset? secondaryOffset,
+    bool isDiscrete = false,
+    bool isEnabled = false,
+    double additionalActiveTrackHeight = 2,
+  }) {
+    if (sliderTheme.trackHeight == null || sliderTheme.trackHeight! <= 0) {
+      return;
+    }
+
+    final Rect trackRect = getPreferredRect(
+      parentBox: parentBox,
+      sliderTheme: sliderTheme,
+      offset: offset,
+    );
+
+    final Paint activePaint = Paint()
+      ..color = sliderTheme.activeTrackColor ?? AppTheme.primaryGreen
+      ..style = PaintingStyle.fill;
+
+    final Paint inactivePaint = Paint()
+      ..color = sliderTheme.inactiveTrackColor ?? Colors.grey.shade200
+      ..style = PaintingStyle.fill;
+
+    final double trackWidth = trackRect.width;
+    final double trackHeight = sliderTheme.trackHeight!;
+    final double trackLeft = trackRect.left;
+    final double trackTop = trackRect.top;
+
+    final surahEntries = surahsInJuz.entries.toList();
+    if (surahEntries.isEmpty || totalAyat <= 0) {
+      final Paint paint = Paint()..color = sliderTheme.inactiveTrackColor ?? Colors.grey;
+      context.canvas.drawRect(trackRect, paint);
+      return;
+    }
+
+    // Calculate thumb fraction relative to the track bounds
+    final double thumbFraction = (trackWidth > 0)
+        ? ((thumbCenter.dx - trackLeft) / trackWidth).clamp(0.0, 1.0)
+        : 0.0;
+
+    double currentLeft = trackLeft;
+
+    for (int i = 0; i < surahEntries.length; i++) {
+      final entry = surahEntries[i];
+      final bounds = entry.value;
+      final segmentLength = bounds[1] - bounds[0] + 1;
+      final segmentWeight = segmentLength / totalAyat;
+      final double segmentWidth = trackWidth * segmentWeight;
+
+      int startAbsolute = 1;
+      for (int prev = 0; prev < i; prev++) {
+        final prevBounds = surahEntries[prev].value;
+        startAbsolute += (prevBounds[1] - prevBounds[0] + 1);
+      }
+      int endAbsolute = startAbsolute + segmentLength - 1;
+
+      final double startFraction = (startAbsolute - 1) / totalAyat;
+      final double endFraction = endAbsolute / totalAyat;
+
+      // 1. Calculate already read fraction
+      double readFraction = 0.0;
+      if (isComplete) {
+        readFraction = 1.0;
+      } else if (localLastAyat == totalAyat) {
+        // Special case: Only the last Surah is completed
+        if (i == surahEntries.length - 1) {
+          readFraction = 1.0;
+        } else {
+          readFraction = 0.0;
+        }
+      } else {
+        if (localLastAyat < startAbsolute) {
+          readFraction = 0.0;
+        } else if (localLastAyat >= endAbsolute) {
+          readFraction = 1.0;
+        } else {
+          readFraction = (localLastAyat - startAbsolute + 1) / segmentLength;
+        }
+      }
+
+      // 2. Calculate currently targeted fraction based on visual thumb position
+      double targetFraction = 0.0;
+      if (thumbFraction > startFraction) {
+        if (thumbFraction >= endFraction) {
+          targetFraction = 1.0;
+        } else {
+          targetFraction = (thumbFraction - startFraction) / segmentWeight;
+        }
+      }
+
+      // 3. Combine both fractions (either read or targeted is painted active)
+      double activeFraction = readFraction > targetFraction ? readFraction : targetFraction;
+
+      // Draw inactive background
+      final RRect segmentRect = RRect.fromRectAndRadius(
+        Rect.fromLTWH(currentLeft, trackTop, segmentWidth, trackHeight),
+        const Radius.circular(4),
+      );
+      context.canvas.drawRRect(segmentRect, inactivePaint);
+
+      // Draw active fill
+      if (activeFraction > 0.0) {
+        final double activeWidth = segmentWidth * activeFraction;
+        final RRect activeRect = RRect.fromRectAndRadius(
+          Rect.fromLTWH(currentLeft, trackTop, activeWidth, trackHeight),
+          const Radius.circular(4),
+        );
+        context.canvas.drawRRect(activeRect, activePaint);
+      }
+
+      currentLeft += segmentWidth;
+    }
+  }
+}
+

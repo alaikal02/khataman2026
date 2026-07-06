@@ -54,6 +54,8 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
   List<VerseItem> _verses = [];
   int? _activeJuz;
   int? _activeSurah;
+  int _dbSavedSurahProgress = 0;
+  bool get _isSurahMode => widget.initialSurahNumber != null;
   
   // Customization Settings (loaded from SharedPreferences)
   double _arabicFontSize = 26.0;
@@ -424,6 +426,7 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
   }
 
   void _initVerses() {
+    _dbSavedSurahProgress = 0;
     if (widget.initialJuzNumber != null) {
       _activeJuz = widget.initialJuzNumber;
       final surahMap = quran.getSurahAndVersesFromJuz(_activeJuz!);
@@ -521,18 +524,50 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
             _dbSavedAbsoluteIndex = res['ayat_terakhir_input'] as int? ?? 0;
           });
         }
-      } else if (widget.selectForMandiri) {
-        // Mandiri Mode
-        final res = await _supabase
-            .from('khataman_mandiri')
-            .select('ayat_terakhir')
-            .eq('user_id', userId)
-            .eq('nomor_juz', _activeJuz!)
-            .maybeSingle();
-        if (res != null && mounted) {
-          setState(() {
-            _dbSavedAbsoluteIndex = res['ayat_terakhir'] as int? ?? 0;
-          });
+      } else {
+        // Mandiri Mode or Surah Mode
+        if (_isSurahMode) {
+          final surahNum = widget.initialSurahNumber!;
+          final startJuz = quran.getJuzNumber(surahNum, 1);
+          final endJuz = quran.getJuzNumber(surahNum, quran.getVerseCount(surahNum));
+          
+          final List<int> juzList = [];
+          for (int j = startJuz; j <= endJuz; j++) {
+            juzList.add(j);
+          }
+          
+          final data = await _supabase
+              .from('khataman_mandiri')
+              .select()
+              .eq('user_id', userId)
+              .inFilter('nomor_juz', juzList);
+              
+          final progressList = List<Map<String, dynamic>>.from(data);
+          final lastRead = _calculateSurahLastReadVerse(surahNum, progressList);
+          if (mounted) {
+            setState(() {
+              _dbSavedSurahProgress = lastRead;
+              if (lastRead > 0) {
+                final targetJuz = quran.getJuzNumber(surahNum, lastRead);
+                _dbSavedAbsoluteIndex = _calculateAbsoluteIndex(targetJuz, surahNum, lastRead);
+              } else {
+                _dbSavedAbsoluteIndex = 0;
+              }
+            });
+          }
+        } else if (widget.selectForMandiri) {
+          // Mandiri Mode
+          final res = await _supabase
+              .from('khataman_mandiri')
+              .select('ayat_terakhir')
+              .eq('user_id', userId)
+              .eq('nomor_juz', _activeJuz!)
+              .maybeSingle();
+          if (res != null && mounted) {
+            setState(() {
+              _dbSavedAbsoluteIndex = res['ayat_terakhir'] as int? ?? 0;
+            });
+          }
         }
       }
     } catch (e) {
@@ -588,6 +623,23 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
         });
       }
       debugPrint('DEBUG_MR: Mandiri programs generated. Total programs currently: ${programs.length}');
+      
+      if (_isSurahMode) {
+        final surahNum = widget.initialSurahNumber!;
+        final progressList = List<Map<String, dynamic>>.from(mandiriData);
+        final lastRead = _calculateSurahLastReadVerse(surahNum, progressList);
+        if (mounted) {
+          setState(() {
+            _dbSavedSurahProgress = lastRead;
+            if (lastRead > 0) {
+              final targetJuz = quran.getJuzNumber(surahNum, lastRead);
+              _dbSavedAbsoluteIndex = _calculateAbsoluteIndex(targetJuz, surahNum, lastRead);
+            } else {
+              _dbSavedAbsoluteIndex = 0;
+            }
+          });
+        }
+      }
     } catch (e) {
       debugPrint('DEBUG_MR: Error loading active mandiri programs: $e');
     }
@@ -938,18 +990,204 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
     return absoluteIndex;
   }
 
+  int _calculateSurahLastReadVerse(int surahNum, List<Map<String, dynamic>> juzProgressList) {
+    final totalVerses = quran.getVerseCount(surahNum);
+    int lastRead = 0;
+    
+    final progMap = {for (var p in juzProgressList) p['nomor_juz'] as int: p};
+    
+    for (int v = 1; v <= totalVerses; v++) {
+      final juz = quran.getJuzNumber(surahNum, v);
+      final prog = progMap[juz];
+      if (prog == null) {
+        break;
+      }
+      
+      final selesai = prog['selesai'] as bool? ?? false;
+      if (selesai) {
+        lastRead = v;
+        continue;
+      }
+      
+      final ayatTerakhir = prog['ayat_terakhir'] as int? ?? 0;
+      if (ayatTerakhir == 0) {
+        break;
+      }
+      
+      final absIdx = _calculateAbsoluteIndex(juz, surahNum, v);
+      if (ayatTerakhir >= absIdx) {
+        lastRead = v;
+      } else {
+        break;
+      }
+    }
+    return lastRead;
+  }
 
+
+
+  bool _doesSurahCoverEntireJuz(int surahNum, int juzNum) {
+    final surahMap = quran.getSurahAndVersesFromJuz(juzNum);
+    return surahMap.length == 1 && surahMap.containsKey(surahNum);
+  }
+
+  Future<void> _markSurahAsCompleted(int surahNum) async {
+    final userId = _supabase.auth.currentUser?.id;
+    if (userId == null) return;
+
+    final totalVerses = quran.getVerseCount(surahNum);
+    final startJuz = quran.getJuzNumber(surahNum, 1);
+    final endJuz = quran.getJuzNumber(surahNum, totalVerses);
+    final surahName = quran.getSurahName(surahNum);
+
+    final List<int> juzList = [];
+    for (int j = startJuz; j <= endJuz; j++) {
+      juzList.add(j);
+    }
+
+    try {
+      // Fetch currently completed Juz status for this user to avoid overwriting true to false
+      final existingData = await _supabase
+          .from('khataman_mandiri')
+          .select('nomor_juz, selesai')
+          .eq('user_id', userId)
+          .inFilter('nomor_juz', juzList);
+      
+      final Set<int> completedJuzs = {
+        for (var row in existingData)
+          if (row['selesai'] == true) row['nomor_juz'] as int
+      };
+
+      // 1. Update prior/intermediate Juzs progress
+      for (int j = startJuz; j < endJuz; j++) {
+        final surahMap = quran.getSurahAndVersesFromJuz(j);
+        int totalAyatInJuz = 0;
+        surahMap.forEach((s, bounds) {
+          totalAyatInJuz += (bounds[1] - bounds[0] + 1);
+        });
+
+        final wasCompletedBefore = completedJuzs.contains(j);
+        final isJuzComplete = wasCompletedBefore || _doesSurahCoverEntireJuz(surahNum, j);
+
+        await _supabase.from('khataman_mandiri').upsert({
+          'user_id': userId,
+          'nomor_juz': j,
+          'ayat_terakhir': totalAyatInJuz,
+          'selesai': isJuzComplete,
+          'updated_at': DateTime.now().toIso8601String(),
+        }, onConflict: 'user_id,nomor_juz');
+
+        if (isJuzComplete && !wasCompletedBefore) {
+          final desc = context.translate('mushaf_reader_log_juz_completed_mushaf')
+              .replaceFirst('{juz}', j.toString());
+          await PersonalHistoryService.logReading(
+            userId: userId,
+            juz: j,
+            description: desc,
+            type: 'Mandiri',
+            isJuzCompletion: true,
+          );
+        }
+      }
+
+      // 2. Update the final Juz containing the end of the Surah
+      final lastAbsIndex = _calculateAbsoluteIndex(endJuz, surahNum, totalVerses);
+      final surahMap = quran.getSurahAndVersesFromJuz(endJuz);
+      int totalAyatInFinalJuz = 0;
+      surahMap.forEach((s, bounds) {
+        totalAyatInFinalJuz += (bounds[1] - bounds[0] + 1);
+      });
+      
+      final wasFinalJuzCompletedBefore = completedJuzs.contains(endJuz);
+      final isFinalJuzComplete = wasFinalJuzCompletedBefore ||
+          (lastAbsIndex == totalAyatInFinalJuz && _doesSurahCoverEntireJuz(surahNum, endJuz));
+
+      await _supabase.from('khataman_mandiri').upsert({
+        'user_id': userId,
+        'nomor_juz': endJuz,
+        'ayat_terakhir': lastAbsIndex,
+        'selesai': isFinalJuzComplete,
+        'updated_at': DateTime.now().toIso8601String(),
+      }, onConflict: 'user_id,nomor_juz');
+
+      if (isFinalJuzComplete && !wasFinalJuzCompletedBefore) {
+        final desc = context.translate('mushaf_reader_log_juz_completed_mushaf')
+            .replaceFirst('{juz}', endJuz.toString());
+        await PersonalHistoryService.logReading(
+          userId: userId,
+          juz: endJuz,
+          description: desc,
+          type: 'Mandiri',
+          isJuzCompletion: true,
+        );
+      }
+
+      // 3. Log Surah completion in history
+      final descSurah = context.translate('mushaf_reader_log_surah_completed_mushaf')
+          .replaceFirst('{surah}', surahName);
+      await PersonalHistoryService.logReading(
+        userId: userId,
+        juz: endJuz,
+        description: descSurah,
+        type: 'Mandiri',
+        isJuzCompletion: false,
+      );
+
+      // Refresh progress state
+      await _loadAllActivePrograms();
+      await _fetchDBSavedProgress();
+
+      if (mounted) {
+        setState(() {
+          _selectedVerse = null;
+        });
+        
+        final successText = context.translate('mushaf_reader_success_completed_surah')
+            .replaceFirst('{surah}', surahName);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(successText, style: const TextStyle(color: Colors.white)),
+            backgroundColor: AppTheme.primaryGreen,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error marking surah complete: $e');
+    }
+  }
 
   Future<void> _saveProgressToDB(int absoluteIndex) async {
     final userId = _supabase.auth.currentUser?.id;
     if (userId == null) return;
-    
-    final targetJuz = _currentProgram != null 
-        ? _currentProgram!['juz'] as int 
-        : _activeJuz!;
+
+    if (_isSurahMode && _selectedVerse != null) {
+      final totalVerses = quran.getVerseCount(widget.initialSurahNumber!);
+      if (_selectedVerse!.verseNumber == totalVerses) {
+        await _markSurahAsCompleted(widget.initialSurahNumber!);
+        return;
+      }
+    }
+
+    final int targetJuz;
+    if (_isSurahMode && _selectedVerse != null) {
+      targetJuz = quran.getJuzNumber(_selectedVerse!.surahNumber, _selectedVerse!.verseNumber);
+    } else {
+      targetJuz = _currentProgram != null 
+          ? _currentProgram!['juz'] as int 
+          : _activeJuz!;
+    }
 
     int totalAyat = _totalAyatInJuz;
-    if (_currentProgram != null && _currentProgram!['juz'] != _activeJuz) {
+    if (_isSurahMode && _selectedVerse != null) {
+      final surahMap = quran.getSurahAndVersesFromJuz(targetJuz);
+      int count = 0;
+      surahMap.forEach((surahNum, bounds) {
+        count += (bounds[1] - bounds[0] + 1);
+      });
+      totalAyat = count;
+    } else if (_currentProgram != null && _currentProgram!['juz'] != _activeJuz) {
       final surahMap = quran.getSurahAndVersesFromJuz(_currentProgram!['juz']);
       int count = 0;
       surahMap.forEach((surahNum, bounds) {
@@ -961,7 +1199,19 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
     final isComplete = absoluteIndex == totalAyat;
 
     // Direct Logging check: Do not allow reverse progress (Anti-Reduction)
-    if (absoluteIndex < _dbSavedAbsoluteIndex && _dbSavedAbsoluteIndex > 0) {
+    if (_isSurahMode && _selectedVerse != null) {
+      if (_selectedVerse!.verseNumber < _dbSavedSurahProgress && _dbSavedSurahProgress > 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(context.translate('mushaf_reader_err_reverse'), style: const TextStyle(color: Colors.white)),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+        return;
+      }
+    } else if (absoluteIndex < _dbSavedAbsoluteIndex && _dbSavedAbsoluteIndex > 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(context.translate('mushaf_reader_err_reverse'), style: const TextStyle(color: Colors.white)),
@@ -1023,7 +1273,7 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
           );
         }
 
-      } else if (_currentProgram != null && _currentProgram!['type'] == 'MANDIRI') {
+      } else if (_isSurahMode || (_currentProgram != null && _currentProgram!['type'] == 'MANDIRI')) {
         // Mandiri Mode Save
         await _supabase.from('khataman_mandiri').upsert({
           'user_id': userId,
@@ -1617,9 +1867,11 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
     // Calculate absolute index inside this Juz to compare with DB progress
     final verseJuz = quran.getJuzNumber(item.surahNumber, item.verseNumber);
     final absoluteIndex = _calculateAbsoluteIndex(verseJuz, item.surahNumber, item.verseNumber);
-    final isReadInDBSaved = _currentProgram != null && 
-        _currentProgram!['juz'] == verseJuz && 
-        absoluteIndex <= _dbSavedAbsoluteIndex;
+    final isReadInDBSaved = _isSurahMode
+        ? (item.verseNumber <= _dbSavedSurahProgress)
+        : (_currentProgram != null && 
+           _currentProgram!['juz'] == verseJuz && 
+           absoluteIndex <= _dbSavedAbsoluteIndex);
 
     return GestureDetector(
       onTap: () {
@@ -2109,10 +2361,17 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
       selectedAbsoluteIndex = _calculateAbsoluteIndex(selJuz, _selectedVerse!.surahNumber, _selectedVerse!.verseNumber);
     }
 
-    final hasProgressToSave = selectedAbsoluteIndex > _dbSavedAbsoluteIndex;
-    final progressPercent = totalAyat > 0 
-        ? ((_dbSavedAbsoluteIndex / totalAyat) * 100).round() 
-        : 0;
+    final hasProgressToSave = _isSurahMode
+        ? (_selectedVerse != null && _selectedVerse!.verseNumber > _dbSavedSurahProgress)
+        : (selectedAbsoluteIndex > _dbSavedAbsoluteIndex);
+
+    final progressPercent = _isSurahMode
+        ? (quran.getVerseCount(widget.initialSurahNumber!) > 0
+            ? ((_dbSavedSurahProgress / quran.getVerseCount(widget.initialSurahNumber!)) * 100).round()
+            : 0)
+        : (totalAyat > 0 
+            ? ((_dbSavedAbsoluteIndex / totalAyat) * 100).round() 
+            : 0);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
@@ -2146,11 +2405,17 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      context.translate('mushaf_reader_juz_progress_text')
-                          .replaceFirst('{juz}', activeProgram['juz'].toString())
-                          .replaceFirst('{current}', _dbSavedAbsoluteIndex.toString())
-                          .replaceFirst('{total}', totalAyat.toString())
-                          .replaceFirst('{percent}', progressPercent.toString()),
+                      _isSurahMode
+                          ? context.translate('mushaf_reader_surah_progress_text')
+                              .replaceFirst('{surah}', quran.getSurahName(widget.initialSurahNumber!))
+                              .replaceFirst('{current}', _dbSavedSurahProgress.toString())
+                              .replaceFirst('{total}', quran.getVerseCount(widget.initialSurahNumber!).toString())
+                              .replaceFirst('{percent}', progressPercent.toString())
+                          : context.translate('mushaf_reader_juz_progress_text')
+                              .replaceFirst('{juz}', activeProgram['juz'].toString())
+                              .replaceFirst('{current}', _dbSavedAbsoluteIndex.toString())
+                              .replaceFirst('{total}', totalAyat.toString())
+                              .replaceFirst('{percent}', progressPercent.toString()),
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
@@ -2177,24 +2442,45 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  if (_dbSavedAbsoluteIndex < totalAyat)
-                    TextButton.icon(
-                      style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        minimumSize: Size.zero,
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      ),
-                      onPressed: () => _saveProgressToDB(totalAyat),
-                      icon: const Icon(Icons.check_circle_outline_rounded, size: 14, color: AppTheme.primaryGreen),
-                      label: Text(
-                        context.translate('mushaf_reader_mark_juz_done'),
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          color: AppTheme.primaryGreen,
+                  if (_isSurahMode) ...[
+                    if (_dbSavedSurahProgress < quran.getVerseCount(widget.initialSurahNumber!))
+                      TextButton.icon(
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        onPressed: () => _markSurahAsCompleted(widget.initialSurahNumber!),
+                        icon: const Icon(Icons.check_circle_outline_rounded, size: 14, color: AppTheme.primaryGreen),
+                        label: Text(
+                          context.translate('mushaf_reader_mark_surah_done'),
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: AppTheme.primaryGreen,
+                          ),
                         ),
                       ),
-                    ),
+                  ] else ...[
+                    if (_dbSavedAbsoluteIndex < totalAyat)
+                      TextButton.icon(
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        onPressed: () => _saveProgressToDB(totalAyat),
+                        icon: const Icon(Icons.check_circle_outline_rounded, size: 14, color: AppTheme.primaryGreen),
+                        label: Text(
+                          context.translate('mushaf_reader_mark_juz_done'),
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: AppTheme.primaryGreen,
+                          ),
+                        ),
+                      ),
+                  ],
                   const SizedBox(width: 8),
                   IconButton(
                     icon: const Icon(Icons.close_fullscreen_rounded, color: Colors.grey, size: 18),

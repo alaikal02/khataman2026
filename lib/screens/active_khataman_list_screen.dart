@@ -105,7 +105,13 @@ class _ActiveKhatamanListScreenState extends State<ActiveKhatamanListScreen> {
                   totalAyatInJuz += (bounds[1] - bounds[0] + 1);
                 });
                 if (totalAyatInJuz > 0) {
-                  double fraction = lastAyat / totalAyatInJuz;
+                  int effectiveLastAyat = lastAyat;
+                  if (lastAyat == totalAyatInJuz && row['selesai'] != true && surahsInJuz.isNotEmpty) {
+                    final lastSurahNum = surahsInJuz.keys.last;
+                    final bounds = surahsInJuz[lastSurahNum]!;
+                    effectiveLastAyat = bounds[1] - bounds[0] + 1;
+                  }
+                  double fraction = effectiveLastAyat / totalAyatInJuz;
                   totalProgressSum += fraction > 1.0 ? 1.0 : fraction;
                 }
               }
