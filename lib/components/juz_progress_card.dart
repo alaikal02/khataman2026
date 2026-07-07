@@ -1450,6 +1450,13 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
                           }
                           final fraction = val / 20.0;
                           final targetIndex = (fraction * _totalAyat).round();
+                          
+                          if (!isLastSurahOnlyCase && targetIndex < _localLastAyat) {
+                            setState(() {
+                              _sliderValue = ((_localLastAyat / _totalAyat) * 20.0).roundToDouble().clamp(1.0, 20.0);
+                            });
+                            return;
+                          }
                           _setFormProgressFromAbsoluteIndex(targetIndex);
                         },
                       ),
@@ -1916,7 +1923,7 @@ class _JuzProgressCardState extends State<JuzProgressCard> with SingleTickerProv
   }
 }
 
-class SegmentedSliderTrackShape extends SliderTrackShape {
+class SegmentedSliderTrackShape extends RoundedRectSliderTrackShape {
   final Map<int, List<int>> surahsInJuz;
   final int totalAyat;
   final int localLastAyat;
@@ -1930,21 +1937,6 @@ class SegmentedSliderTrackShape extends SliderTrackShape {
     required this.isComplete,
     required this.context,
   });
-
-  @override
-  Rect getPreferredRect({
-    required RenderBox parentBox,
-    Offset offset = Offset.zero,
-    required SliderThemeData sliderTheme,
-    bool isEnabled = false,
-    bool isDiscrete = false,
-  }) {
-    final double trackHeight = sliderTheme.trackHeight ?? 4.0;
-    final double trackLeft = offset.dx;
-    final double trackTop = offset.dy + (parentBox.size.height - trackHeight) / 2;
-    final double trackWidth = parentBox.size.width;
-    return Rect.fromLTWH(trackLeft, trackTop, trackWidth, trackHeight);
-  }
 
   @override
   void paint(
@@ -1990,11 +1982,6 @@ class SegmentedSliderTrackShape extends SliderTrackShape {
       return;
     }
 
-    // Calculate thumb fraction relative to the track bounds
-    final double thumbFraction = (trackWidth > 0)
-        ? ((thumbCenter.dx - trackLeft) / trackWidth).clamp(0.0, 1.0)
-        : 0.0;
-
     double currentLeft = trackLeft;
 
     for (int i = 0; i < surahEntries.length; i++) {
@@ -2010,9 +1997,6 @@ class SegmentedSliderTrackShape extends SliderTrackShape {
         startAbsolute += (prevBounds[1] - prevBounds[0] + 1);
       }
       int endAbsolute = startAbsolute + segmentLength - 1;
-
-      final double startFraction = (startAbsolute - 1) / totalAyat;
-      final double endFraction = endAbsolute / totalAyat;
 
       // 1. Calculate already read fraction
       double readFraction = 0.0;
@@ -2034,19 +2018,20 @@ class SegmentedSliderTrackShape extends SliderTrackShape {
           readFraction = (localLastAyat - startAbsolute + 1) / segmentLength;
         }
       }
+      final double readWidth = segmentWidth * readFraction;
 
-      // 2. Calculate currently targeted fraction based on visual thumb position
-      double targetFraction = 0.0;
-      if (thumbFraction > startFraction) {
-        if (thumbFraction >= endFraction) {
-          targetFraction = 1.0;
+      // 2. Calculate targeted width using exact coordinate comparison against thumbCenter.dx
+      double targetWidth = 0.0;
+      if (thumbCenter.dx > currentLeft) {
+        if (thumbCenter.dx >= currentLeft + segmentWidth) {
+          targetWidth = segmentWidth;
         } else {
-          targetFraction = (thumbFraction - startFraction) / segmentWeight;
+          targetWidth = thumbCenter.dx - currentLeft;
         }
       }
 
-      // 3. Combine both fractions (either read or targeted is painted active)
-      double activeFraction = readFraction > targetFraction ? readFraction : targetFraction;
+      // 3. Combine both widths (either read or targeted is painted active)
+      final double activeWidth = readWidth > targetWidth ? readWidth : targetWidth;
 
       // Draw inactive background
       final RRect segmentRect = RRect.fromRectAndRadius(
@@ -2056,8 +2041,7 @@ class SegmentedSliderTrackShape extends SliderTrackShape {
       context.canvas.drawRRect(segmentRect, inactivePaint);
 
       // Draw active fill
-      if (activeFraction > 0.0) {
-        final double activeWidth = segmentWidth * activeFraction;
+      if (activeWidth > 0.0) {
         final RRect activeRect = RRect.fromRectAndRadius(
           Rect.fromLTWH(currentLeft, trackTop, activeWidth, trackHeight),
           const Radius.circular(4),
