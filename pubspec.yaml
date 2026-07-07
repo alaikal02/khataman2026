@@ -1,7 +1,7 @@
 name: khataman_quran
 description: Khataman Quran Tracking App
 publish_to: 'none'
-version: 1.15.2+53
+version: 1.15.3+54
 environment:
   sdk: '>=3.0.0 <4.0.0'
 
