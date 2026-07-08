@@ -14,6 +14,7 @@ import '../utils/localization.dart';
 import '../services/widget_update_service.dart';
 import '../features/group/presentation/group_list_screen.dart';
 import 'auth_screen.dart';
+import 'settings_screen.dart';
 
 class VerseItem {
   final int surahNumber;
@@ -452,7 +453,7 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
   void _initVerses() {
     _dbSavedSurahProgress = 0;
     if (widget.initialJuzNumber != null) {
-      _activeJuz = widget.initialJuzNumber;
+      _activeJuz ??= widget.initialJuzNumber;
       final surahMap = quran.getSurahAndVersesFromJuz(_activeJuz!);
       _verses = [];
       surahMap.forEach((surahNum, bounds) {
@@ -462,7 +463,7 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
       });
       _totalAyatInJuz = _verses.length;
     } else if (widget.initialSurahNumber != null) {
-      _activeSurah = widget.initialSurahNumber;
+      _activeSurah ??= widget.initialSurahNumber;
       final totalVerses = quran.getVerseCount(_activeSurah!);
       _verses = [];
       for (int i = 1; i <= totalVerses; i++) {
@@ -481,7 +482,7 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
     // Scroll to initial verse if specified
     if (widget.initialVerseNumber != null) {
       final idx = _verses.indexWhere((v) => 
-        v.surahNumber == (widget.initialSurahNumber ?? _verses.first.surahNumber) && 
+        v.surahNumber == (_activeSurah ?? _verses.first.surahNumber) && 
         v.verseNumber == widget.initialVerseNumber
       );
       if (idx != -1) {
@@ -551,7 +552,7 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
       } else {
         // Mandiri Mode or Surah Mode
         if (_isSurahMode) {
-          final surahNum = widget.initialSurahNumber!;
+          final surahNum = _activeSurah!;
           final startJuz = quran.getJuzNumber(surahNum, 1);
           final endJuz = quran.getJuzNumber(surahNum, quran.getVerseCount(surahNum));
           
@@ -649,7 +650,7 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
       debugPrint('DEBUG_MR: Mandiri programs generated. Total programs currently: ${programs.length}');
       
       if (_isSurahMode) {
-        final surahNum = widget.initialSurahNumber!;
+        final surahNum = _activeSurah!;
         final progressList = List<Map<String, dynamic>>.from(mandiriData);
         final lastRead = _calculateSurahLastReadVerse(surahNum, progressList);
         if (mounted) {
@@ -1187,9 +1188,9 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
     if (userId == null) return;
 
     if (_isSurahMode && _selectedVerse != null) {
-      final totalVerses = quran.getVerseCount(widget.initialSurahNumber!);
+      final totalVerses = quran.getVerseCount(_activeSurah!);
       if (_selectedVerse!.verseNumber == totalVerses) {
-        await _markSurahAsCompleted(widget.initialSurahNumber!);
+        await _markSurahAsCompleted(_activeSurah!);
         return;
       }
     }
@@ -1759,37 +1760,401 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
         middle: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
-              pageTitle,
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 20.0,
-                color: Theme.of(context).colorScheme.onSurface,
-              ),
-            ),
-            const SizedBox(width: 6),
             GestureDetector(
               onTap: () {
-                setState(() {
-                  _showSurahInfoTooltip = !_showSurahInfoTooltip;
-                });
+                if (_isSurahMode) {
+                  _showSurahSelectionDialog(context);
+                } else {
+                  _showJuzSelectionDialog(context);
+                }
               },
-              child: Icon(
-                Icons.info_outline_rounded,
-                size: 18,
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              child: MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      pageTitle,
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 20.0,
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
+                    ),
+                    const SizedBox(width: 2),
+                    Icon(
+                      Icons.arrow_drop_down_rounded,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      size: 28,
+                    ),
+                  ],
+                ),
               ),
             ),
+            if (_isSurahMode) ...[
+              const SizedBox(width: 4),
+              GestureDetector(
+                onTap: () {
+                  setState(() {
+                    _showSurahInfoTooltip = !_showSurahInfoTooltip;
+                  });
+                },
+                child: Icon(
+                  Icons.info_outline_rounded,
+                  size: 18,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
           ],
         ),
-        trailing: IconButton(
-          icon: const Icon(Icons.text_fields_rounded),
-          tooltip: context.translate('mushaf_reader_settings_title'),
-          onPressed: _showSettingsBottomSheet,
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              icon: const Icon(Icons.text_fields_rounded),
+              tooltip: context.translate('mushaf_reader_settings_title'),
+              onPressed: _showSettingsBottomSheet,
+            ),
+            IconButton(
+              icon: const Icon(Icons.settings_rounded),
+              tooltip: context.translate('home_tooltip_settings'),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                );
+              },
+            ),
+          ],
         ),
         centerMiddle: true,
       ),
     );
+  }
+
+  void _showSurahSelectionDialog(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        String searchQuery = '';
+        return StatefulBuilder(
+          builder: (context, setStateSheet) {
+            final List<int> allSurahs = List.generate(114, (i) => i + 1);
+            final filteredSurahs = allSurahs.where((surahNum) {
+              final name = quran.getSurahName(surahNum).toLowerCase();
+              final transliteration = quran.getSurahNameEnglish(surahNum).toLowerCase();
+              final query = searchQuery.toLowerCase();
+              return name.contains(query) || transliteration.contains(query) || surahNum.toString().contains(query);
+            }).toList();
+
+            return DraggableScrollableSheet(
+              initialChildSize: 0.75,
+              minChildSize: 0.5,
+              maxChildSize: 0.95,
+              expand: false,
+              builder: (_, scrollController) {
+                return Column(
+                  children: [
+                    const SizedBox(height: 12),
+                    Container(
+                      width: 40,
+                      height: 5,
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.4),
+                        borderRadius: BorderRadius.circular(2.5),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      context.translate('dialog_choose_surah'),
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                      child: TextField(
+                        onChanged: (val) {
+                          setStateSheet(() {
+                            searchQuery = val;
+                          });
+                        },
+                        decoration: InputDecoration(
+                          hintText: context.translate('mushaf_search_hint'),
+                          prefixIcon: const Icon(Icons.search_rounded),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(
+                              color: AppTheme.primaryGreen.withOpacity(0.3),
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: const BorderSide(
+                              color: AppTheme.primaryGreen,
+                              width: 1.5,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Expanded(
+                      child: filteredSurahs.isEmpty
+                          ? Center(
+                              child: Text(
+                                context.translate('mushaf_empty_search'),
+                                style: TextStyle(
+                                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            )
+                          : ListView.builder(
+                              controller: scrollController,
+                              itemCount: filteredSurahs.length,
+                              itemBuilder: (context, index) {
+                                final surahNum = filteredSurahs[index];
+                                final name = quran.getSurahName(surahNum);
+                                final totalVerses = quran.getVerseCount(surahNum);
+                                final isCurrent = surahNum == _activeSurah;
+
+                                return Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      color: isCurrent
+                                          ? AppTheme.primaryGreen
+                                          : Colors.transparent,
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: ListTile(
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      leading: Container(
+                                        width: 36,
+                                        height: 36,
+                                        alignment: Alignment.center,
+                                        decoration: BoxDecoration(
+                                          color: isCurrent
+                                              ? Colors.white
+                                              : AppTheme.primaryGreen.withOpacity(0.08),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: Text(
+                                          surahNum.toString(),
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.bold,
+                                            color: isCurrent ? AppTheme.primaryGreen : AppTheme.primaryGreen,
+                                          ),
+                                        ),
+                                      ),
+                                      title: Text(
+                                        name,
+                                        style: TextStyle(
+                                          fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
+                                          color: isCurrent
+                                              ? Colors.white
+                                              : Theme.of(context).colorScheme.onSurface,
+                                        ),
+                                      ),
+                                      subtitle: Text(
+                                        '$totalVerses Ayat',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: isCurrent
+                                              ? Colors.white70
+                                              : Theme.of(context).colorScheme.onSurfaceVariant,
+                                        ),
+                                      ),
+                                      onTap: () {
+                                        Navigator.pop(ctx);
+                                        _switchToSurah(surahNum);
+                                      },
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                    ),
+                  ],
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showJuzSelectionDialog(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.6,
+          minChildSize: 0.4,
+          maxChildSize: 0.8,
+          expand: false,
+          builder: (_, scrollController) {
+            return Column(
+              children: [
+                const SizedBox(height: 12),
+                Container(
+                  width: 40,
+                  height: 5,
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.4),
+                    borderRadius: BorderRadius.circular(2.5),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  context.translate('dialog_choose_juz'),
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Expanded(
+                  child: ListView.builder(
+                    controller: scrollController,
+                    itemCount: 30,
+                    itemBuilder: (context, index) {
+                      final juzNum = index + 1;
+                      final isCurrent = juzNum == _activeJuz;
+
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: isCurrent
+                                ? AppTheme.primaryGreen
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: ListTile(
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            leading: Container(
+                              width: 36,
+                              height: 36,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: isCurrent
+                                    ? Colors.white
+                                    : AppTheme.primaryGreen.withOpacity(0.08),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Text(
+                                juzNum.toString(),
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: isCurrent ? AppTheme.primaryGreen : AppTheme.primaryGreen,
+                                ),
+                              ),
+                            ),
+                            title: Text(
+                              'Juz $juzNum',
+                              style: TextStyle(
+                                fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
+                                color: isCurrent
+                                    ? Colors.white
+                                    : Theme.of(context).colorScheme.onSurface,
+                              ),
+                            ),
+                            onTap: () {
+                              Navigator.pop(ctx);
+                              _switchToJuz(juzNum);
+                            },
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _switchToSurah(int surahNum) {
+    if (!mounted) return;
+    setState(() {
+      _isLoading = true;
+      _activeSurah = surahNum;
+      _selectedVerse = null;
+      _lastReadVerseIndex = 0;
+      _verses = [];
+      _itemOffsets = [];
+    });
+    
+    _initVerses();
+    _fetchDBSavedProgress();
+    _loadAllActivePrograms();
+    if (_scrollController.hasClients) {
+      _scrollController.jumpTo(0.0);
+    }
+  }
+
+  void _switchToJuz(int juzNum) {
+    if (!mounted) return;
+    setState(() {
+      _isLoading = true;
+      _activeJuz = juzNum;
+      _selectedVerse = null;
+      _lastReadVerseIndex = 0;
+      _verses = [];
+      _itemOffsets = [];
+      
+      if (_currentProgram != null) {
+        if (_currentProgram!['type'] == 'GROUP') {
+          _currentProgram = {
+            ..._currentProgram!,
+            'juz': juzNum,
+            'id': 'group_${widget.slotId}',
+            'name': '${widget.groupName ?? 'Grup'} (Juz $juzNum)',
+          };
+        } else {
+          _currentProgram = {
+            ..._currentProgram!,
+            'juz': juzNum,
+            'id': 'mandiri_$juzNum',
+            'name': 'Khataman Mandiri (Juz $juzNum)',
+          };
+        }
+      }
+    });
+
+    _initVerses();
+    _fetchDBSavedProgress();
+    _loadAllActivePrograms();
+    if (_scrollController.hasClients) {
+      _scrollController.jumpTo(0.0);
+    }
   }
 
 
@@ -2391,8 +2756,8 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
         : (selectedAbsoluteIndex > _dbSavedAbsoluteIndex);
 
     final progressPercent = _isSurahMode
-        ? (quran.getVerseCount(widget.initialSurahNumber!) > 0
-            ? ((_dbSavedSurahProgress / quran.getVerseCount(widget.initialSurahNumber!)) * 100).round()
+        ? (quran.getVerseCount(_activeSurah!) > 0
+            ? ((_dbSavedSurahProgress / quran.getVerseCount(_activeSurah!)) * 100).round()
             : 0)
         : (totalAyat > 0 
             ? ((_dbSavedAbsoluteIndex / totalAyat) * 100).round() 
@@ -2432,9 +2797,9 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
                     Text(
                       _isSurahMode
                           ? context.translate('mushaf_reader_surah_progress_text')
-                              .replaceFirst('{surah}', quran.getSurahName(widget.initialSurahNumber!))
+                              .replaceFirst('{surah}', quran.getSurahName(_activeSurah!))
                               .replaceFirst('{current}', _dbSavedSurahProgress.toString())
-                              .replaceFirst('{total}', quran.getVerseCount(widget.initialSurahNumber!).toString())
+                              .replaceFirst('{total}', quran.getVerseCount(_activeSurah!).toString())
                               .replaceFirst('{percent}', progressPercent.toString())
                           : context.translate('mushaf_reader_juz_progress_text')
                               .replaceFirst('{juz}', activeProgram['juz'].toString())
@@ -2468,14 +2833,14 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   if (_isSurahMode) ...[
-                    if (_dbSavedSurahProgress < quran.getVerseCount(widget.initialSurahNumber!))
+                    if (_dbSavedSurahProgress < quran.getVerseCount(_activeSurah!))
                       TextButton.icon(
                         style: TextButton.styleFrom(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                           minimumSize: Size.zero,
                           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         ),
-                        onPressed: () => _markSurahAsCompleted(widget.initialSurahNumber!),
+                        onPressed: () => _markSurahAsCompleted(_activeSurah!),
                         icon: const Icon(Icons.check_circle_outline_rounded, size: 14, color: AppTheme.primaryGreen),
                         label: Text(
                           context.translate('mushaf_reader_mark_surah_done'),

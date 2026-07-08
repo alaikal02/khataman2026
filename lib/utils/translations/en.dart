@@ -40,6 +40,8 @@ const Map<String, String> translationsEn = {
   'dialog_choose_quran_script': 'Select Mushaf Design / Script',
   'quran_script_uthmani': 'Madinah Mushaf (Uthmani)',
   'quran_script_indonesian': 'Indonesian Standard Mushaf (Full Sukun)',
+  'dialog_choose_surah': 'Select Surah',
+  'dialog_choose_juz': 'Select Juz',
   'update_available_title': 'Update Available!',
   'update_btn_now': 'Update Now',
   'update_btn_later': 'Later',
