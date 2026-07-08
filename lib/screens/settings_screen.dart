@@ -206,6 +206,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
               trailing: Icon(Icons.chevron_right_rounded, color: Theme.of(context).colorScheme.onSurfaceVariant),
               onTap: () => _showLanguagePicker(context, settings),
             ),
+            _divider(context),
+            // Desain Mushaf
+            _buildTileLeading(context, 
+              icon: Icons.menu_book_rounded,
+              iconColor: const Color(0xFFE91E63),
+              title: context.translate('tile_quran_script'),
+              subtitle: settings.quranScript == 'uthmani'
+                  ? context.translate('quran_script_uthmani')
+                  : context.translate('quran_script_indonesian'),
+              trailing: Icon(Icons.chevron_right_rounded, color: Theme.of(context).colorScheme.onSurfaceVariant),
+              onTap: () => _showQuranScriptPicker(context, settings),
+            ),
           ]),
 
           // ── NOTIFIKASI ───────────────────────────────────────
@@ -571,6 +583,74 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ],
     );
   }
+  void _showQuranScriptPicker(BuildContext context, SettingsProvider settings) {
+    String selected = settings.quranScript;
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setStateDialog) {
+          return AlertDialog(
+            backgroundColor: Theme.of(context).colorScheme.surface,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: Row(
+              children: [
+                const Icon(Icons.menu_book_rounded, color: Color(0xFFE91E63)),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    context.translate('dialog_choose_quran_script'),
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                RadioListTile<String>(
+                  title: Text(context.translate('quran_script_uthmani'), style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurface)),
+                  value: 'uthmani',
+                  groupValue: selected,
+                  activeColor: AppTheme.primaryGreen,
+                  onChanged: (val) {
+                    if (val != null) setStateDialog(() => selected = val);
+                  },
+                ),
+                RadioListTile<String>(
+                  title: Text(context.translate('quran_script_indonesian'), style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurface)),
+                  value: 'indonesian',
+                  groupValue: selected,
+                  activeColor: AppTheme.primaryGreen,
+                  onChanged: (val) {
+                    if (val != null) setStateDialog(() => selected = val);
+                  },
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: Text(context.translate('btn_cancel'), style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  await settings.setQuranScript(selected);
+                  Navigator.pop(ctx);
+                },
+                style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primaryGreen),
+                child: Text(context.translate('btn_save'), style: const TextStyle(color: Colors.white)),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
   void _showLanguagePicker(BuildContext context, SettingsProvider settings) {
     String selected = settings.language;
     showDialog(

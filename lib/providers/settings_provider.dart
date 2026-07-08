@@ -13,6 +13,7 @@ class SettingsProvider extends ChangeNotifier {
   static const _keyGroupNotif = 'group_notif';
   static const _keyDailyTarget = 'daily_target';
   static const _keyLanguage = 'app_language';
+  static const _keyQuranScript = 'quran_script_style';
 
   ThemeMode _themeMode = ThemeMode.system;
   double _fontSize = 1.0; // 0.85 = kecil, 1.0 = normal, 1.2 = besar
@@ -22,6 +23,7 @@ class SettingsProvider extends ChangeNotifier {
   bool _groupNotifEnabled = true;
   double _dailyTargetJuz = 1.0;
   String _language = 'id';
+  String _quranScript = 'uthmani';
 
   ThemeMode get themeMode => _themeMode;
   double get fontSize => _fontSize;
@@ -31,6 +33,7 @@ class SettingsProvider extends ChangeNotifier {
   bool get groupNotifEnabled => _groupNotifEnabled;
   double get dailyTargetJuz => _dailyTargetJuz;
   String get language => _language;
+  String get quranScript => _quranScript;
 
   String get dailyTargetJuzLabel {
     final isEn = _language == 'en';
@@ -111,6 +114,7 @@ class SettingsProvider extends ChangeNotifier {
       _dailyTargetJuz = 1.0;
     }
     _language = prefs.getString(_keyLanguage) ?? 'id';
+    _quranScript = prefs.getString(_keyQuranScript) ?? 'uthmani';
     notifyListeners();
   }
 
@@ -119,6 +123,13 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_keyLanguage, lang);
+  }
+
+  Future<void> setQuranScript(String script) async {
+    _quranScript = script;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyQuranScript, script);
   }
 
   Future<void> setThemeMode(ThemeMode mode) async {

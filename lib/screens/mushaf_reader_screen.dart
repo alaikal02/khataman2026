@@ -89,7 +89,30 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
   double? _bubbleLeft;
   double? _bubbleTop;
 
-  String _cleanArabicText(String text) {
+  String _cleanArabicText(String text, String scriptStyle) {
+    if (scriptStyle == 'indonesian') {
+      // Insert normal sukun on bare Nun (nun mati/nun sukun) for Indonesian readability
+      final diacritics = [
+        '\u064b', '\u064c', '\u064d', '\u064e', '\u064f', '\u0650', '\u0651', '\u0652', '\u0670', '\u06e1', '\u06e2'
+      ];
+      final StringBuffer sb = StringBuffer();
+      for (int i = 0; i < text.length; i++) {
+        final char = text[i];
+        sb.write(char);
+        if (char == '\u0646') { // Nun
+          if (i + 1 < text.length) {
+            final nextChar = text[i + 1];
+            if (!diacritics.contains(nextChar)) {
+              sb.write('\u0652'); // Insert normal sukun
+            }
+          } else {
+            sb.write('\u0652');
+          }
+        }
+      }
+      text = sb.toString();
+    }
+
     // 1. Replace Uthmani sukun (small high jazm) with normal sukun
     text = text.replaceAll('\u06e1', '\u0652');
     
@@ -227,6 +250,7 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
     
     final showTranslation = _showTranslation;
     final isEnglish = Provider.of<SettingsProvider>(context, listen: false).language == 'en';
+    final quranScript = Provider.of<SettingsProvider>(context, listen: false).quranScript;
     
     for (int i = 0; i < _verses.length; i++) {
       _itemOffsets.add(currentOffset);
@@ -239,7 +263,7 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
       double verseHeight = 32.0; // Card padding: 16 top + 16 bottom
       
       final rawArabicText = quran.getVerse(item.surahNumber, item.verseNumber);
-      final arabicText = _cleanArabicText(rawArabicText);
+      final arabicText = _cleanArabicText(rawArabicText, quranScript);
       
       final arabicPainter = TextPainter(
         text: TextSpan(
@@ -1836,10 +1860,11 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
   }
 
   Widget _buildBismillah(bool isDark) {
+    final quranScript = Provider.of<SettingsProvider>(context, listen: false).quranScript;
     return Padding(
       padding: const EdgeInsets.only(top: 12, bottom: 8),
       child: Text(
-        _cleanArabicText(quran.getVerse(1, 1)),
+        _cleanArabicText(quran.getVerse(1, 1), quranScript),
         textAlign: TextAlign.center,
         style: const TextStyle(
           fontSize: 22,
@@ -1855,7 +1880,7 @@ class _MushafReaderScreenState extends State<MushafReaderScreen> {
     final settings = Provider.of<SettingsProvider>(context);
     final isEnglish = settings.language == 'en';
     final rawArabicText = quran.getVerse(item.surahNumber, item.verseNumber);
-    final arabicText = _cleanArabicText(rawArabicText);
+    final arabicText = _cleanArabicText(rawArabicText, settings.quranScript);
     final translationText = isEnglish
         ? quran.getVerseTranslation(
             item.surahNumber,
