@@ -26,6 +26,8 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'mushaf_list_screen.dart';
 import '../components/progress_update_sheet.dart';
 import '../services/widget_update_service.dart';
+import '../services/update_service.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -61,6 +63,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
     _subscribeToNotifications();
     _initDeepLinkListener();
     WidgetUpdateService.updatePrayerWidget();
+    _checkAppUpdates();
   }
 
   Future<void> _initLocalNotifications() async {
@@ -1703,6 +1706,162 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
         _showSnackbarHome(context.translate('home_join_failed').replaceAll('{error}', e.toString()), isError: true);
       }
     }
+  }
+
+  Future<void> _checkAppUpdates() async {
+    // Wait a brief delay after home screen loads to not disrupt startup animations
+    await Future.delayed(const Duration(seconds: 2));
+    if (!mounted) return;
+    
+    final updateInfo = await UpdateService.checkUpdate();
+    if (updateInfo != null && mounted) {
+      _showUpdateDialog(updateInfo);
+    }
+  }
+
+  void _showUpdateDialog(Map<String, dynamic> updateInfo) {
+    final isForce = updateInfo['is_force_update'] as bool? ?? false;
+    final downloadUrl = updateInfo['download_url'] as String;
+    final versionName = updateInfo['version_name'] as String;
+    final changelog = updateInfo['changelog'] as String? ?? '';
+
+    showDialog(
+      context: context,
+      barrierDismissible: !isForce,
+      builder: (ctx) {
+        final dialog = AlertDialog(
+          backgroundColor: Theme.of(ctx).colorScheme.surface,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          title: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppTheme.primaryGreen.withOpacity(0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.system_update_rounded,
+                  color: AppTheme.primaryGreen,
+                  size: 40,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                context.translate('update_available_title'),
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 20,
+                  color: Theme.of(ctx).colorScheme.onSurface,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'v$versionName',
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.primaryGreen,
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (isForce) ...[
+                Text(
+                  context.translate('update_force_message'),
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Theme.of(ctx).colorScheme.error,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
+              if (changelog.isNotEmpty) ...[
+                Text(
+                  context.translate('changelog_title'),
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                    color: Theme.of(ctx).colorScheme.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  maxHeight: 150,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Theme.of(ctx).colorScheme.surfaceContainerHighest.withOpacity(0.5),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: SingleChildScrollView(
+                    child: Text(
+                      changelog,
+                      style: TextStyle(
+                        fontSize: 12,
+                        height: 1.5,
+                        color: Theme.of(ctx).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+          actionsAlignment: MainAxisAlignment.spaceEvenly,
+          actionsPadding: const EdgeInsets.only(bottom: 16, left: 16, right: 16),
+          actions: [
+            if (!isForce)
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: Text(
+                  context.translate('update_btn_later'),
+                  style: TextStyle(
+                    color: Theme.of(ctx).colorScheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ElevatedButton(
+              onPressed: () async {
+                final uri = Uri.tryParse(downloadUrl);
+                if (uri != null) {
+                  if (await canLaunchUrl(uri)) {
+                    await launchUrl(uri, mode: LaunchMode.externalApplication);
+                  }
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.primaryGreen,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                elevation: 0,
+              ),
+              child: Text(
+                context.translate('update_btn_now'),
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        );
+
+        if (isForce) {
+          return PopScope(
+            canPop: false,
+            child: dialog,
+          );
+        }
+        return dialog;
+      },
+    );
   }
 }
 

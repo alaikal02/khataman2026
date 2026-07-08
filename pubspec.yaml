@@ -18,6 +18,7 @@ dependencies:
   quran: ^1.2.4
   share_plus: ^13.1.0
   app_links: ^7.1.1
+  url_launcher: ^6.3.0
   adhan_dart: ^2.0.1
   geolocator: ^14.0.2
   geocoding: ^3.0.0
