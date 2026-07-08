@@ -1795,7 +1795,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
                 ),
                 const SizedBox(height: 8),
                 Container(
-                  maxHeight: 150,
+                  constraints: const BoxConstraints(maxHeight: 150),
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     color: Theme.of(ctx).colorScheme.surfaceContainerHighest.withOpacity(0.5),
@@ -1833,8 +1833,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin, 
               onPressed: () async {
                 final uri = Uri.tryParse(downloadUrl);
                 if (uri != null) {
-                  if (await canLaunchUrl(uri)) {
+                  try {
                     await launchUrl(uri, mode: LaunchMode.externalApplication);
+                  } catch (e) {
+                    debugPrint('Error launching update URL: $e');
                   }
                 }
               },
